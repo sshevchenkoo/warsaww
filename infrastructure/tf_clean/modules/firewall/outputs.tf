@@ -7,3 +7,8 @@ output "db_firewall_id" {
   description = "ID файрвола для PostgreSQL"
   value       = hcloud_firewall.db.id
 }
+
+output "elk_firewall_id" {
+  description = "ID файрвола для ELK"
+  value       = hcloud_firewall.elk.id
+}

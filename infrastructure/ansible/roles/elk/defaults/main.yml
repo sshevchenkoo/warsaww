@@ -1,0 +1,11 @@
+---
+elk_dir: /opt/elk
+elk_version: "7.17.21"
+elk_private_ip: "10.0.1.30"
+
+# Kibana basic auth (nginx reverse proxy)
+kibana_user: "kibana"
+kibana_password: "changeme"
+
+# Log retention
+elk_retention_days: 30

@@ -98,6 +98,26 @@ module "k3s_worker_2" {
   }
 }
 
+# ─── ELK (Elasticsearch + Logstash + Kibana) ──────────────────────────────────
+module "elk" {
+  source = "./modules/vm"
+
+  name         = "${var.project_name}-elk"
+  server_type  = var.elk_server_type
+  location     = var.location
+  image        = var.os_image
+  ssh_key_ids  = [hcloud_ssh_key.main.id]
+  network_id   = module.network.network_id
+  subnet_id    = module.network.subnet_id
+  private_ip   = var.elk_private_ip
+  firewall_ids = [module.firewall.elk_firewall_id]
+
+  labels = {
+    project = var.project_name
+    role    = "elk"
+  }
+}
+
 # ─── PostgreSQL ───────────────────────────────────────────────────────────────
 module "postgres" {
   source = "./modules/vm"

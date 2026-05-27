@@ -1,14 +1,34 @@
-.PHONY: help keys check-keys check-tfvars infra-up infra-down infra-plan configure ping deploy all fclean
+.PHONY: help check-env keys check-keys \
+        infra-up infra-down infra-plan \
+        configure ping \
+        build push build-push \
+        get-kubeconfig create-secrets deploy full-deploy \
+        db-backup db-restore db-backup-list \
+        all fclean
 
-# ─── Пути ─────────────────────────────────────────────────────────────────────
+# ─── Load .env ────────────────────────────────────────────────────────────────
+-include .env
+export
+
+# ─── Paths ────────────────────────────────────────────────────────────────────
 ROOT_DIR    := $(shell pwd)
 SSH_DIR     := $(ROOT_DIR)/.ssh
 SSH_KEY     := $(SSH_DIR)/id_ed25519
 SSH_KEY_PUB := $(SSH_DIR)/id_ed25519.pub
 TF_DIR      := $(ROOT_DIR)/infrastructure/tf_clean
 ANSIBLE_DIR := $(ROOT_DIR)/infrastructure/ansible
+K8S_DIR     := $(ROOT_DIR)/k8s
+KUBECONFIG  := $(ROOT_DIR)/.kube/config
 
-# ─── Цвета ────────────────────────────────────────────────────────────────────
+# ─── Terraform env vars (read automatically from .env via export) ──────────────
+export TF_VAR_hcloud_token=$(HCLOUD_TOKEN)
+export TF_VAR_your_ssh_ip=$(YOUR_SSH_IP)
+
+# ─── Image ────────────────────────────────────────────────────────────────────
+IMAGE     := ghcr.io/$(GITHUB_USER)/transcendence
+IMAGE_TAG ?= latest
+
+# ─── Colors ───────────────────────────────────────────────────────────────────
 GREEN  := \033[0;32m
 YELLOW := \033[0;33m
 RED    := \033[0;31m
@@ -17,108 +37,221 @@ NC     := \033[0m
 # ─── Help ─────────────────────────────────────────────────────────────────────
 help:
 	@echo ""
-	@echo "  $(GREEN)Transcendence — управление инфраструктурой$(NC)"
+	@echo "  $(GREEN)Transcendence — infrastructure management$(NC)"
 	@echo ""
-	@echo "  $(YELLOW)make keys$(NC)         — сгенерировать SSH ключи в .ssh/ (один раз)"
-	@echo "  $(YELLOW)make infra-up$(NC)     — создать VM на Hetzner (terraform apply)"
-	@echo "  $(YELLOW)make infra-plan$(NC)   — показать план без применения"
-	@echo "  $(YELLOW)make infra-down$(NC)   — удалить VM на Hetzner (terraform destroy)"
-	@echo "  $(YELLOW)make configure$(NC)    — настроить серверы (ansible)"
-	@echo "  $(YELLOW)make ping$(NC)         — проверить что ansible видит хосты"
-	@echo "  $(YELLOW)make deploy$(NC)       — задеплоить k8s манифесты"
-	@echo "  $(YELLOW)make all$(NC)          — полный пайплайн: keys → infra-up → configure"
-	@echo "  $(YELLOW)make fclean$(NC)       — снести всё (destroy + удалить .ssh/)"
+	@echo "  $(YELLOW)First time setup:$(NC)"
+	@echo "    cp .env.example .env  — fill in your values (once)"
+	@echo ""
+	@echo "  $(YELLOW)Infrastructure:$(NC)"
+	@echo "    make keys            — generate SSH keys in .ssh/"
+	@echo "    make infra-up        — create VMs on Hetzner"
+	@echo "    make infra-plan      — show plan without applying"
+	@echo "    make infra-down      — destroy VMs on Hetzner"
+	@echo "    make configure       — provision servers with Ansible"
+	@echo "    make ping            — check Ansible can reach all hosts"
+	@echo ""
+	@echo "  $(YELLOW)Docker image:$(NC)"
+	@echo "    make build           — build production image"
+	@echo "    make push            — push image to ghcr.io"
+	@echo "    make build-push      — build + push"
+	@echo ""
+	@echo "  $(YELLOW)Kubernetes:$(NC)"
+	@echo "    make get-kubeconfig  — download kubeconfig from master"
+	@echo "    make create-secrets  — create k8s Secret from .env"
+	@echo "    make deploy          — apply k8s manifests"
+	@echo ""
+	@echo "  $(YELLOW)Monitoring (deployed by 'make configure'):$(NC)"
+	@echo "    Prometheus + Grafana  — https://grafana.DOMAIN (grafana_password from .env)"
+	@echo "    Tempo                 — traces backend (ClusterIP, via Grafana)"
+	@echo "    OTel Collector        — OTLP :4317/:4318 (ClusterIP inside k8s)"
+	@echo "    Fluent Bit            — ships k8s logs → ELK VM :5000"
+	@echo "    Kibana                — http://ELK_IP:5601 (firewall: your IP only)"
+	@echo ""
+	@echo "  $(YELLOW)Database backup & restore:$(NC)"
+	@echo "    make db-backup       — run on-demand backup on postgres VM"
+	@echo "    make db-backup-list  — list available backups"
+	@echo "    make db-restore BACKUP=<path> — restore from backup file"
+	@echo ""
+	@echo "  $(YELLOW)Full pipelines:$(NC)"
+	@echo "    make all             — keys → infra-up → configure"
+	@echo "    make full-deploy     — build-push → create-secrets → deploy"
+	@echo "    make fclean          — destroy everything + remove .ssh/"
 	@echo ""
 
-# ─── SSH ключи ────────────────────────────────────────────────────────────────
+# ─── Env check ────────────────────────────────────────────────────────────────
+check-env:
+	@if [ ! -f "$(ROOT_DIR)/.env" ]; then \
+		echo "$(RED).env not found!$(NC)"; \
+		echo "  cp .env.example .env"; \
+		exit 1; \
+	fi
+	@[ -n "$(HCLOUD_TOKEN)" ]      || (echo "$(RED)HCLOUD_TOKEN not set in .env$(NC)"      && exit 1)
+	@[ -n "$(YOUR_SSH_IP)" ]       || (echo "$(RED)YOUR_SSH_IP not set in .env$(NC)"       && exit 1)
+	@[ -n "$(GITHUB_USER)" ]       || (echo "$(RED)GITHUB_USER not set in .env$(NC)"       && exit 1)
+	@[ -n "$(GITHUB_TOKEN)" ]      || (echo "$(RED)GITHUB_TOKEN not set in .env$(NC)"      && exit 1)
+	@[ -n "$(DOMAIN)" ]            || (echo "$(RED)DOMAIN not set in .env$(NC)"            && exit 1)
+	@[ -n "$(LETSENCRYPT_EMAIL)" ] || (echo "$(RED)LETSENCRYPT_EMAIL not set in .env$(NC)" && exit 1)
+	@[ -n "$(POSTGRES_PASSWORD)" ] || (echo "$(RED)POSTGRES_PASSWORD not set in .env$(NC)" && exit 1)
+	@[ -n "$(DJANGO_SECRET_KEY)" ] || (echo "$(RED)DJANGO_SECRET_KEY not set in .env$(NC)" && exit 1)
+	@[ -n "$(GRAFANA_PASSWORD)" ]  || (echo "$(RED)GRAFANA_PASSWORD not set in .env$(NC)"  && exit 1)
+	@[ -n "$(KIBANA_PASSWORD)" ]   || (echo "$(RED)KIBANA_PASSWORD not set in .env$(NC)"   && exit 1)
+	@echo "$(GREEN).env OK$(NC)"
+
+# ─── SSH keys ─────────────────────────────────────────────────────────────────
 keys:
 	@if [ -f "$(SSH_KEY)" ]; then \
-		echo "$(YELLOW)SSH ключ уже есть: $(SSH_KEY)$(NC)"; \
+		echo "$(YELLOW)SSH key already exists: $(SSH_KEY)$(NC)"; \
 	else \
 		mkdir -p $(SSH_DIR); \
 		ssh-keygen -t ed25519 -C "transcendence-deploy" -f $(SSH_KEY) -N ""; \
 		chmod 700 $(SSH_DIR); \
 		chmod 600 $(SSH_KEY); \
 		chmod 644 $(SSH_KEY_PUB); \
-		echo "$(GREEN)SSH ключи созданы в $(SSH_DIR)$(NC)"; \
+		echo "$(GREEN)SSH keys created in $(SSH_DIR)$(NC)"; \
 	fi
 
 check-keys:
 	@if [ ! -f "$(SSH_KEY)" ]; then \
-		echo "$(RED)SSH ключ не найден. Запусти: make keys$(NC)"; \
-		exit 1; \
-	fi
-
-check-tfvars:
-	@if [ ! -f "$(TF_DIR)/terraform.tfvars" ]; then \
-		echo "$(RED)Файл terraform.tfvars не найден!$(NC)"; \
-		echo "  cp $(TF_DIR)/terraform.tfvars.example $(TF_DIR)/terraform.tfvars"; \
-		echo "  Заполни hcloud_token и your_ssh_ip"; \
+		echo "$(RED)SSH key not found. Run: make keys$(NC)"; \
 		exit 1; \
 	fi
 
 # ─── Terraform ────────────────────────────────────────────────────────────────
-infra-up: check-keys check-tfvars
-	@echo "$(GREEN)Поднимаем инфраструктуру на Hetzner...$(NC)"
+infra-up: check-env check-keys
+	@echo "$(GREEN)Creating infrastructure on Hetzner...$(NC)"
 	cd $(TF_DIR) && terraform init -upgrade
 	cd $(TF_DIR) && terraform apply \
 		-var="ssh_public_key=$$(cat $(SSH_KEY_PUB))" \
 		-auto-approve
-	@echo "$(GREEN)Готово! IP адреса:$(NC)"
+	@echo "$(GREEN)Done! IPs:$(NC)"
 	cd $(TF_DIR) && terraform output
 
-infra-plan: check-keys check-tfvars
+infra-plan: check-env check-keys
 	cd $(TF_DIR) && terraform init -upgrade
 	cd $(TF_DIR) && terraform plan \
 		-var="ssh_public_key=$$(cat $(SSH_KEY_PUB))"
 
-infra-down: check-keys check-tfvars
-	@echo "$(RED)Удаляем инфраструктуру на Hetzner...$(NC)"
+infra-down: check-env check-keys
+	@echo "$(RED)Destroying infrastructure on Hetzner...$(NC)"
 	cd $(TF_DIR) && terraform destroy \
 		-var="ssh_public_key=$$(cat $(SSH_KEY_PUB))" \
 		-auto-approve
-	@echo "$(GREEN)Инфраструктура удалена$(NC)"
-
-# ─── Вспомогательный макрос: читает hcloud_token из terraform.tfvars ─────────
-# Работает с одинарными и двойными кавычками, пробелами вокруг "="
-define get_hcloud_token
-$(shell sed -n 's/^[[:space:]]*hcloud_token[[:space:]]*=[[:space:]]*["'"'"']\(.*\)["'"'"'][[:space:]]*/\1/p' $(TF_DIR)/terraform.tfvars)
-endef
+	@echo "$(GREEN)Infrastructure destroyed$(NC)"
 
 # ─── Ansible ──────────────────────────────────────────────────────────────────
-# Ждём 30 сек после terraform — VM должна загрузиться
-configure: check-keys
-	@echo "$(YELLOW)Ждём 30 сек пока VM загрузятся...$(NC)"
+configure: check-env check-keys
+	@echo "$(YELLOW)Waiting 30s for VMs to boot...$(NC)"
 	@sleep 30
-	@echo "$(GREEN)Настраиваем серверы через Ansible...$(NC)"
+	@echo "$(GREEN)Provisioning servers with Ansible...$(NC)"
 	cd $(ANSIBLE_DIR) && \
-		HCLOUD_TOKEN="$(call get_hcloud_token)" \
+		HCLOUD_TOKEN="$(HCLOUD_TOKEN)" \
 		ANSIBLE_PRIVATE_KEY_FILE=$(SSH_KEY) \
-		ansible-playbook site.yml --ask-vault-pass
-	@echo "$(GREEN)Серверы настроены!$(NC)"
+		ansible-playbook site.yml \
+		--extra-vars "vault_postgres_password=$(POSTGRES_PASSWORD) \
+		              vault_hcloud_token=$(HCLOUD_TOKEN) \
+		              vault_django_secret_key=$(DJANGO_SECRET_KEY) \
+		              vault_domain=$(DOMAIN) \
+		              vault_letsencrypt_email=$(LETSENCRYPT_EMAIL) \
+		              vault_grafana_password=$(GRAFANA_PASSWORD) \
+		              kibana_password=$(KIBANA_PASSWORD)"
+	@echo "$(GREEN)Servers provisioned!$(NC)"
 
-# Проверить что Ansible видит все хосты
-ping: check-keys
+ping: check-env check-keys
 	cd $(ANSIBLE_DIR) && \
-		HCLOUD_TOKEN="$(call get_hcloud_token)" \
+		HCLOUD_TOKEN="$(HCLOUD_TOKEN)" \
 		ANSIBLE_PRIVATE_KEY_FILE=$(SSH_KEY) \
 		ansible all -m ping
 
-# ─── Deploy ───────────────────────────────────────────────────────────────────
-deploy: check-keys
-	@MASTER_IP=$$(cd $(TF_DIR) && terraform output -raw master_public_ip); \
-	echo "$(GREEN)Деплоим манифесты на $$MASTER_IP ...$(NC)"; \
-	ssh -i $(SSH_KEY) -o StrictHostKeyChecking=no root@$$MASTER_IP \
-		"kubectl apply -f /root/k8s/"
+# ─── Docker image ─────────────────────────────────────────────────────────────
+build: check-env
+	@echo "$(GREEN)Building $(IMAGE):$(IMAGE_TAG)...$(NC)"
+	docker build \
+		--target production \
+		-t $(IMAGE):$(IMAGE_TAG) \
+		docker_compose/backend/
+	@echo "$(GREEN)Image built$(NC)"
 
-# ─── Полный пайплайн ──────────────────────────────────────────────────────────
+push: check-env
+	echo "$(GITHUB_TOKEN)" | docker login ghcr.io -u $(GITHUB_USER) --password-stdin
+	docker push $(IMAGE):$(IMAGE_TAG)
+	@echo "$(GREEN)Image pushed: $(IMAGE):$(IMAGE_TAG)$(NC)"
+
+build-push: build push
+
+# ─── Kubernetes ───────────────────────────────────────────────────────────────
+get-kubeconfig: check-env check-keys
+	@MASTER_IP=$$(cd $(TF_DIR) && terraform output -raw master_public_ip); \
+	echo "$(GREEN)Downloading kubeconfig from $$MASTER_IP...$(NC)"; \
+	mkdir -p $(ROOT_DIR)/.kube; \
+	scp -i $(SSH_KEY) -o StrictHostKeyChecking=no \
+		root@$$MASTER_IP:/etc/rancher/k3s/k3s.yaml $(KUBECONFIG); \
+	sed -i'' "s|https://127.0.0.1:6443|https://$$MASTER_IP:6443|g" $(KUBECONFIG); \
+	chmod 600 $(KUBECONFIG); \
+	echo "$(GREEN)Kubeconfig saved to .kube/config$(NC)"
+
+create-secrets: check-env
+	KUBECONFIG=$(KUBECONFIG) kubectl apply -f $(K8S_DIR)/namespace.yml
+	KUBECONFIG=$(KUBECONFIG) kubectl create secret generic app-secrets \
+		--namespace transcendence \
+		--from-literal=DATABASE_URL="postgresql://transcendence:$(POSTGRES_PASSWORD)@10.0.1.20:5432/transcendence" \
+		--from-literal=SECRET_KEY="$(DJANGO_SECRET_KEY)" \
+		--from-literal=ALLOWED_HOSTS="$(DOMAIN)" \
+		--dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG) kubectl apply -f -
+	@echo "$(GREEN)Secrets created!$(NC)"
+
+deploy: check-env
+	@if [ ! -f "$(KUBECONFIG)" ]; then \
+		echo "$(RED)Kubeconfig not found. Run: make get-kubeconfig$(NC)"; \
+		exit 1; \
+	fi
+	KUBECONFIG=$(KUBECONFIG) kubectl apply -f $(K8S_DIR)/namespace.yml
+	KUBECONFIG=$(KUBECONFIG) kubectl apply -f $(K8S_DIR)/redis/
+	GITHUB_USER=$(GITHUB_USER) IMAGE_TAG=$(IMAGE_TAG) \
+		envsubst < $(K8S_DIR)/backend/deployment.yml | \
+		KUBECONFIG=$(KUBECONFIG) kubectl apply -f -
+	KUBECONFIG=$(KUBECONFIG) kubectl apply -f $(K8S_DIR)/backend/service.yml
+	DOMAIN=$(DOMAIN) envsubst < $(K8S_DIR)/ingress.yml | \
+		KUBECONFIG=$(KUBECONFIG) kubectl apply -f -
+	@echo "$(GREEN)Deployed! Site: https://$(DOMAIN)$(NC)"
+
+# ─── Full pipelines ───────────────────────────────────────────────────────────
 all: keys infra-up configure
 	@echo ""
-	@echo "$(GREEN)Инфраструктура готова!$(NC)"
-	@echo "$(YELLOW)Следующий шаг: make deploy$(NC)"
+	@echo "$(GREEN)Infrastructure ready!$(NC)"
+	@echo "$(YELLOW)Next: make full-deploy$(NC)"
 
-# ─── Полная очистка ───────────────────────────────────────────────────────────
+full-deploy: build-push create-secrets deploy
+	@echo ""
+	@echo "$(GREEN)Full deploy complete!$(NC)"
+	@echo "$(YELLOW)Site: https://$(DOMAIN)$(NC)"
+
+# ─── Database backup / restore ────────────────────────────────────────────────
+POSTGRES_IP := $(shell cd $(TF_DIR) && terraform output -raw postgres_public_ip 2>/dev/null)
+
+db-backup: check-env check-keys
+	@echo "$(GREEN)Running on-demand backup on postgres VM...$(NC)"
+	ssh -i $(SSH_KEY) -o StrictHostKeyChecking=no root@$(POSTGRES_IP) \
+		"sudo -u postgres /usr/local/bin/pg-backup.sh"
+	@echo "$(GREEN)Backup complete. Files on postgres VM: /var/backups/postgresql/$(NC)"
+
+# Usage: make db-restore BACKUP=/var/backups/postgresql/transcendence_20240101_020000.sql.gz
+db-restore: check-env check-keys
+	@if [ -z "$(BACKUP)" ]; then \
+		echo "$(RED)Usage: make db-restore BACKUP=<path_on_postgres_vm>$(NC)"; \
+		echo "  List backups: make db-backup-list"; \
+		exit 1; \
+	fi
+	@echo "$(RED)Restoring database from $(BACKUP)...$(NC)"
+	ssh -i $(SSH_KEY) -o StrictHostKeyChecking=no root@$(POSTGRES_IP) \
+		"sudo -u postgres /usr/local/bin/pg-restore.sh $(BACKUP)"
+
+db-backup-list: check-env check-keys
+	@echo "$(YELLOW)Backups on postgres VM:$(NC)"
+	ssh -i $(SSH_KEY) -o StrictHostKeyChecking=no root@$(POSTGRES_IP) \
+		"ls -lh /var/backups/postgresql/ 2>/dev/null || echo 'No backups yet'"
+
+# ─── Cleanup ──────────────────────────────────────────────────────────────────
 fclean: infra-down
-	@echo "$(RED)Удаляем SSH ключи...$(NC)"
-	rm -rf $(SSH_DIR)
-	@echo "$(GREEN)Всё очищено$(NC)"
+	@echo "$(RED)Removing SSH keys and kubeconfig...$(NC)"
+	rm -rf $(SSH_DIR) $(ROOT_DIR)/.kube
+	@echo "$(GREEN)All cleaned up$(NC)"

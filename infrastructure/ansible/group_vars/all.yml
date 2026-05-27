@@ -18,3 +18,10 @@ letsencrypt_email: "{{ vault_letsencrypt_email }}"
 
 # k3s
 k3s_version: "v1.29.4+k3s1"
+
+# ELK
+elk_private_ip: "10.0.1.30"
+elk_version:    "7.17.21"
+
+# Monitoring
+grafana_password: "{{ vault_grafana_password }}"

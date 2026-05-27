@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:{{ elk_version }}
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms2g -Xmx2g"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    ports:
+      - "127.0.0.1:9200:9200"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:{{ elk_version }}
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
+    ports:
+      # TCP JSON input — receives logs from Fluent Bit (private network only, firewall handles access)
+      - "{{ elk_private_ip }}:5000:5000"
+    environment:
+      - "LS_JAVA_OPTS=-Xms512m -Xmx512m"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:{{ elk_version }}
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - SERVER_HOST=127.0.0.1
+    ports:
+      # Bind to localhost only — nginx reverse proxy handles public access with basic auth
+      - "127.0.0.1:15601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  elasticsearch_data:

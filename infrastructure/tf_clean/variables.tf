@@ -86,3 +86,15 @@ variable "postgres_private_ip" {
   type        = string
   default     = "10.0.1.20"
 }
+
+variable "elk_server_type" {
+  description = "Тип сервера для ELK (cx32 = 4 CPU, 8GB RAM — минимум для Elasticsearch)"
+  type        = string
+  default     = "cx32"
+}
+
+variable "elk_private_ip" {
+  description = "Приватный IP ELK ноды"
+  type        = string
+  default     = "10.0.1.30"
+}

@@ -52,6 +52,35 @@ resource "hcloud_firewall" "k3s" {
   }
 }
 
+# ─── Файрвол для ELK ──────────────────────────────────────────────────────────
+resource "hcloud_firewall" "elk" {
+  name = "${var.project_name}-elk"
+
+  # SSH — только с твоего IP
+  rule {
+    direction  = "in"
+    protocol   = "tcp"
+    port       = "22"
+    source_ips = ["${var.your_ssh_ip}/32"]
+  }
+
+  # Kibana UI — только с твоего IP (никакого публичного доступа)
+  rule {
+    direction  = "in"
+    protocol   = "tcp"
+    port       = "5601"
+    source_ips = ["${var.your_ssh_ip}/32"]
+  }
+
+  # Logstash (TCP JSON от Fluent Bit) — только из приватной сети k3s нод
+  rule {
+    direction  = "in"
+    protocol   = "tcp"
+    port       = "5000"
+    source_ips = ["10.0.1.0/24"]
+  }
+}
+
 # ─── Файрвол для PostgreSQL ───────────────────────────────────────────────────
 resource "hcloud_firewall" "db" {
   name = "${var.project_name}-db"
@@ -69,6 +98,14 @@ resource "hcloud_firewall" "db" {
     direction  = "in"
     protocol   = "tcp"
     port       = "5432"
+    source_ips = ["10.0.1.0/24"]
+  }
+
+  # postgres_exporter metrics — Prometheus scrapes from k3s nodes
+  rule {
+    direction  = "in"
+    protocol   = "tcp"
+    port       = "9187"
     source_ips = ["10.0.1.0/24"]
   }
 }

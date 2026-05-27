@@ -25,3 +25,4 @@ groups:
   k3s_master:  "'master'   in labels.role"
   k3s_workers: "'worker'   in labels.role"
   postgres:    "'postgres' in labels.role"
+  elk:         "'elk'      in labels.role"

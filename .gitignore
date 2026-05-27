@@ -1,5 +1,7 @@
-# SSH ключи проекта — НИКОГДА не коммить!
+# Secrets — never commit
+.env
 .ssh/
+.kube/
 
 # Vault пароль
 .vault_pass

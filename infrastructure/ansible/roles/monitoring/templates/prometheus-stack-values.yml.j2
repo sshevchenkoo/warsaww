@@ -1,0 +1,72 @@
+grafana:
+  adminPassword: "{{ grafana_password }}"
+
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+      - "grafana.{{ domain }}"
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - "grafana.{{ domain }}"
+
+  sidecar:
+    # Picks up ConfigMaps with label grafana_datasource=1
+    datasources:
+      enabled: true
+      label: grafana_datasource
+    # Picks up ConfigMaps with label grafana_dashboard=1
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+
+prometheus:
+  prometheusSpec:
+    # Retention: keep 15 days of metrics data
+    retention: 15d
+
+    additionalScrapeConfigs:
+      # OTel Collector exposes Django app metrics on port 8889
+      - job_name: otel-collector
+        static_configs:
+          - targets: ["otel-collector-opentelemetry-collector.monitoring:8889"]
+
+      # postgres_exporter running on the postgres VM (outside k3s)
+      - job_name: postgres
+        static_configs:
+          - targets: ["{{ postgres_private_ip }}:9187"]
+        relabel_configs:
+          - target_label: instance
+            replacement: postgres
+
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    # Silence repeated alerts for 4 hours
+    config:
+      global:
+        resolve_timeout: 5m
+      route:
+        group_by: ['alertname', 'namespace']
+        group_wait: 30s
+        group_interval: 5m
+        repeat_interval: 4h
+        receiver: 'null'
+      receivers:
+        - name: 'null'   # no external notifications by default — add email/slack here
+
+nodeExporter:
+  enabled: true
+
+kubeStateMetrics:
+  enabled: true
+
+kubeEtcd:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false

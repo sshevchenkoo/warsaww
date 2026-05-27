@@ -1,0 +1,10 @@
+---
+- name: restart elk
+  shell: docker compose restart
+  args:
+    chdir: "{{ elk_dir }}"
+
+- name: reload nginx
+  service:
+    name: nginx
+    state: reloaded

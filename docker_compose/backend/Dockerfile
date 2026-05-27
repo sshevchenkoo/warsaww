@@ -40,5 +40,4 @@ RUN SECRET_KEY=dummy-build-key \
     DATABASE_URL=sqlite:///tmp/dummy.db \
     python manage.py collectstatic --noinput
 
-# Gunicorn для HTTP, Daphne для WebSocket
-CMD ["gunicorn", "transcendence.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3"]
+CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "transcendence.asgi:application"]
