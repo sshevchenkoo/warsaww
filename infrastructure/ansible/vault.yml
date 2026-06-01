@@ -1,5 +1,0 @@
-# Secrets are no longer stored here.
-# All secrets come from the root .env file.
-# Makefile passes them to ansible-playbook via --extra-vars automatically.
-#
-# See .env.example for the list of required variables.

@@ -1,20 +1,14 @@
+# Secrets and config — values come from root .env via Makefile --extra-vars
+---
 project_name: transcendence
 
-# Приватный IP PostgreSQL
+# PostgreSQL
 postgres_private_ip: "10.0.1.20"
 postgres_db:         "transcendence"
 postgres_user:       "transcendence"
-postgres_password:   "{{ vault_postgres_password }}"
 
-# Hetzner токен — для dynamic inventory плагина
-hcloud_token: "{{ vault_hcloud_token }}"
-
-# Django
-domain:             "{{ vault_domain }}"
-django_secret_key:  "{{ vault_django_secret_key }}"
-
-# cert-manager / Let's Encrypt
-letsencrypt_email: "{{ vault_letsencrypt_email }}"
+# Hetzner token — for hcloud dynamic inventory plugin
+hcloud_token: "{{ lookup('env', 'HCLOUD_TOKEN') }}"
 
 # k3s
 k3s_version: "v1.29.4+k3s1"
@@ -22,6 +16,3 @@ k3s_version: "v1.29.4+k3s1"
 # ELK
 elk_private_ip: "10.0.1.30"
 elk_version:    "7.17.21"
-
-# Monitoring
-grafana_password: "{{ vault_grafana_password }}"

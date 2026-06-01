@@ -1,3 +1,0 @@
----
-# letsencrypt_email берётся из group_vars/all.yml → vault_letsencrypt_email
-# Заполни vault.yml: vault_letsencrypt_email: "your@email.com"

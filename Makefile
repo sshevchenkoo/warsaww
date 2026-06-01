@@ -147,12 +147,11 @@ configure: check-env check-keys
 		HCLOUD_TOKEN="$(HCLOUD_TOKEN)" \
 		ANSIBLE_PRIVATE_KEY_FILE=$(SSH_KEY) \
 		ansible-playbook site.yml \
-		--extra-vars "vault_postgres_password=$(POSTGRES_PASSWORD) \
-		              vault_hcloud_token=$(HCLOUD_TOKEN) \
-		              vault_django_secret_key=$(DJANGO_SECRET_KEY) \
-		              vault_domain=$(DOMAIN) \
-		              vault_letsencrypt_email=$(LETSENCRYPT_EMAIL) \
-		              vault_grafana_password=$(GRAFANA_PASSWORD) \
+		--extra-vars "postgres_password=$(POSTGRES_PASSWORD) \
+		              django_secret_key=$(DJANGO_SECRET_KEY) \
+		              domain=$(DOMAIN) \
+		              letsencrypt_email=$(LETSENCRYPT_EMAIL) \
+		              grafana_password=$(GRAFANA_PASSWORD) \
 		              kibana_password=$(KIBANA_PASSWORD)"
 	@echo "$(GREEN)Servers provisioned!$(NC)"
 

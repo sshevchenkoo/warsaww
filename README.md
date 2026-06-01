@@ -112,17 +112,46 @@ cp .env.example .env
 ```bash
 make keys          # generate SSH key pair in .ssh/
 make infra-up      # create 5 VMs on Hetzner (~2 min)
-make configure     # install k3s, PostgreSQL, ELK, monitoring via Ansible (~15 min)
+```
+
+### 3. Point your domain at the master IP
+
+After `infra-up` finishes, grab the master public IP:
+
+```bash
+cd infrastructure/tf_clean && terraform output master_public_ip
+```
+
+Create two A-records (or one wildcard) at your DNS provider:
+
+```
+@          A    <master_public_ip>     # yourdomain.com
+grafana    A    <master_public_ip>     # grafana.yourdomain.com
+```
+
+Wait 5–30 minutes for DNS to propagate, then verify:
+
+```bash
+dig +short yourdomain.com         # should return <master_public_ip>
+dig +short grafana.yourdomain.com # should return <master_public_ip>
+```
+
+**Important:** DNS must resolve **before** `make configure`, otherwise cert-manager fails to issue TLS certificates from Let's Encrypt.
+
+### 4. Provision servers and deploy
+
+```bash
+make configure       # install k3s, PostgreSQL, ELK, monitoring via Ansible (~15 min)
 make get-kubeconfig  # download kubeconfig from master
 ```
 
-### 3. Deploy the application
+### 5. Deploy the application
 
 ```bash
 make full-deploy   # build Docker image → push to ghcr.io → deploy to k3s
 ```
 
-### 4. Verify everything works
+### 6. Verify everything works
 
 ```bash
 # Site

@@ -3,9 +3,6 @@
 .ssh/
 .kube/
 
-# Vault пароль
-.vault_pass
-
 # Terraform
 *.tfvars
 !*.tfvars.example
@@ -14,16 +11,21 @@
 .terraform/
 .terraform.lock.hcl
 
-# Ansible secrets (vault.yml коммитится в зашифрованном виде)
-# НЕ добавляй vault.yml сюда — он должен быть в git, но зашифрованным
-
 # Python
 __pycache__/
 *.pyc
 *.pyo
-.env
+*.py[cod]
 venv/
 .venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Django
+docker_compose/backend/static/
+docker_compose/backend/media/
+db.sqlite3
 
 # Docker
 docker_compose/.env
@@ -35,3 +37,7 @@ Thumbs.db
 # IDE
 .idea/
 .vscode/
+
+# Obsidian notes (local only — may be a directory or a symlink)
+notes
+notes/
