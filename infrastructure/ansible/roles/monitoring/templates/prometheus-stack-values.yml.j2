@@ -54,9 +54,20 @@ alertmanager:
         group_wait: 30s
         group_interval: 5m
         repeat_interval: 4h
+{% if alertmanager_telegram_token | default('') | length > 0 and alertmanager_telegram_chat_id | default('') | length > 0 %}
+        receiver: 'telegram'
+      receivers:
+        - name: 'null'
+        - name: 'telegram'
+          telegram_configs:
+            - bot_token: '{{ alertmanager_telegram_token }}'
+              chat_id: {{ alertmanager_telegram_chat_id }}
+              send_resolved: true
+{% else %}
         receiver: 'null'
       receivers:
-        - name: 'null'   # no external notifications by default — add email/slack here
+        - name: 'null'   # no external notifications by default — add Telegram tokens to .env to enable
+{% endif %}
 
 nodeExporter:
   enabled: true

@@ -12,6 +12,12 @@ def index(request):
     return render(request, "core/index.html")
 
 
+def ping(request):
+    # k8s livenessProbe: процесс жив, но не зависит от БД/Redis.
+    # Если liveness бьёт в /health/ — упавший Postgres рестартит все backend-поды без пользы.
+    return JsonResponse({"status": "ok"})
+
+
 def healthcheck(request):
     """
     GET /health/

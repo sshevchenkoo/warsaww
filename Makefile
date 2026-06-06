@@ -140,8 +140,11 @@ infra-down: check-env check-keys
 
 # ─── Ansible ──────────────────────────────────────────────────────────────────
 configure: check-env check-keys
-	@echo "$(YELLOW)Waiting 30s for VMs to boot...$(NC)"
-	@sleep 30
+	@echo "$(YELLOW)Waiting for VMs to accept SSH...$(NC)"
+	cd $(ANSIBLE_DIR) && \
+		HCLOUD_TOKEN="$(HCLOUD_TOKEN)" \
+		ANSIBLE_PRIVATE_KEY_FILE=$(SSH_KEY) \
+		ansible all -m wait_for_connection -a "timeout=180 delay=5"
 	@echo "$(GREEN)Provisioning servers with Ansible...$(NC)"
 	cd $(ANSIBLE_DIR) && \
 		HCLOUD_TOKEN="$(HCLOUD_TOKEN)" \
@@ -152,7 +155,9 @@ configure: check-env check-keys
 		              domain=$(DOMAIN) \
 		              letsencrypt_email=$(LETSENCRYPT_EMAIL) \
 		              grafana_password=$(GRAFANA_PASSWORD) \
-		              kibana_password=$(KIBANA_PASSWORD)"
+		              kibana_password=$(KIBANA_PASSWORD) \
+		              alertmanager_telegram_token=$(ALERTMANAGER_TELEGRAM_TOKEN) \
+		              alertmanager_telegram_chat_id=$(ALERTMANAGER_TELEGRAM_CHAT_ID)"
 	@echo "$(GREEN)Servers provisioned!$(NC)"
 
 ping: check-env check-keys
@@ -184,7 +189,7 @@ get-kubeconfig: check-env check-keys
 	mkdir -p $(ROOT_DIR)/.kube; \
 	scp -i $(SSH_KEY) -o StrictHostKeyChecking=no \
 		root@$$MASTER_IP:/etc/rancher/k3s/k3s.yaml $(KUBECONFIG); \
-	sed -i'' "s|https://127.0.0.1:6443|https://$$MASTER_IP:6443|g" $(KUBECONFIG); \
+	sed -i.bak "s|https://127.0.0.1:6443|https://$$MASTER_IP:6443|g" $(KUBECONFIG) && rm -f $(KUBECONFIG).bak; \
 	chmod 600 $(KUBECONFIG); \
 	echo "$(GREEN)Kubeconfig saved to .kube/config$(NC)"
 
@@ -197,6 +202,10 @@ create-secrets: check-env
 		--from-literal=ALLOWED_HOSTS="$(DOMAIN)" \
 		--dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG) kubectl apply -f -
 	@echo "$(GREEN)Secrets created!$(NC)"
+	@if KUBECONFIG=$(KUBECONFIG) kubectl get deploy/backend -n transcendence >/dev/null 2>&1; then \
+		echo "$(YELLOW)Restarting backend to pick up new secrets...$(NC)"; \
+		KUBECONFIG=$(KUBECONFIG) kubectl rollout restart deploy/backend -n transcendence; \
+	fi
 
 deploy: check-env
 	@if [ ! -f "$(KUBECONFIG)" ]; then \
