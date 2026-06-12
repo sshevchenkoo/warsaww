@@ -48,5 +48,8 @@ python -m app.ingestion.runner --source=places
 - [x] SQL search filters
 - [ ] Vector search (pending embedding model choice: Voyage vs bge-m3)
 - [ ] Re-rank via Opus + SSE streaming
-- [ ] First real adapter (places: Overpass API)
+- [x] First real adapter (places: Overpass API, ~385 tourist-worthy places — `wikidata` tag as notability filter)
+- [x] Wikidata enrichment for places (Wikipedia intro as description + Commons photo; 383/385 covered)
+- [x] Upsert by (source, source_url) — re-running a source updates instead of duplicating
+- [x] Facebook events adapter via Apify actor (needs APIFY_TOKEN; Warsaw-PL bbox filter, skips canceled/past/online)
 - [ ] Deduplication (rapidfuzz + Haiku Batches)
