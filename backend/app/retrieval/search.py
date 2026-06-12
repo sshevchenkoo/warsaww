@@ -11,9 +11,17 @@ def _dt(value: str | None) -> datetime | None:
     return datetime.fromisoformat(value) if value else None
 
 
-def search_items(session: Session, intent: Intent, limit: int = 30) -> list[Item]:
-    """SQL filters from the intent. TODO: + ORDER BY embedding <=> query_vector
-    once the embedding model is chosen (Voyage vs bge-m3)."""
+def search_items(
+    session: Session,
+    intent: Intent,
+    query_embedding: list[float] | None = None,
+    limit: int = 30,
+) -> list[Item]:
+    """Hybrid search: SQL filters from the intent + vector similarity.
+
+    With an embedding the candidates come back ordered by semantic
+    closeness to the prompt (`<=>` = cosine distance, HNSW index);
+    without one (no Voyage key) it degrades to plain SQL filters."""
     query = select(Item)
 
     date_from, date_to = _dt(intent.date_from), _dt(intent.date_to)
@@ -27,5 +35,10 @@ def search_items(session: Session, intent: Intent, limit: int = 30) -> list[Item
 
     if intent.categories:
         query = query.where(Item.category.in_(intent.categories))
+
+    if query_embedding is not None:
+        query = query.where(Item.embedding.is_not(None)).order_by(
+            Item.embedding.cosine_distance(query_embedding)
+        )
 
     return list(session.scalars(query.limit(limit)))

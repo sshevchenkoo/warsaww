@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.catalog.db import get_session
 from app.catalog.models import IntentLog
 from app.config import settings
+from app.llm.embeddings import embed_query
 from app.llm.intent import ClaudeIntentExtractor
 from app.retrieval.search import search_items
 
@@ -60,7 +61,11 @@ def search(req: SearchRequest, session: Session = Depends(get_session)) -> dict:
     )
     session.commit()
 
-    items = search_items(session, intent)
+    # The raw prompt (not the intent) is embedded — it keeps nuances
+    # the intent schema drops ("romantic", "with a view"...).
+    query_embedding = embed_query(req.prompt) if settings.voyage_api_key else None
+
+    items = search_items(session, intent, query_embedding)
     # TODO: re-rank top-30 via Opus (streaming) + SSE to the frontend
     return {
         "intent": intent.model_dump(),
