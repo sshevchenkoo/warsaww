@@ -99,9 +99,7 @@ class PlacesAdapter(SourceAdapter):
             lon=lon,
             source_url=f"https://www.openstreetmap.org/{el['type']}/{el['id']}",
             is_permanent=True,
-            opening_hours=(
-                {"raw": tags["opening_hours"]} if "opening_hours" in tags else None
-            ),
+            opening_hours=({"raw": tags["opening_hours"]} if "opening_hours" in tags else None),
         )
 
     @staticmethod

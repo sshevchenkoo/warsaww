@@ -23,9 +23,7 @@ def search_items(session: Session, intent: Intent, limit: int = 30) -> list[Item
         )
 
     if intent.budget_max is not None:
-        query = query.where(
-            or_(Item.price_from <= intent.budget_max, Item.price_from.is_(None))
-        )
+        query = query.where(or_(Item.price_from <= intent.budget_max, Item.price_from.is_(None)))
 
     if intent.categories:
         query = query.where(Item.category.in_(intent.categories))

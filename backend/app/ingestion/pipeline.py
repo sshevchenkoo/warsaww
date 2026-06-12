@@ -6,11 +6,13 @@ from app.catalog.db import Base, SessionLocal, engine
 from app.catalog.models import Item
 from app.ingestion.adapters import ADAPTERS
 from app.ingestion.adapters.base import RawItem
+from app.ingestion.taxonomy import guess_category
 
 
 def normalize(raw: RawItem) -> RawItem:
-    """Map source categories to our taxonomy, clean up text.
-    TODO: source taxonomy mapping ('techno' → 'party' etc.)."""
+    """Clean up and fill gaps the adapter could not."""
+    if raw.category is None:
+        raw.category = guess_category(raw.name, raw.description)
     return raw
 
 
@@ -22,9 +24,18 @@ def upsert(items: list[RawItem]) -> None:
     rows = [asdict(item) for item in items]
     stmt = pg_insert(Item).values(rows)
     refreshable = [
-        "name", "description", "category", "lat", "lon",
-        "price_from", "price_to", "image_url",
-        "starts_at", "ends_at", "is_permanent", "opening_hours",
+        "name",
+        "description",
+        "category",
+        "lat",
+        "lon",
+        "price_from",
+        "price_to",
+        "image_url",
+        "starts_at",
+        "ends_at",
+        "is_permanent",
+        "opening_hours",
     ]
     stmt = stmt.on_conflict_do_update(
         constraint="uq_items_source_url",

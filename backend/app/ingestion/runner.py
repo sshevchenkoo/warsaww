@@ -1,5 +1,5 @@
 """Ingestion entrypoint. In k8s each source is its own CronJob:
-    python -m app.ingestion.runner --source=places
+python -m app.ingestion.runner --source=places
 """
 
 import argparse
