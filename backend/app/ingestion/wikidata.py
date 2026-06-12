@@ -96,12 +96,10 @@ def _fetch_extracts(lang: str, titles: list[str]) -> dict[str, str]:
 
         # The API may rename titles (normalization, redirects) — map back.
         renames = {
-            r["from"]: r["to"]
-            for r in query.get("normalized", []) + query.get("redirects", [])
+            r["from"]: r["to"] for r in query.get("normalized", []) + query.get("redirects", [])
         }
         by_final_title = {
-            page["title"]: page.get("extract")
-            for page in query.get("pages", {}).values()
+            page["title"]: page.get("extract") for page in query.get("pages", {}).values()
         }
         for title in batch:
             final = title
