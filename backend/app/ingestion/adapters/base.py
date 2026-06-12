@@ -22,6 +22,7 @@ class RawItem:
     ends_at: datetime | None = None
     is_permanent: bool = False
     opening_hours: dict | None = None
+    embedding: list[float] | None = None  # filled by the pipeline, not adapters
 
 
 class SourceAdapter(ABC):

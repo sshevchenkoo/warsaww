@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     intent_model: str = "claude-haiku-4-5"
     rerank_model: str = "claude-opus-4-8"
     apify_token: str | None = None  # for the facebook_events adapter
+    voyage_api_key: str | None = None
+    embedding_model: str = "voyage-3.5"  # changing it = re-embed the whole base
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 
