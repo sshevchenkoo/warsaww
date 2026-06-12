@@ -2,7 +2,17 @@ import uuid
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Boolean, DateTime, Float, Index, Integer, Numeric, Text, text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Float,
+    Index,
+    Integer,
+    Numeric,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -49,6 +59,8 @@ class Item(Base):
     )
 
     __table_args__ = (
+        # Upsert key for ingestion: re-running a source updates, not duplicates.
+        UniqueConstraint("source", "source_url", name="uq_items_source_url"),
         Index(
             "ix_items_embedding",
             "embedding",
