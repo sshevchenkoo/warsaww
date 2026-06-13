@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: warsaw
+  namespace: warsaw
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # SSE: disable response buffering and allow a long-lived stream so the
+    # /search events reach the client as they are produced.
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - ${WARSAW_DOMAIN}
+      secretName: warsaw-tls
+  rules:
+    - host: ${WARSAW_DOMAIN}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  number: 8000

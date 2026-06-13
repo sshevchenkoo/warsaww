@@ -1,0 +1,94 @@
+# One CronJob per source: same image as the API, command selects the source.
+# A new source = copy a block and change --source + schedule.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ingest-places
+  namespace: warsaw
+spec:
+  schedule: "0 4 * * 1" # Mondays 04:00 — permanent places change rarely
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: ingest
+              image: ghcr.io/${GITHUB_USER}/warsaw-events:${IMAGE_TAG}
+              command: ["python", "-m", "app.ingestion.runner", "--source=places"]
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: warsaw-secrets
+                      key: DATABASE_URL
+                - name: VOYAGE_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: warsaw-secrets
+                      key: VOYAGE_API_KEY
+                - name: ANTHROPIC_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: warsaw-secrets
+                      key: ANTHROPIC_API_KEY
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "256Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "512Mi"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ingest-facebook-events
+  namespace: warsaw
+spec:
+  schedule: "0 */6 * * *" # every 6 hours — events change often
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: ingest
+              image: ghcr.io/${GITHUB_USER}/warsaw-events:${IMAGE_TAG}
+              command: ["python", "-m", "app.ingestion.runner", "--source=facebook_events"]
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: warsaw-secrets
+                      key: DATABASE_URL
+                - name: VOYAGE_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: warsaw-secrets
+                      key: VOYAGE_API_KEY
+                - name: ANTHROPIC_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: warsaw-secrets
+                      key: ANTHROPIC_API_KEY
+                - name: APIFY_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: warsaw-secrets
+                      key: APIFY_TOKEN
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "256Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "512Mi"

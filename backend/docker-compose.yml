@@ -10,11 +10,31 @@ services:
     volumes:
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d events"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+
+  api:
+    build: .
+    # API keys (ANTHROPIC_API_KEY, VOYAGE_API_KEY, APIFY_TOKEN) come from .env.
+    env_file: .env
+    environment:
+      # Override the .env DATABASE_URL: inside compose the host is `db`, not localhost.
+      DATABASE_URL: postgresql+psycopg://app:app@db:5432/events
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
 volumes:
   pgdata:

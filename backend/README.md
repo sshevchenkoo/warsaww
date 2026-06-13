@@ -18,9 +18,17 @@ app/
 
 ## Local setup
 
+Full stack in containers (API + Postgres/pgvector + Redis) — closest to prod:
+
 ```bash
-docker compose up -d            # Postgres + pgvector and Redis
-cp .env.example .env            # set ANTHROPIC_API_KEY
+cp .env.example .env            # set ANTHROPIC_API_KEY, VOYAGE_API_KEY, APIFY_TOKEN
+docker compose up -d --build    # builds the API image, starts the whole site on :8000
+```
+
+Or run the API on the host against containerized data (hot reload for dev):
+
+```bash
+docker compose up -d db redis   # just the datastores
 pip install -e ".[dev]"
 uvicorn app.main:app --reload
 ```
@@ -42,7 +50,13 @@ Single image, the source is selected by argument (in k8s — one CronJob per sou
 
 ```bash
 python -m app.ingestion.runner --source=places
+python -m app.ingestion.runner --source=facebook_events
 ```
+
+## Deploy
+
+`Dockerfile` builds one image for both the API and the ingestion CronJobs.
+Kubernetes manifests and step-by-step deploy live in [`k8s/`](k8s/README.md).
 
 ## Status
 
@@ -55,4 +69,5 @@ python -m app.ingestion.runner --source=places
 - [x] Upsert by (source, source_url) — re-running a source updates instead of duplicating
 - [x] Facebook events adapter via Apify actor (needs APIFY_TOKEN; Warsaw-PL bbox filter, skips canceled/past/online)
 - [x] Deduplication: block (event day / place coords) + rapidfuzz token-set match; auto-merge ≥90, Haiku adjudicates the 75–90 band; duplicates fold their source refs into the canonical card's `sources` (unit-tested; folded a real OSM dup live)
-- [ ] Dockerfile + k8s manifests (CronJob per source)
+- [x] Dockerfile + docker-compose full local stack (API+db+redis)
+- [x] k8s manifests: namespace, Postgres/pgvector StatefulSet, Redis, API Deployment+Service+HPA, SSE-ready ingress, CronJob per source
