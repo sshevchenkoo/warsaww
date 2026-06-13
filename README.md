@@ -65,9 +65,9 @@ Platform:   k3s on Hetzner · ELK logs · Prometheus/Grafana · cert-manager TLS
 
 | Path | What |
 |---|---|
-| `backend/` | Warsaw-events FastAPI app — API, LLM layer, retrieval, ingestion ([README](backend/README.md)) |
-| `frontend/` | Next.js UI, "Pure"-style ([README](frontend/README.md)) |
-| `backend/k8s/` | Kubernetes manifests for the app (namespace `warsaw`) ([README](backend/k8s/README.md)) |
+| `backend/` | Warsaw-events FastAPI app — API, LLM layer, retrieval, ingestion ([docs](docs/backend.md)) |
+| `frontend/` | Next.js UI, "Pure"-style ([docs](docs/frontend.md)) |
+| `backend/k8s/` | Kubernetes manifests for the app, namespace `warsaw` ([deploy docs](docs/deployment.md)) |
 | `infrastructure/` | Terraform + Ansible: the Hetzner k3s platform ([docs](docs/infrastructure.md)) |
 | `docker_compose/` | The original ft_transcendence Django service (local compose) |
 | `k8s/` | Kubernetes manifests for the ft_transcendence Django service |
@@ -88,13 +88,15 @@ make app-down    # stop the stack (data kept in the pgdata volume)
 `make help` lists every target. The equivalent manual commands are in
 [docs/local-development.md](docs/local-development.md).
 
-Deploying to the cluster: app manifests in [`backend/k8s/`](backend/k8s/README.md),
-the platform itself in [`docs/infrastructure.md`](docs/infrastructure.md).
+Deploying to the cluster: app in [docs/deployment.md](docs/deployment.md), the
+platform itself in [docs/infrastructure.md](docs/infrastructure.md).
 
 ## Documentation
 
 | Doc | Topic |
 |---|---|
+| [Backend](docs/backend.md) | App structure, local setup, status |
+| [Frontend](docs/frontend.md) | UI, SSE client, re-skinning |
 | [Architecture](docs/architecture.md) | Components, data flow, design decisions |
 | [Data model](docs/data-model.md) | `items` and `intent_logs` schema |
 | [Search & LLM](docs/search-and-llm.md) | Intent, embeddings, hybrid search, re-rank, cost |
