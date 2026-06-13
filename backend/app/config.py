@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://app:app@localhost:5432/events"
     anthropic_api_key: str | None = None  # None → SDK falls back to ANTHROPIC_API_KEY env var
     intent_model: str = "claude-haiku-4-5"
-    rerank_model: str = "claude-opus-4-8"
+    rerank_model: str = "claude-sonnet-4-6"  # cheaper than Opus ($3/$15 vs $5/$25)
     apify_token: str | None = None  # for the facebook_events adapter
     voyage_api_key: str | None = None
     embedding_model: str = "voyage-3.5"  # changing it = re-embed the whole base
