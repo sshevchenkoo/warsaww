@@ -20,14 +20,28 @@ repo convention. Variables used: `GITHUB_USER`, `IMAGE_TAG`, `WARSAW_DOMAIN`.
 | `40-ingress.yml` | nginx ingress + cert-manager TLS; SSE-safe (`proxy-buffering: off`, long timeouts) |
 | `50-cronjobs.yml` | One CronJob per source — places weekly, facebook_events every 6h |
 | `secret.example.yml` | Template for the `warsaw-secrets` Secret (real one gitignored) |
+| `frontend/k8s/web.yml` | Next.js frontend Deployment (2 replicas) + Service `web` |
+
+The `40-ingress.yml` ingress serves the whole app on one domain: `/` → the
+`web` frontend, `/search` and `/health` → the `api`. Same origin, so the
+browser uses relative API calls and no CORS is needed in production.
 
 ## 1. Build & push the image
 
+Two images: the backend (API + ingestion) and the frontend.
+
 ```bash
+echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_USER" --password-stdin
+
+# backend
 cd backend
 docker build -t ghcr.io/$GITHUB_USER/warsaw-events:$IMAGE_TAG .
-echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_USER" --password-stdin
 docker push ghcr.io/$GITHUB_USER/warsaw-events:$IMAGE_TAG
+
+# frontend (empty NEXT_PUBLIC_API_URL → relative API calls, same origin)
+cd ../frontend
+docker build -t ghcr.io/$GITHUB_USER/warsaw-web:$IMAGE_TAG .
+docker push ghcr.io/$GITHUB_USER/warsaw-web:$IMAGE_TAG
 ```
 
 ## 2. Create the secret
@@ -61,12 +75,18 @@ kubectl -n warsaw create secret generic warsaw-secrets \
 ## 3. Deploy
 
 ```bash
+cd backend
 kubectl apply -f k8s/00-namespace.yml
 kubectl apply -f k8s/10-postgres.yml
 kubectl apply -f k8s/20-redis.yml
 GITHUB_USER=$GITHUB_USER IMAGE_TAG=$IMAGE_TAG envsubst < k8s/30-api.yml | kubectl apply -f -
-WARSAW_DOMAIN=$WARSAW_DOMAIN envsubst < k8s/40-ingress.yml | kubectl apply -f -
 GITHUB_USER=$GITHUB_USER IMAGE_TAG=$IMAGE_TAG envsubst < k8s/50-cronjobs.yml | kubectl apply -f -
+
+# frontend (same namespace)
+GITHUB_USER=$GITHUB_USER IMAGE_TAG=$IMAGE_TAG envsubst < ../frontend/k8s/web.yml | kubectl apply -f -
+
+# ingress last — routes the domain to web + api
+WARSAW_DOMAIN=$WARSAW_DOMAIN envsubst < k8s/40-ingress.yml | kubectl apply -f -
 ```
 
 ## 4. First data load

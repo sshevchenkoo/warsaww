@@ -1,3 +1,7 @@
+# Single domain for the whole app: the frontend at /, and the API at its known
+# paths (/search, /health). Same origin, so the browser uses relative API calls
+# and no CORS is needed in production. nginx matches the most specific prefix,
+# so /search and /health go to the API and everything else to the web frontend.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -20,10 +24,24 @@ spec:
     - host: ${WARSAW_DOMAIN}
       http:
         paths:
-          - path: /
+          - path: /search
             pathType: Prefix
             backend:
               service:
                 name: api
                 port:
                   number: 8000
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  number: 8000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 3000
