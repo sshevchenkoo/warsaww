@@ -23,6 +23,7 @@ class RawItem:
     is_permanent: bool = False
     opening_hours: dict | None = None
     embedding: list[float] | None = None  # filled by the pipeline, not adapters
+    sources: list | None = None  # all (source, source_url) refs after dedup
 
 
 class SourceAdapter(ABC):
