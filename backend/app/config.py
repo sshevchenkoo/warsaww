@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     apify_token: str | None = None  # for the facebook_events adapter
     voyage_api_key: str | None = None
     embedding_model: str = "voyage-3.5"  # changing it = re-embed the whole base
+    # CORS origins allowed to call the API from a browser ("*" for local dev).
+    cors_origins: list[str] = ["*"]
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 

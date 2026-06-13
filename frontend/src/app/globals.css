@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+/* Pure-style: stark monochrome, heavy type, one bold accent. */
+@theme {
+  --color-bg: #0a0a0a;
+  --color-fg: #f4f2ec;
+  --color-muted: #8c8c85;
+  --color-line: #232323;
+  --color-card: #131313;
+  --color-accent: #ff4438; /* swap this one line to re-skin the whole app */
+  --color-accent-ink: #0a0a0a;
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@layer base {
+  html {
+    background: var(--color-bg);
+    color-scheme: dark;
+  }
+  body {
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background: var(--color-accent);
+    color: var(--color-accent-ink);
+  }
+}
+
+/* Photo scrim so overlaid text stays legible on any image. */
+.scrim {
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.92) 0%,
+    rgba(0, 0, 0, 0.62) 36%,
+    rgba(0, 0, 0, 0.08) 68%,
+    rgba(0, 0, 0, 0) 100%
+  );
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.rise { animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.caret { animation: blink 1.1s step-end infinite; }
