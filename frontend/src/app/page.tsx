@@ -9,7 +9,7 @@ const EXAMPLES = [
   "museum about Chopin",
   "techno party this weekend",
   "spokojny spacer nad wodą",
-  "куда сходить недорого в субботу",
+  "cheap night out on Saturday",
   "where to take a date tonight",
 ];
 

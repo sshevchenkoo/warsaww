@@ -1,9 +1,9 @@
 output "network_id" {
-  description = "ID приватной сети Hetzner"
+  description = "ID of the Hetzner private network"
   value       = hcloud_network.main.id
 }
 
 output "subnet_id" {
-  description = "ID подсети"
+  description = "Subnet ID"
   value       = hcloud_network_subnet.main.id
 }

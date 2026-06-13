@@ -1,14 +1,14 @@
 output "public_ip" {
-  description = "Публичный IPv4 адрес сервера"
+  description = "Public IPv4 address of the server"
   value       = hcloud_server.vm.ipv4_address
 }
 
 output "private_ip" {
-  description = "Приватный IP в сети Hetzner"
+  description = "Private IP in the Hetzner network"
   value       = var.private_ip
 }
 
 output "server_id" {
-  description = "ID сервера в Hetzner"
+  description = "Server ID in Hetzner"
   value       = hcloud_server.vm.id
 }

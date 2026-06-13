@@ -1,4 +1,4 @@
-# Установка k3s master ноды
+# Install the k3s master node
 ---
 - name: Setup k3s master
   hosts: k3s_master

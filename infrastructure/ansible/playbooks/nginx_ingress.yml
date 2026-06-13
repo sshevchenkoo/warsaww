@@ -1,5 +1,5 @@
-# Установка Nginx Ingress Controller через Helm
-# Запускается на мастере (kubectl/helm команды)
+# Install the Nginx Ingress Controller via Helm
+# Runs on the master (kubectl/helm commands)
 ---
 - name: Setup Nginx Ingress
   hosts: k3s_master

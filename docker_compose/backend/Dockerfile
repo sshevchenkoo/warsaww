@@ -1,5 +1,5 @@
 # ==============================
-# Стадия 1 — базовые зависимости
+# Stage 1 — base dependencies
 # ==============================
 FROM python:3.12-slim AS base
 
@@ -17,25 +17,25 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # ==============================
-# Стадия 2 — разработка
+# Stage 2 — development
 # ==============================
 FROM base AS development
 
-# В dev — код монтируется через volume, не копируем
+# In dev the code is mounted via a volume, so we don't copy it
 COPY requirements.dev.txt .
 RUN pip install --no-cache-dir -r requirements.dev.txt
 
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 
 # ==============================
-# Стадия 3 — продакшен
+# Stage 3 — production
 # ==============================
 FROM base AS production
 
 COPY . .
 
-# fix #4: при билде нет реальных env-переменных, передаём заглушки
-# SECRET_KEY нужен Django для импорта settings, DATABASE_URL — для dj_database_url
+# fix #4: no real env vars at build time, so we pass dummies
+# SECRET_KEY is needed by Django to import settings, DATABASE_URL — for dj_database_url
 RUN SECRET_KEY=dummy-build-key \
     DATABASE_URL=sqlite:///tmp/dummy.db \
     python manage.py collectstatic --noinput

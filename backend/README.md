@@ -39,9 +39,10 @@ Smoke test:
 curl localhost:8000/health
 # /search streams Server-Sent Events: an `intent` event, then a `card`
 # event per ranked result, then `done`. Use -N to see them as they arrive.
+# prompts work in any language (RU/PL/EN) — the intent model normalizes them
 curl -N -X POST localhost:8000/search \
   -H 'content-type: application/json' \
-  -d '{"prompt": "куда сходить в субботу вечером недорого"}'
+  -d '{"prompt": "where to go on a cheap Saturday night"}'
 ```
 
 ## Ingestion

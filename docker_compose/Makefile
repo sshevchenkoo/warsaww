@@ -1,67 +1,67 @@
 .PHONY: dev dev-down dev-clean logs shell migrate fclean re
 
-# Поднять всё локально
+# Bring everything up locally
 dev:
 	docker compose up --build
 
-# Тихо, без логов в терминале
+# Quietly, no logs in the terminal
 dev-bg:
 	docker compose up --build -d
 
-# Остановить
+# Stop
 dev-down:
 	docker compose down
 
-# Снести всё включая данные БД (осторожно!)
+# Tear everything down including the DB data (careful!)
 dev-clean:
 	docker compose down -v --remove-orphans
 
-# Пересобрать и запустить заново
+# Rebuild and start again
 re: dev-clean dev
 
-# Логи конкретного сервиса: make logs s=backend
+# Logs of a specific service: make logs s=backend
 logs:
 	docker compose logs -f $(s)
 
-# Войти в shell Django контейнера
+# Open a shell in the Django container
 shell:
 	docker compose exec backend python manage.py shell
 
-# Войти в bash контейнера: make bash s=backend
+# Open a bash shell in a container: make bash s=backend
 bash:
 	docker compose exec $(s) /bin/sh
 
-# Применить миграции
+# Apply migrations
 migrate:
 	docker compose exec backend python manage.py migrate
 
-# Создать миграции
+# Create migrations
 makemigrations:
 	docker compose exec backend python manage.py makemigrations
 
-# Создать суперпользователя
+# Create a superuser
 createsuperuser:
 	docker compose exec backend python manage.py createsuperuser
 
-# Собрать статику
+# Collect static files
 collectstatic:
 	docker compose exec backend python manage.py collectstatic --noinput
 
-# Статус контейнеров
+# Container status
 status:
 	docker compose ps
 
 dump:
 	docker compose exec backend python manage.py dumpdata core --indent 2 --output fixtures/data.json
-	@echo "Данные сохранены в fixtures/data.json"
+	@echo "Data saved to fixtures/data.json"
 
-# Загрузить данные из файла
+# Load data from a file
 restore:
 	docker compose exec backend python manage.py loaddata fixtures/data.json
-	@echo "Данные загружены"
+	@echo "Data loaded"
 
-# fix #7: используем $(MAKE) вместо make, чтобы команды выполнялись последовательно
-# и передавали переменные окружения корректно
+# fix #7: use $(MAKE) instead of make so commands run sequentially
+# and pass environment variables correctly
 start:
 	@$(MAKE) dev-bg
 	@echo "Waiting for database..."
@@ -72,6 +72,6 @@ start:
 finish:
 	@$(MAKE) dump && $(MAKE) dev-clean
 
-# Почистить все неиспользуемые Docker образы/тома (глобально!)
+# Prune all unused Docker images/volumes (globally!)
 fclean:
 	docker system prune -af --volumes

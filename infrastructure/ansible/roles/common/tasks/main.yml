@@ -1,10 +1,10 @@
 ---
-- name: Обновить apt кэш
+- name: Update apt cache
   apt:
     update_cache: yes
     cache_valid_time: 3600
 
-- name: Установить базовые пакеты
+- name: Install base packages
   apt:
     name:
       - curl
@@ -15,18 +15,18 @@
       - unattended-upgrades
     state: present
 
-- name: Настроить timezone
+- name: Configure timezone
   timezone:
     name: Europe/Moscow
 
-- name: Включить автоматические обновления безопасности
+- name: Enable automatic security updates
   copy:
     dest: /etc/apt/apt.conf.d/20auto-upgrades
     content: |
       APT::Periodic::Update-Package-Lists "1";
       APT::Periodic::Unattended-Upgrade "1";
 
-- name: Запустить fail2ban
+- name: Start fail2ban
   service:
     name: fail2ban
     state: started

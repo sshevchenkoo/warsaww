@@ -1,52 +1,52 @@
 ---
-- name: Установить PostgreSQL
+- name: Install PostgreSQL
   apt:
     name:
       - postgresql
       - postgresql-contrib
-      - python3-psycopg2   # нужен Ansible для модулей postgresql_*
+      - python3-psycopg2   # required by Ansible for the postgresql_* modules
     state: present
     update_cache: yes
 
-- name: Запустить и включить PostgreSQL
+- name: Start and enable PostgreSQL
   service:
     name: postgresql
     state: started
     enabled: yes
 
-# FIX: определяем версию динамически вместо hardcode "/16/"
-- name: Получить версию PostgreSQL
+# FIX: detect the version dynamically instead of hardcoding "/16/"
+- name: Get the PostgreSQL version
   shell: pg_lsclusters -h | awk 'NR==1{print $1}'
   register: pg_version_raw
   changed_when: false
 
-- name: Установить факт с версией
+- name: Set a fact with the version
   set_fact:
     pg_version: "{{ pg_version_raw.stdout | trim }}"
 
-# FIX: добавлен become: yes для postgresql модулей
-- name: Создать пользователя БД
+# FIX: added become: yes for the postgresql modules
+- name: Create the database user
   become_user: postgres
   postgresql_user:
     name: "{{ postgres_user }}"
     password: "{{ postgres_password }}"
     state: present
 
-- name: Создать базу данных
+- name: Create the database
   become_user: postgres
   postgresql_db:
     name: "{{ postgres_db }}"
     owner: "{{ postgres_user }}"
     state: present
 
-- name: Разрешить подключение из приватной подсети
+- name: Allow connections from the private subnet
   lineinfile:
     path: "/etc/postgresql/{{ pg_version }}/main/pg_hba.conf"
     line: "host  {{ postgres_db }}  {{ postgres_user }}  10.0.1.0/24  scram-sha-256"
     state: present
   notify: restart postgresql
 
-- name: Настроить listen_addresses
+- name: Configure listen_addresses
   lineinfile:
     path: "/etc/postgresql/{{ pg_version }}/main/postgresql.conf"
     regexp: "^#?listen_addresses"

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Bootstrap: ставит все CLI-инструменты для работы с этим проектом.
-# Поддерживает macOS (через brew) и Debian/Ubuntu (через apt).
+# Bootstrap: installs every CLI tool needed to work with this project.
+# Supports macOS (via brew) and Debian/Ubuntu (via apt).
 #
 # Usage:  ./setup.sh
 #
-# Ставит: terraform, ansible, kubectl, helm, docker (info), envsubst,
-#         python hcloud lib, ansible-galaxy: hetzner.hcloud
+# Installs: terraform, ansible, kubectl, helm, docker (info), envsubst,
+#           python hcloud lib, ansible-galaxy: hetzner.hcloud
 
 set -euo pipefail
 
@@ -18,7 +18,7 @@ log()  { printf "${GREEN}==>${NC} %s\n" "$*"; }
 warn() { printf "${YELLOW}WARN:${NC} %s\n" "$*"; }
 err()  { printf "${RED}ERROR:${NC} %s\n" "$*" >&2; }
 
-# ─── Детект OS ────────────────────────────────────────────────────────────────
+# ─── OS detection ─────────────────────────────────────────────────────────────
 OS="$(uname -s)"
 case "$OS" in
     Darwin) PKG="brew" ;;
@@ -26,23 +26,23 @@ case "$OS" in
         if command -v apt-get >/dev/null 2>&1; then
             PKG="apt"
         else
-            err "Linux обнаружен, но apt-get отсутствует. Поддерживаем только Debian/Ubuntu."
+            err "Linux detected, but apt-get is missing. Only Debian/Ubuntu is supported."
             exit 1
         fi
         ;;
-    *) err "Неподдерживаемая ОС: $OS"; exit 1 ;;
+    *) err "Unsupported OS: $OS"; exit 1 ;;
 esac
 
-log "Обнаружена $OS, использую $PKG"
+log "Detected $OS, using $PKG"
 
 # ─── macOS via Homebrew ───────────────────────────────────────────────────────
 if [[ "$PKG" == "brew" ]]; then
     if ! command -v brew >/dev/null 2>&1; then
-        log "Homebrew не найден — устанавливаю..."
+        log "Homebrew not found — installing..."
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     fi
 
-    log "Ставлю CLI-инструменты через brew..."
+    log "Installing CLI tools via brew..."
     brew install \
         terraform \
         ansible \
@@ -51,19 +51,19 @@ if [[ "$PKG" == "brew" ]]; then
         gettext \
         python3
 
-    # envsubst на macOS требует --force-link gettext
+    # envsubst on macOS requires --force-link gettext
     brew link --force gettext >/dev/null 2>&1 || true
 
     if ! command -v docker >/dev/null 2>&1; then
-        warn "Docker не найден. Поставь Docker Desktop вручную:"
+        warn "Docker not found. Install Docker Desktop manually:"
         warn "  brew install --cask docker"
-        warn "Или с сайта: https://www.docker.com/products/docker-desktop"
+        warn "Or from the website: https://www.docker.com/products/docker-desktop"
     fi
 fi
 
 # ─── Ubuntu/Debian via apt ────────────────────────────────────────────────────
 if [[ "$PKG" == "apt" ]]; then
-    log "Обновляю apt-кэш и ставлю базовые пакеты..."
+    log "Updating the apt cache and installing base packages..."
     sudo apt-get update
     sudo apt-get install -y \
         curl \
@@ -73,9 +73,9 @@ if [[ "$PKG" == "apt" ]]; then
         python3-pip \
         software-properties-common
 
-    # Terraform — HashiCorp apt-репо
+    # Terraform — HashiCorp apt repo
     if ! command -v terraform >/dev/null 2>&1; then
-        log "Ставлю Terraform из HashiCorp репозитория..."
+        log "Installing Terraform from the HashiCorp repository..."
         curl -fsSL https://apt.releases.hashicorp.com/gpg \
             | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
         echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
@@ -84,9 +84,9 @@ if [[ "$PKG" == "apt" ]]; then
         sudo apt-get install -y terraform
     fi
 
-    # kubectl — Kubernetes apt-репо (stable v1.29)
+    # kubectl — Kubernetes apt repo (stable v1.29)
     if ! command -v kubectl >/dev/null 2>&1; then
-        log "Ставлю kubectl..."
+        log "Installing kubectl..."
         sudo mkdir -p /etc/apt/keyrings
         curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key \
             | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-archive-keyring.gpg
@@ -96,58 +96,58 @@ if [[ "$PKG" == "apt" ]]; then
         sudo apt-get install -y kubectl
     fi
 
-    # Helm — официальный установочный скрипт
+    # Helm — official install script
     if ! command -v helm >/dev/null 2>&1; then
-        log "Ставлю Helm..."
+        log "Installing Helm..."
         curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
     fi
 
-    # Ansible через pip — версия свежее apt
+    # Ansible via pip — newer than the apt version
     if ! command -v ansible >/dev/null 2>&1; then
-        log "Ставлю Ansible через pip..."
+        log "Installing Ansible via pip..."
         pip3 install --user ansible
-        warn "Если ansible не находится — добавь ~/.local/bin в PATH:"
+        warn "If ansible is not found — add ~/.local/bin to your PATH:"
         warn "  echo 'export PATH=\$HOME/.local/bin:\$PATH' >> ~/.bashrc"
     fi
 
     if ! command -v docker >/dev/null 2>&1; then
-        warn "Docker не найден. Установи Docker Engine отдельно:"
+        warn "Docker not found. Install Docker Engine separately:"
         warn "  https://docs.docker.com/engine/install/ubuntu/"
     fi
 fi
 
-# ─── Общее: Python-зависимости для hcloud inventory plugin ────────────────────
-log "Ставлю Python-библиотеки для Ansible hcloud inventory..."
+# ─── Shared: Python deps for the hcloud inventory plugin ──────────────────────
+log "Installing Python libraries for the Ansible hcloud inventory..."
 pip3 install --user --upgrade hcloud requests 2>/dev/null || \
     pip3 install --user --break-system-packages --upgrade hcloud requests
 
-# ─── Общее: Ansible Galaxy collections ────────────────────────────────────────
-log "Ставлю Ansible Galaxy collection hetzner.hcloud..."
+# ─── Shared: Ansible Galaxy collections ───────────────────────────────────────
+log "Installing the Ansible Galaxy collection hetzner.hcloud..."
 ansible-galaxy collection install hetzner.hcloud
 
-# ─── Проверка ─────────────────────────────────────────────────────────────────
+# ─── Verification ─────────────────────────────────────────────────────────────
 echo ""
-log "Проверка установленных тулов:"
+log "Checking installed tools:"
 MISSING=0
 for tool in terraform ansible kubectl helm envsubst docker; do
     if command -v "$tool" >/dev/null 2>&1; then
         VERSION=$("$tool" --version 2>&1 | head -1 | tr -d '\n')
         printf "  ${GREEN}✓${NC} %-12s %s\n" "$tool" "$VERSION"
     else
-        printf "  ${RED}✗${NC} %-12s НЕ НАЙДЕН\n" "$tool"
+        printf "  ${RED}✗${NC} %-12s NOT FOUND\n" "$tool"
         MISSING=1
     fi
 done
 
 echo ""
 if [[ $MISSING -eq 0 ]]; then
-    log "Всё на месте!"
+    log "Everything is in place!"
 else
-    warn "Часть тулов отсутствует — см. сообщения выше."
+    warn "Some tools are missing — see the messages above."
 fi
 
 echo ""
-log "Следующий шаг:"
-echo "  cp .env.example .env       # заполнить токены и пароли"
+log "Next step:"
+echo "  cp .env.example .env       # fill in tokens and passwords"
 echo "  make all                   # keys → infra-up → configure"
 echo "  make full-deploy           # build-push → secrets → deploy"

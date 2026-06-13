@@ -8,26 +8,26 @@ from .models import Message
 
 
 def index(request):
-    """Главная страница — показывает статус всех сервисов и WebSocket чат."""
+    """Home page — shows the status of all services and the WebSocket chat."""
     return render(request, "core/index.html")
 
 
 def ping(request):
-    # k8s livenessProbe: процесс жив, но не зависит от БД/Redis.
-    # Если liveness бьёт в /health/ — упавший Postgres рестартит все backend-поды без пользы.
+    # k8s livenessProbe: the process is alive but does not depend on the DB/Redis.
+    # If liveness hits /health/ — a downed Postgres would pointlessly restart every backend pod.
     return JsonResponse({"status": "ok"})
 
 
 def healthcheck(request):
     """
     GET /health/
-    Проверяет что БД и Redis живые.
-    GitHub Actions и k8s readinessProbe бьют сюда.
+    Checks that the DB and Redis are alive.
+    GitHub Actions and the k8s readinessProbe hit this.
     """
     status = {"status": "ok", "db": "ok", "redis": "ok"}
     http_status = 200
 
-    # Проверка БД
+    # Check the DB
     try:
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
@@ -36,7 +36,7 @@ def healthcheck(request):
         status["status"] = "error"
         http_status = 500
 
-    # Проверка Redis
+    # Check Redis
     try:
         cache.set("healthcheck", "ok", timeout=5)
         val = cache.get("healthcheck")
@@ -53,14 +53,14 @@ def healthcheck(request):
 @require_http_methods(["GET", "POST"])
 def messages_api(request):
     """
-    GET  /api/messages/  — список последних 10 сообщений из БД
-    POST /api/messages/  — создать новое сообщение
+    GET  /api/messages/  — list the latest 10 messages from the DB
+    POST /api/messages/  — create a new message
     """
     if request.method == "GET":
         messages = list(
             Message.objects.order_by("-created_at")[:10].values("id", "text", "created_at")
         )
-        # created_at не сериализуется в JSON напрямую
+        # created_at is not directly JSON-serializable
         for m in messages:
             m["created_at"] = m["created_at"].isoformat()
         return JsonResponse({"messages": messages})

@@ -26,7 +26,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
-    "django.middleware.clickjacking.XFrameOptionsMiddleware",  # fix #6: защита от clickjacking
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",  # fix #6: clickjacking protection
 ]
 
 ROOT_URLCONF = "transcendence.urls"
@@ -73,7 +73,7 @@ STATIC_URL = "/static/"
 STATIC_ROOT = os.path.join(BASE_DIR, "static")
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
-# fix #5: нужно для работы с загружаемыми файлами (фото, медиа)
+# fix #5: needed for handling uploaded files (photos, media)
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
