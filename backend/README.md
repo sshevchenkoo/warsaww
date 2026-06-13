@@ -29,7 +29,9 @@ Smoke test:
 
 ```bash
 curl localhost:8000/health
-curl -X POST localhost:8000/search \
+# /search streams Server-Sent Events: an `intent` event, then a `card`
+# event per ranked result, then `done`. Use -N to see them as they arrive.
+curl -N -X POST localhost:8000/search \
   -H 'content-type: application/json' \
   -d '{"prompt": "куда сходить в субботу вечером недорого"}'
 ```
@@ -47,7 +49,7 @@ python -m app.ingestion.runner --source=places
 - [x] Skeleton: API, DB models, intent extraction via Claude Haiku (structured outputs), intent logging
 - [x] SQL search filters
 - [x] Vector search: Voyage voyage-3.5 (1024d), hybrid SQL filters + cosine ranking, verified end-to-end on RU/EN/PL prompts
-- [ ] Re-rank via Opus + SSE streaming
+- [x] Re-rank via Opus (claude-opus-4-8) + SSE streaming: filters/reorders top-30, writes a per-card blurb in the user's language, streamed card-by-card
 - [x] First real adapter (places: Overpass API, ~385 tourist-worthy places — `wikidata` tag as notability filter)
 - [x] Wikidata enrichment for places (Wikipedia intro as description + Commons photo; 383/385 covered)
 - [x] Upsert by (source, source_url) — re-running a source updates instead of duplicating
