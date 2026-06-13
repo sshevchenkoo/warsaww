@@ -38,8 +38,10 @@ class Item(Base):
     price_from: Mapped[float | None] = mapped_column(Numeric)
     price_to: Mapped[float | None] = mapped_column(Numeric)
     image_url: Mapped[str | None] = mapped_column(Text)
-    source: Mapped[str] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(Text)  # canonical source after dedup
     source_url: Mapped[str | None] = mapped_column(Text)
+    # extra (source, source_url) pairs merged in by dedup from other sources:
+    sources: Mapped[list | None] = mapped_column(JSONB)
 
     # events only:
     starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

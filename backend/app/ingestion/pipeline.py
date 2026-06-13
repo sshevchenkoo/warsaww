@@ -1,12 +1,15 @@
 from dataclasses import asdict
 
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.orm import Session
 
 from app.catalog.db import Base, SessionLocal, engine
 from app.catalog.models import Item
 from app.config import settings
 from app.ingestion.adapters import ADAPTERS
 from app.ingestion.adapters.base import RawItem
+from app.ingestion.dedup import deduplicate, make_haiku_adjudicator
 from app.ingestion.taxonomy import guess_category
 from app.llm.embeddings import card_text, embed_documents
 
@@ -67,17 +70,38 @@ def upsert(items: list[RawItem], refresh_embedding: bool = False) -> None:
         session.commit()
 
 
+def _apply_merges(session: Session, merges: list[tuple]) -> None:
+    """Append merged source refs onto the existing cards they belong to."""
+    for existing_id, ref in merges:
+        item = session.get(Item, existing_id)
+        if item is None:
+            continue
+        refs = list(item.sources or [])
+        if ref not in refs:
+            refs.append(ref)
+            item.sources = refs  # reassign so SQLAlchemy flags the JSONB dirty
+
+
 def run(source: str) -> None:
     adapter = ADAPTERS[source]()
     raw_items = adapter.fetch()
     items = [normalize(r) for r in raw_items]
 
-    # TODO: dedup — rapidfuzz over (name, date, venue), ambiguous pairs
-    #       batched to Haiku via the Batches API
-
-    embedded = embed(items)
-
     Base.metadata.create_all(engine)
-    upsert(items, refresh_embedding=embedded)
 
-    print(f"[{source}] cards loaded: {len(items)}")
+    # Drop duplicates against the existing catalog and within this batch;
+    # a duplicate's source ref is folded into the canonical card instead.
+    with SessionLocal() as session:
+        existing = list(session.scalars(select(Item)))
+        canonical, merges = deduplicate(items, existing, make_haiku_adjudicator())
+        _apply_merges(session, merges)
+        session.commit()
+
+    embedded = embed(canonical)
+    upsert(canonical, refresh_embedding=embedded)
+
+    folded = len(items) - len(canonical) - len(merges)
+    print(
+        f"[{source}] fetched {len(items)} → {len(canonical)} new cards; "
+        f"merged {len(merges)} into existing, folded {folded} within batch"
+    )
