@@ -6,7 +6,7 @@ resource "hcloud_server" "vm" {
   ssh_keys    = var.ssh_key_ids
   labels      = var.labels
 
-  # FIX: firewall_ids принимает number, не string
+  # FIX: firewall_ids takes a number, not a string
   firewall_ids = var.firewall_ids
 
   network {
@@ -14,10 +14,10 @@ resource "hcloud_server" "vm" {
     ip         = var.private_ip
   }
 
-  # FIX: явная зависимость от subnet — сервер не создаётся до готовности сети
+  # FIX: explicit dependency on the subnet — the server is not created before the network is ready
   depends_on = [var.subnet_id]
 
-  # Python3 нужен Ansible для выполнения модулей
+  # Python3 is required by Ansible to run its modules
   user_data = <<-EOT
     #cloud-config
     package_update: true

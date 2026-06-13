@@ -7,7 +7,7 @@ services:
     volumes:
       - ./backend:/app
     ports:
-      - "8000:8000"   # fix #1: прямой доступ к Django без nginx
+      - "8000:8000"   # fix #1: direct access to Django without nginx
     environment:
       - DEBUG=1
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
@@ -16,10 +16,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      redis:              # fix #3: backend ждёт redis перед стартом
+      redis:              # fix #3: backend waits for redis before starting
         condition: service_started
-    # fix: daphne — ASGI-сервер, нужен для WebSocket (Django Channels)
-    # runserver — только WSGI, WebSocket с ним не работает никогда
+    # fix: daphne — the ASGI server, needed for WebSocket (Django Channels)
+    # runserver — WSGI only, WebSocket never works with it
     command: daphne -b 0.0.0.0 -p 8000 transcendence.asgi:application
 
   db:

@@ -1,4 +1,4 @@
-# Базовая настройка всех серверов
+# Base setup for all servers
 ---
 - name: Common setup
   hosts: all

@@ -1,11 +1,11 @@
 variable "project_name" { type = string }
-variable "your_ssh_ip"  { type = string }
+variable "your_ssh_ip" { type = string }
 
-# ─── Файрвол для k3s нод ──────────────────────────────────────────────────────
+# ─── Firewall for k3s nodes ───────────────────────────────────────────────────
 resource "hcloud_firewall" "k3s" {
   name = "${var.project_name}-k3s"
 
-  # SSH — только с твоего IP
+  # SSH — only from your IP
   rule {
     direction  = "in"
     protocol   = "tcp"
@@ -13,7 +13,7 @@ resource "hcloud_firewall" "k3s" {
     source_ips = ["${var.your_ssh_ip}/32"]
   }
 
-  # HTTP/HTTPS — публичный доступ для ingress
+  # HTTP/HTTPS — public access for ingress
   rule {
     direction  = "in"
     protocol   = "tcp"
@@ -28,7 +28,7 @@ resource "hcloud_firewall" "k3s" {
     source_ips = ["0.0.0.0/0", "::/0"]
   }
 
-  # k3s API (kubectl) — только с твоего IP
+  # k3s API (kubectl) — only from your IP
   rule {
     direction  = "in"
     protocol   = "tcp"
@@ -36,7 +36,7 @@ resource "hcloud_firewall" "k3s" {
     source_ips = ["${var.your_ssh_ip}/32"]
   }
 
-  # Внутренняя сеть — всё разрешено между нодами
+  # Internal network — everything allowed between nodes
   rule {
     direction  = "in"
     protocol   = "tcp"
@@ -52,11 +52,11 @@ resource "hcloud_firewall" "k3s" {
   }
 }
 
-# ─── Файрвол для ELK ──────────────────────────────────────────────────────────
+# ─── Firewall for ELK ─────────────────────────────────────────────────────────
 resource "hcloud_firewall" "elk" {
   name = "${var.project_name}-elk"
 
-  # SSH — только с твоего IP
+  # SSH — only from your IP
   rule {
     direction  = "in"
     protocol   = "tcp"
@@ -64,7 +64,7 @@ resource "hcloud_firewall" "elk" {
     source_ips = ["${var.your_ssh_ip}/32"]
   }
 
-  # Kibana UI — только с твоего IP (никакого публичного доступа)
+  # Kibana UI — only from your IP (no public access)
   rule {
     direction  = "in"
     protocol   = "tcp"
@@ -72,7 +72,7 @@ resource "hcloud_firewall" "elk" {
     source_ips = ["${var.your_ssh_ip}/32"]
   }
 
-  # Logstash (TCP JSON от Fluent Bit) — только из приватной сети k3s нод
+  # Logstash (TCP JSON from Fluent Bit) — only from the k3s private network
   rule {
     direction  = "in"
     protocol   = "tcp"
@@ -81,11 +81,11 @@ resource "hcloud_firewall" "elk" {
   }
 }
 
-# ─── Файрвол для PostgreSQL ───────────────────────────────────────────────────
+# ─── Firewall for PostgreSQL ──────────────────────────────────────────────────
 resource "hcloud_firewall" "db" {
   name = "${var.project_name}-db"
 
-  # SSH — только с твоего IP
+  # SSH — only from your IP
   rule {
     direction  = "in"
     protocol   = "tcp"
@@ -93,7 +93,7 @@ resource "hcloud_firewall" "db" {
     source_ips = ["${var.your_ssh_ip}/32"]
   }
 
-  # PostgreSQL — только из приватной подсети, снаружи закрыт
+  # PostgreSQL — only from the private subnet, closed externally
   rule {
     direction  = "in"
     protocol   = "tcp"

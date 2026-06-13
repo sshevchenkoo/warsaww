@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>ft_transcendence — тест инфраструктуры</title>
+  <title>ft_transcendence — infrastructure test</title>
   <style>
     body { font-family: monospace; max-width: 800px; margin: 40px auto; padding: 0 20px; background: #0d1117; color: #c9d1d9; }
     h1 { color: #58a6ff; }
@@ -28,9 +28,9 @@
 <body>
 
 <h1>ft_transcendence</h1>
-<p style="color:#8b949e">Тестовый бэкенд для проверки инфраструктуры</p>
+<p style="color:#8b949e">Test backend for checking the infrastructure</p>
 
-<h2>Статус сервисов</h2>
+<h2>Service status</h2>
 <div class="status-grid">
   <div class="card">
     <div class="label">Django</div>
@@ -47,15 +47,15 @@
 </div>
 
 <h2>WebSocket (Django Channels + Redis)</h2>
-<div class="ws-status">Статус: <span id="ws-status" class="pending">connecting...</span></div>
+<div class="ws-status">Status: <span id="ws-status" class="pending">connecting...</span></div>
 <div class="chat-box" id="chat-box"></div>
 <div>
-  <input type="text" id="msg-input" placeholder="Напиши сообщение и нажми Enter..." />
+  <input type="text" id="msg-input" placeholder="Type a message and press Enter..." />
   <button onclick="sendMsg()">Send</button>
 </div>
 
-<h2>REST API — проверка БД</h2>
-<pre id="api-output">Загружаем...</pre>
+<h2>REST API — DB check</h2>
+<pre id="api-output">Loading...</pre>
 
 <script>
   // --- Healthcheck ---

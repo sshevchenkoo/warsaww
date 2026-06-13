@@ -1,20 +1,20 @@
 output "master_public_ip" {
-  description = "Публичный IP k3s мастера"
+  description = "Public IP of the k3s master"
   value       = module.k3s_master.public_ip
 }
 
 output "worker_1_public_ip" {
-  description = "Публичный IP k3s worker-1"
+  description = "Public IP of k3s worker-1"
   value       = module.k3s_worker_1.public_ip
 }
 
 output "worker_2_public_ip" {
-  description = "Публичный IP k3s worker-2"
+  description = "Public IP of k3s worker-2"
   value       = module.k3s_worker_2.public_ip
 }
 
 output "postgres_public_ip" {
-  description = "Публичный IP PostgreSQL (SSH доступ)"
+  description = "Public IP of PostgreSQL (SSH access)"
   value       = module.postgres.public_ip
 }
 
@@ -24,17 +24,17 @@ output "postgres_private_ip" {
 }
 
 output "elk_public_ip" {
-  description = "Публичный IP ELK (Kibana UI: http://<ip>:5601)"
+  description = "Public IP of ELK (Kibana UI: http://<ip>:5601)"
   value       = module.elk.public_ip
 }
 
 output "elk_private_ip" {
-  description = "Приватный IP ELK — Logstash endpoint для Fluent Bit"
+  description = "Private IP of ELK — Logstash endpoint for Fluent Bit"
   value       = var.elk_private_ip
 }
 
 output "ssh_commands" {
-  description = "Команды для подключения к серверам"
+  description = "Commands to connect to the servers"
   value = {
     master   = "ssh root@${module.k3s_master.public_ip}"
     worker_1 = "ssh root@${module.k3s_worker_1.public_ip}"

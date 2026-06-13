@@ -12,15 +12,15 @@ provider "hcloud" {
   token = var.hcloud_token
 }
 
-# ─── SSH ключ ─────────────────────────────────────────────────────────────────
-# Один ключ — лежит в .ssh/id_ed25519 (генерируется через: make keys)
-# Публичный ключ передаётся из Makefile: -var="ssh_public_key=$(cat .ssh/id_ed25519.pub)"
+# ─── SSH key ──────────────────────────────────────────────────────────────────
+# A single key — stored in .ssh/id_ed25519 (generated via: make keys)
+# The public key is passed from the Makefile: -var="ssh_public_key=$(cat .ssh/id_ed25519.pub)"
 resource "hcloud_ssh_key" "main" {
   name       = "${var.project_name}-key"
   public_key = var.ssh_public_key
 }
 
-# ─── Сеть ─────────────────────────────────────────────────────────────────────
+# ─── Network ──────────────────────────────────────────────────────────────────
 module "network" {
   source = "./modules/network"
 
@@ -30,7 +30,7 @@ module "network" {
   network_zone = var.network_zone
 }
 
-# ─── Файрволы ─────────────────────────────────────────────────────────────────
+# ─── Firewalls ────────────────────────────────────────────────────────────────
 module "firewall" {
   source = "./modules/firewall"
 
@@ -48,7 +48,7 @@ module "k3s_master" {
   image        = var.os_image
   ssh_key_ids  = [hcloud_ssh_key.main.id]
   network_id   = module.network.network_id
-  subnet_id    = module.network.subnet_id   # FIX: depends_on через переменную
+  subnet_id    = module.network.subnet_id # FIX: depends_on via a variable
   private_ip   = var.master_private_ip
   firewall_ids = [module.firewall.k3s_firewall_id]
 

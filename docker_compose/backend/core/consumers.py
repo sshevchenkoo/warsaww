@@ -4,16 +4,16 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 
 class ChatConsumer(AsyncWebsocketConsumer):
     """
-    Простой WebSocket — всё что пришло от одного клиента
-    рассылается всем остальным в той же комнате.
-    Проверяет что Redis channel layer работает.
+    Simple WebSocket — whatever comes from one client
+    is broadcast to everyone else in the same room.
+    Verifies that the Redis channel layer works.
     """
 
     async def connect(self):
         self.room_name = "test_room"
         self.room_group_name = f"chat_{self.room_name}"
 
-        # Вступить в группу
+        # Join the group
         await self.channel_layer.group_add(
             self.room_group_name,
             self.channel_name,
@@ -34,7 +34,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         data = json.loads(text_data)
         message = data.get("message", "")
 
-        # Разослать всем в группе
+        # Broadcast to everyone in the group
         await self.channel_layer.group_send(
             self.room_group_name,
             {
