@@ -5,12 +5,15 @@ and the user prompt at search time ("query"). Changing the model means
 re-embedding the whole base — that is why it lives in one module.
 """
 
+import time
+
 import httpx
 
 from app.config import settings
 
 VOYAGE_URL = "https://api.voyageai.com/v1/embeddings"
-BATCH_SIZE = 128
+BATCH_SIZE = 64  # smaller batches stay under the per-minute token limit
+MAX_RETRIES = 6
 
 
 def embed_documents(texts: list[str]) -> list[list[float]]:
@@ -29,20 +32,34 @@ def _embed(texts: list[str], input_type: str) -> list[list[float]]:
 
     vectors: list[list[float]] = []
     for i in range(0, len(texts), BATCH_SIZE):
+        payload = {
+            "input": texts[i : i + BATCH_SIZE],
+            "model": settings.embedding_model,
+            "input_type": input_type,
+        }
+        data = _post_with_retry(payload)
+        ordered = sorted(data["data"], key=lambda d: d["index"])
+        vectors.extend(d["embedding"] for d in ordered)
+    return vectors
+
+
+def _post_with_retry(payload: dict) -> dict:
+    """POST one batch, backing off on 429 (rate / token-per-minute limit)."""
+    for attempt in range(MAX_RETRIES):
         response = httpx.post(
             VOYAGE_URL,
             headers={"Authorization": f"Bearer {settings.voyage_api_key}"},
-            json={
-                "input": texts[i : i + BATCH_SIZE],
-                "model": settings.embedding_model,
-                "input_type": input_type,
-            },
+            json=payload,
             timeout=120,
         )
+        if response.status_code == 429 and attempt < MAX_RETRIES - 1:
+            retry_after = response.headers.get("retry-after")
+            wait = float(retry_after) if retry_after else 2**attempt * 5
+            time.sleep(wait)
+            continue
         response.raise_for_status()
-        data = sorted(response.json()["data"], key=lambda d: d["index"])
-        vectors.extend(d["embedding"] for d in data)
-    return vectors
+        return response.json()
+    raise RuntimeError("Voyage rate limit: retries exhausted")
 
 
 def card_text(name: str, description: str | None, category: str | None) -> str:

@@ -46,7 +46,7 @@ python -m app.ingestion.runner --source=places
 
 - [x] Skeleton: API, DB models, intent extraction via Claude Haiku (structured outputs), intent logging
 - [x] SQL search filters
-- [ ] Vector search (pending embedding model choice: Voyage vs bge-m3)
+- [x] Vector search: Voyage voyage-3.5 (1024d), hybrid SQL filters + cosine ranking, verified end-to-end on RU/EN/PL prompts
 - [ ] Re-rank via Opus + SSE streaming
 - [x] First real adapter (places: Overpass API, ~385 tourist-worthy places — `wikidata` tag as notability filter)
 - [x] Wikidata enrichment for places (Wikipedia intro as description + Commons photo; 383/385 covered)
