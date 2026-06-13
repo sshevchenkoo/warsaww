@@ -4,7 +4,8 @@
         build push build-push \
         get-kubeconfig create-secrets deploy full-deploy \
         db-backup db-restore db-backup-list \
-        all fclean
+        all fclean \
+        app-up app-down app-logs app-seed web
 
 # ─── Load .env ────────────────────────────────────────────────────────────────
 -include .env
@@ -19,6 +20,8 @@ TF_DIR      := $(ROOT_DIR)/infrastructure/tf_clean
 ANSIBLE_DIR := $(ROOT_DIR)/infrastructure/ansible
 K8S_DIR     := $(ROOT_DIR)/k8s
 KUBECONFIG  := $(ROOT_DIR)/.kube/config
+BACKEND_DIR  := $(ROOT_DIR)/backend
+FRONTEND_DIR := $(ROOT_DIR)/frontend
 
 # ─── Terraform env vars (read automatically from .env via export) ──────────────
 export TF_VAR_hcloud_token=$(HCLOUD_TOKEN)
@@ -41,6 +44,13 @@ help:
 	@echo ""
 	@echo "  $(YELLOW)First time setup:$(NC)"
 	@echo "    cp .env.example .env  — fill in your values (once)"
+	@echo ""
+	@echo "  $(YELLOW)Local app (Warsaw events):$(NC)"
+	@echo "    make app-up          — build + start API, Postgres, Redis on :8000"
+	@echo "    make app-seed        — load Warsaw places + events into the DB"
+	@echo "    make web             — start the Next.js frontend on :3000"
+	@echo "    make app-logs        — follow the API logs"
+	@echo "    make app-down        — stop the local app stack"
 	@echo ""
 	@echo "  $(YELLOW)Infrastructure:$(NC)"
 	@echo "    make keys            — generate SSH keys in .ssh/"
@@ -263,3 +273,29 @@ fclean: infra-down
 	@echo "$(RED)Removing SSH keys and kubeconfig...$(NC)"
 	rm -rf $(SSH_DIR) $(ROOT_DIR)/.kube
 	@echo "$(GREEN)All cleaned up$(NC)"
+
+# ─── Local app (Warsaw events) ────────────────────────────────────────────────
+# Runs the app stack from backend/docker-compose.yml (API + Postgres + Redis)
+# and the Next.js frontend. Needs backend/.env (API keys) — see backend/README.
+
+app-up:
+	@echo "$(GREEN)Starting the local app stack (API + Postgres + Redis)...$(NC)"
+	cd $(BACKEND_DIR) && docker compose up -d --build
+	@echo "$(GREEN)API up: http://localhost:8000  (health: /health)$(NC)"
+	@echo "Next: $(YELLOW)make app-seed$(NC) to load data, then $(YELLOW)make web$(NC) for the UI"
+
+app-seed:
+	@echo "$(GREEN)Loading places (OSM + Wikidata)...$(NC)"
+	cd $(BACKEND_DIR) && docker compose exec api python -m app.ingestion.runner --source=places
+	@echo "$(GREEN)Loading Facebook events (Apify)...$(NC)"
+	cd $(BACKEND_DIR) && docker compose exec api python -m app.ingestion.runner --source=facebook_events
+
+web:
+	cd $(FRONTEND_DIR) && { [ -d node_modules ] || npm install; } && npm run dev
+
+app-logs:
+	cd $(BACKEND_DIR) && docker compose logs -f api
+
+app-down:
+	cd $(BACKEND_DIR) && docker compose down
+	@echo "$(GREEN)App stack stopped (data kept in the pgdata volume)$(NC)"

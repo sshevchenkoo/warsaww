@@ -3,6 +3,18 @@
 Two services run locally: the backend API (with Postgres/pgvector + Redis) and
 the Next.js frontend.
 
+## Make shortcuts (from the repo root)
+
+```bash
+make app-up      # build + start API, Postgres/pgvector, Redis on :8000
+make app-seed    # load Warsaw places + events into the DB
+make web         # start the Next.js frontend on :3000
+make app-logs    # follow the API logs
+make app-down    # stop the stack (data kept in the pgdata volume)
+```
+
+The manual equivalents are below.
+
 ## Backend
 
 Full stack in containers — closest to production:
