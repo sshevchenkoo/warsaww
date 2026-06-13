@@ -2,6 +2,8 @@
 .env
 .ssh/
 .kube/
+# filled-in k8s Secret (keep only secret.example.yml)
+**/k8s/secret.yml
 
 # Terraform
 *.tfvars
