@@ -75,18 +75,18 @@ Platform:   k3s on Hetzner · ELK logs · Prometheus/Grafana · cert-manager TLS
 
 ## Quick start (local)
 
-Run the Warsaw-events app — API + Postgres/pgvector + Redis — in containers:
+Set `backend/.env` (`ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`, `APIFY_TOKEN`), then
+from the repo root:
 
 ```bash
-cd backend
-cp .env.example .env          # set ANTHROPIC_API_KEY, VOYAGE_API_KEY, APIFY_TOKEN
-docker compose up -d --build  # API on :8000
-python -m app.ingestion.runner --source=places   # load some data
-
-cd ../frontend
-cp .env.example .env.local    # NEXT_PUBLIC_API_URL=http://localhost:8000
-npm install && npm run dev    # UI on :3000
+make app-up      # build + start API, Postgres/pgvector, Redis on :8000
+make app-seed    # load Warsaw places + events into the DB
+make web         # start the Next.js frontend on :3000
+make app-down    # stop the stack (data kept in the pgdata volume)
 ```
+
+`make help` lists every target. The equivalent manual commands are in
+[docs/local-development.md](docs/local-development.md).
 
 Deploying to the cluster: app manifests in [`backend/k8s/`](backend/k8s/README.md),
 the platform itself in [`docs/infrastructure.md`](docs/infrastructure.md).
