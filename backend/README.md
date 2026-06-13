@@ -49,7 +49,7 @@ python -m app.ingestion.runner --source=places
 - [x] Skeleton: API, DB models, intent extraction via Claude Haiku (structured outputs), intent logging
 - [x] SQL search filters
 - [x] Vector search: Voyage voyage-3.5 (1024d), hybrid SQL filters + cosine ranking, verified end-to-end on RU/EN/PL prompts
-- [x] Re-rank via Opus (claude-opus-4-8) + SSE streaming: filters/reorders top-30, writes a per-card blurb in the user's language, streamed card-by-card
+- [x] Re-rank via Claude Sonnet (claude-sonnet-4-6) + SSE streaming: filters/reorders top-30, writes a per-card blurb in the user's language, streamed card-by-card
 - [x] First real adapter (places: Overpass API, ~385 tourist-worthy places — `wikidata` tag as notability filter)
 - [x] Wikidata enrichment for places (Wikipedia intro as description + Commons photo; 383/385 covered)
 - [x] Upsert by (source, source_url) — re-running a source updates instead of duplicating
