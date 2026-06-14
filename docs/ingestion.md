@@ -33,6 +33,7 @@ fetch (adapter) → normalize → dedup → embed (Voyage) → upsert (Postgres)
 | OpenStreetMap (Overpass API) | API, free | Tourist-worthy places: castles, museums, monuments, parks |
 | Wikidata / Wikipedia | API, free | Descriptions (article intro) + photos (Commons) by Q-id |
 | Facebook Events (via Apify) | API, paid per use | Concerts, parties, local events with dates and venue coordinates |
+| Ticketmaster Discovery API | API, free (apikey) | Concerts & shows with dates, venues, prices |
 | Google Places | API, cheap | (future) prices, ratings, opening hours enrichment |
 
 ### Places — notability filter
@@ -51,6 +52,17 @@ The Apify "Facebook Events Scraper" actor is called over its REST API. Results
 are filtered to a Warsaw bounding box (drops e.g. Warsaw, Virginia), and
 canceled / past / online events are skipped. Facebook category labels are mapped
 to our taxonomy.
+
+### Ticketmaster Discovery API
+
+Concerts and shows via the Discovery API (`/discovery/v2/events.json`). Only the
+**Consumer Key** is needed (`apikey` query param; the Secret is for other
+Ticketmaster APIs). The `ticketmaster` adapter searches `city=Warsaw,
+countryCode=PL` sorted by date, paginates, and keeps the soonest `MAX_EVENTS`
+(150). Maps `name`, `url`, `dates.start.dateTime`, the venue's coordinates,
+`priceRanges` → price_from/to, the widest 16:9 image, and the segment
+(Music → concert, Arts & Theatre → theatre). Dedup folds these with the other
+event sources by day + name.
 
 ## Deduplication
 

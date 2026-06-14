@@ -92,3 +92,52 @@ spec:
                 limits:
                   cpu: "500m"
                   memory: "512Mi"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ingest-ticketmaster
+  namespace: warsaw
+spec:
+  schedule: "0 */12 * * *" # twice a day — concerts get announced regularly
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: ingest
+              image: ghcr.io/${GITHUB_USER}/warsaw-events:${IMAGE_TAG}
+              command: ["python", "-m", "app.ingestion.runner", "--source=ticketmaster"]
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: warsaw-secrets
+                      key: DATABASE_URL
+                - name: VOYAGE_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: warsaw-secrets
+                      key: VOYAGE_API_KEY
+                - name: ANTHROPIC_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: warsaw-secrets
+                      key: ANTHROPIC_API_KEY
+                - name: TICKETMASTER_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: warsaw-secrets
+                      key: TICKETMASTER_API_KEY
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "256Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "512Mi"
