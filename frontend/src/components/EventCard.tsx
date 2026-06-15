@@ -1,10 +1,15 @@
+"use client";
+
 import type { Card } from "@/lib/api";
+import { useUser } from "@/components/UserContext";
 import { categoryLabel, fallbackHue, formatPrice, formatWhen } from "@/lib/format";
 
 export function EventCard({ card, index }: { card: Card; index: number }) {
   const when = formatWhen(card);
   const price = formatPrice(card);
   const hue = fallbackHue(card.id);
+  const { user, savedIds, toggleSave } = useUser();
+  const saved = savedIds.has(card.id);
 
   const inner = (
     <article
@@ -32,22 +37,24 @@ export function EventCard({ card, index }: { card: Card; index: number }) {
       {/* Accent hairline that grows on hover. */}
       <div className="absolute inset-x-0 bottom-0 h-[3px] origin-left scale-x-0 bg-accent transition-transform duration-300 group-hover:scale-x-100" />
 
-      {/* Top row: category + when/price badges. */}
-      <div className="absolute inset-x-0 top-0 flex items-start justify-between p-3.5">
+      {/* Top-left: category. */}
+      <div className="absolute inset-x-0 top-0 p-3.5">
         <span className="rounded-full border border-white/25 bg-black/30 px-2.5 py-1 font-mono text-[10px] font-medium tracking-[0.14em] text-fg backdrop-blur-sm">
           {categoryLabel(card)}
         </span>
-        {price && (
-          <span className="rounded-full bg-accent px-2.5 py-1 font-mono text-[10px] font-bold tracking-wide text-accent-ink">
-            {price}
-          </span>
-        )}
       </div>
 
-      {/* Bottom: name, when, blurb. */}
+      {/* Bottom: when + price, name, blurb. */}
       <div className="absolute inset-x-0 bottom-0 p-4">
-        {when && (
-          <p className="mb-1.5 font-mono text-[11px] tracking-wide text-accent">{when}</p>
+        {(when || price) && (
+          <p className="mb-1.5 flex items-center gap-2 font-mono text-[11px] tracking-wide text-accent">
+            {when && <span>{when}</span>}
+            {price && (
+              <span className="rounded-full bg-accent px-2 py-0.5 font-bold text-accent-ink">
+                {price}
+              </span>
+            )}
+          </p>
         )}
         <h3 className="text-balance text-xl font-extrabold leading-tight tracking-tight text-fg">
           {card.name}
@@ -64,10 +71,32 @@ export function EventCard({ card, index }: { card: Card; index: number }) {
     </article>
   );
 
-  if (!card.source_url) return inner;
   return (
-    <a href={card.source_url} target="_blank" rel="noreferrer" className="block">
-      {inner}
-    </a>
+    <div className="relative">
+      {/* Heart lives outside the <a> (a button can't nest in an anchor). */}
+      {user && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleSave(card.id);
+          }}
+          aria-label={saved ? "Remove from saved" : "Save"}
+          aria-pressed={saved}
+          className="absolute right-3 top-3 z-10 grid h-9 w-9 place-items-center rounded-full border border-white/25 bg-black/40 text-lg backdrop-blur-sm transition-transform hover:scale-110 active:scale-90"
+        >
+          <span className={saved ? "text-accent" : "text-fg"}>{saved ? "♥" : "♡"}</span>
+        </button>
+      )}
+
+      {card.source_url ? (
+        <a href={card.source_url} target="_blank" rel="noreferrer" className="block">
+          {inner}
+        </a>
+      ) : (
+        inner
+      )}
+    </div>
   );
 }
