@@ -4,7 +4,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import OperationalError
+from starlette.middleware.sessions import SessionMiddleware
 
+from app.api.auth import router as auth_router
 from app.api.routes import router
 from app.catalog import models  # noqa: F401 — registers tables in metadata
 from app.catalog.db import Base, engine
@@ -32,6 +34,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Warsaw Events API", lifespan=lifespan)
 
+# Signed-cookie sessions (no server-side state → the API stays stateless across
+# replicas). Holds only the logged-in user id; signed with session_secret.
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.session_secret,
+    same_site="lax",
+    https_only=settings.session_https_only,
+)
+
 # The frontend (a separate origin) calls /search from the browser.
 app.add_middleware(
     CORSMiddleware,
@@ -41,3 +52,4 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(auth_router)

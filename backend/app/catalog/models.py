@@ -74,6 +74,23 @@ class Item(Base):
     )
 
 
+class User(Base):
+    """An authenticated user (identified by their Google account)."""
+
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    google_sub: Mapped[str] = mapped_column(Text, unique=True)  # Google's stable user id
+    email: Mapped[str | None] = mapped_column(Text)
+    name: Mapped[str | None] = mapped_column(Text)
+    avatar_url: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+
+
 class IntentLog(Base):
     """Log of prompt parses: future fine-tuning dataset for a local model."""
 
