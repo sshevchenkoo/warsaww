@@ -1,7 +1,8 @@
 # Single domain for the whole app: the frontend at /, and the API at its known
-# paths (/search, /health). Same origin, so the browser uses relative API calls
-# and no CORS is needed in production. nginx matches the most specific prefix,
-# so /search and /health go to the API and everything else to the web frontend.
+# paths (/search, /health, /auth, /me). Same origin, so the browser uses relative
+# API calls (and the session cookie is first-party) with no CORS in production.
+# nginx matches the most specific prefix, so these paths go to the API and
+# everything else to the web frontend.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -32,6 +33,20 @@ spec:
                 port:
                   number: 8000
           - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  number: 8000
+          - path: /auth
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  number: 8000
+          - path: /me
             pathType: Prefix
             backend:
               service:

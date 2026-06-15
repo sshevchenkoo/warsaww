@@ -35,6 +35,12 @@ spec:
           env:
             - name: REDIS_URL
               value: "redis://redis.warsaw.svc.cluster.local:6379/0"
+            # Auth: the app is served from one HTTPS domain, so the OAuth
+            # redirect + session cookie use that origin.
+            - name: FRONTEND_URL
+              value: "https://${WARSAW_DOMAIN}"
+            - name: SESSION_HTTPS_ONLY
+              value: "true"
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -50,6 +56,21 @@ spec:
                 secretKeyRef:
                   name: warsaw-secrets
                   key: VOYAGE_API_KEY
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: warsaw-secrets
+                  key: GOOGLE_CLIENT_ID
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: warsaw-secrets
+                  key: GOOGLE_CLIENT_SECRET
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: warsaw-secrets
+                  key: SESSION_SECRET
           readinessProbe:
             httpGet:
               path: /health
