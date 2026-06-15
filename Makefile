@@ -5,7 +5,7 @@
         get-kubeconfig create-secrets deploy full-deploy \
         db-backup db-restore db-backup-list \
         all fclean \
-        app-up app-down app-logs app-seed web
+        dev app-up app-down app-logs app-seed web web-bg web-logs
 
 # ─── Load .env ────────────────────────────────────────────────────────────────
 -include .env
@@ -22,6 +22,7 @@ K8S_DIR     := $(ROOT_DIR)/k8s
 KUBECONFIG  := $(ROOT_DIR)/.kube/config
 BACKEND_DIR  := $(ROOT_DIR)/backend
 FRONTEND_DIR := $(ROOT_DIR)/frontend
+WEB_LOG      := /tmp/warsaw-web-dev.log
 
 # ─── Terraform env vars (read automatically from .env via export) ──────────────
 export TF_VAR_hcloud_token=$(HCLOUD_TOKEN)
@@ -46,11 +47,13 @@ help:
 	@echo "    cp .env.example .env  — fill in your values (once)"
 	@echo ""
 	@echo "  $(YELLOW)Local app (Warsaw events):$(NC)"
+	@echo "    make dev             — one command: start everything (API :8000 + web :3000) in the background"
+	@echo "    make app-down        — one command: stop everything (frontend + backend stack)"
 	@echo "    make app-up          — build + start API, Postgres, Redis on :8000"
 	@echo "    make app-seed        — load Warsaw places + events into the DB"
-	@echo "    make web             — start the Next.js frontend on :3000"
+	@echo "    make web             — start the Next.js frontend on :3000 (foreground)"
 	@echo "    make app-logs        — follow the API logs"
-	@echo "    make app-down        — stop the local app stack"
+	@echo "    make web-logs        — follow the frontend logs"
 	@echo ""
 	@echo "  $(YELLOW)Infrastructure:$(NC)"
 	@echo "    make keys            — generate SSH keys in .ssh/"
@@ -278,6 +281,14 @@ fclean: infra-down
 # Runs the app stack from backend/docker-compose.yml (API + Postgres + Redis)
 # and the Next.js frontend. Needs backend/.env (API keys) — see backend/README.
 
+# One command for local testing: backend stack + frontend, both in the
+# background, so the command returns immediately and `make app-down` stops it
+# all. Data persists in the pgdata volume, so seeding is a one-time
+# `make app-seed` (not needed on every run).
+dev: app-up web-bg
+	@echo "$(GREEN)Up:$(NC) API http://localhost:8000  ·  web http://localhost:3000"
+	@echo "  logs: $(YELLOW)make app-logs$(NC) (api) / $(YELLOW)make web-logs$(NC) (web)    stop: $(YELLOW)make app-down$(NC)"
+
 app-up:
 	@echo "$(GREEN)Starting the local app stack (API + Postgres + Redis)...$(NC)"
 	cd $(BACKEND_DIR) && docker compose up -d --build
@@ -293,9 +304,21 @@ app-seed:
 web:
 	cd $(FRONTEND_DIR) && { [ -d node_modules ] || npm install; } && npm run dev
 
+# Frontend in the background (used by `make dev`); logs go to WEB_LOG.
+web-bg:
+	@cd $(FRONTEND_DIR) && { [ -d node_modules ] || npm install; }
+	@echo "$(GREEN)Starting the frontend on :3000 (background, logs: make web-logs)...$(NC)"
+	@nohup sh -c 'cd $(FRONTEND_DIR) && npm run dev' > $(WEB_LOG) 2>&1 < /dev/null &
+
+web-logs:
+	@tail -F $(WEB_LOG)
+
 app-logs:
 	cd $(BACKEND_DIR) && docker compose logs -f api
 
+# Stops everything: the background frontend (whatever holds :3000) and the
+# backend stack. Data is kept in the pgdata volume.
 app-down:
+	@PIDS=$$(lsof -ti:3000 2>/dev/null); if [ -n "$$PIDS" ]; then kill $$PIDS 2>/dev/null && echo "$(GREEN)Frontend stopped$(NC)"; fi
 	cd $(BACKEND_DIR) && docker compose down
 	@echo "$(GREEN)App stack stopped (data kept in the pgdata volume)$(NC)"
