@@ -13,6 +13,18 @@ class Settings(BaseSettings):
     # CORS origins allowed to call the API from a browser ("*" for local dev).
     cors_origins: list[str] = ["*"]
 
+    # Auth: Google OAuth + signed-cookie sessions (no server-side state, so the
+    # API stays stateless across replicas — every replica validates with the
+    # same session_secret).
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
+    session_secret: str = "dev-insecure-change-me"  # signs the session cookie
+    # Where the browser-facing app lives: the OAuth redirect URI is
+    # f"{frontend_url}/auth/callback" and login redirects back here when done.
+    frontend_url: str = "http://localhost:3000"
+    # Secure cookies require HTTPS — off for local http dev, on in production.
+    session_https_only: bool = False
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
