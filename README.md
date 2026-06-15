@@ -98,8 +98,9 @@ platform itself in [docs/infrastructure.md](docs/infrastructure.md).
 | [Backend](docs/backend.md) | App structure, local setup, status |
 | [Frontend](docs/frontend.md) | UI, SSE client, re-skinning |
 | [Architecture](docs/architecture.md) | Components, data flow, design decisions |
-| [Data model](docs/data-model.md) | `items` and `intent_logs` schema |
+| [Data model](docs/data-model.md) | `items`, `intent_logs`, `users`, `saved_items` schema |
 | [Search & LLM](docs/search-and-llm.md) | Intent, embeddings, hybrid search, re-rank, cost |
+| [Auth & profiles](docs/auth.md) | Google sign-in, sessions, saved items |
 | [Ingestion](docs/ingestion.md) | Adapters, sources, enrichment, deduplication |
 | [Deployment](docs/deployment.md) | Docker image, k8s manifests, CronJobs |
 | [Local development](docs/local-development.md) | Running and testing locally |

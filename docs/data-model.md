@@ -64,7 +64,26 @@ CREATE TABLE intent_logs (
 );
 ```
 
-## Future tables (account features, not MVP)
+## `users` and `saved_items` — accounts & favorites
 
-`users`, `favorites`, `search_history` — added alongside an `auth` module. The
-existing tables do not change.
+Added with the auth module (see [auth.md](auth.md)); the tables above are unchanged.
+
+```sql
+CREATE TABLE users (
+    id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    google_sub text NOT NULL UNIQUE,    -- Google's stable user id
+    email      text,
+    name       text,
+    avatar_url text,
+    created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE saved_items (
+    id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id    uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    item_id    uuid NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    created_at timestamptz DEFAULT now(),
+    UNIQUE (user_id, item_id)           -- a card is saved at most once per user
+);
+CREATE INDEX ON saved_items (user_id);
+```
