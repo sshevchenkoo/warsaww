@@ -21,6 +21,35 @@ export async function getMe(): Promise<User | null> {
   return res.ok ? res.json() : null;
 }
 
+// POST credentials; on failure throw with the API's error message.
+async function authPost(path: string, body: object): Promise<User> {
+  const res = await req(path, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let msg = "Something went wrong. Try again.";
+    try {
+      const data = await res.json();
+      if (typeof data.detail === "string") msg = data.detail;
+      else if (Array.isArray(data.detail) && data.detail[0]?.msg) msg = data.detail[0].msg;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+export function register(email: string, password: string, name?: string): Promise<User> {
+  return authPost("/auth/register", { email, password, name: name || null });
+}
+
+export function login(email: string, password: string): Promise<User> {
+  return authPost("/auth/login", { email, password });
+}
+
 export async function getSavedIds(): Promise<string[]> {
   const res = await req("/me/saved/ids");
   return res.ok ? res.json() : [];

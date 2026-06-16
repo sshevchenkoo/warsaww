@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useUser } from "@/components/UserContext";
 
 export function Header() {
-  const { user, loading, logout, loginUrl } = useUser();
+  const { user, loading, logout } = useUser();
 
   return (
     <header className="sticky top-0 z-20 flex items-center justify-between border-b border-line bg-bg/80 px-5 py-3 backdrop-blur-md">
@@ -42,12 +42,12 @@ export function Header() {
             </button>
           </>
         ) : (
-          <a
-            href={loginUrl}
+          <Link
+            href="/login"
             className="rounded-full bg-accent px-3.5 py-1.5 font-bold text-accent-ink transition-transform hover:scale-105 active:scale-95"
           >
             sign in
-          </a>
+          </Link>
         )}
       </nav>
     </header>

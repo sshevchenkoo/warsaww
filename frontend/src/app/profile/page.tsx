@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { EventCard } from "@/components/EventCard";
@@ -8,7 +9,7 @@ import type { Card } from "@/lib/api";
 import { getSaved } from "@/lib/auth";
 
 export default function Profile() {
-  const { user, loading, savedIds, loginUrl } = useUser();
+  const { user, loading, savedIds } = useUser();
   const [cards, setCards] = useState<Card[]>([]);
   const [busy, setBusy] = useState(true);
 
@@ -29,12 +30,12 @@ export default function Profile() {
         <p className="mt-3 max-w-md font-mono text-sm text-muted">
           sign in to keep the events &amp; places you like.
         </p>
-        <a
-          href={loginUrl}
+        <Link
+          href="/login"
           className="mt-6 inline-block rounded-full bg-accent px-4 py-2 font-mono text-sm font-bold text-accent-ink transition-transform hover:scale-105 active:scale-95"
         >
-          sign in with Google
-        </a>
+          sign in
+        </Link>
       </main>
     );
   }

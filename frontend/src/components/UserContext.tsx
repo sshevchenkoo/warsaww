@@ -13,7 +13,9 @@ import {
   getMe,
   getSavedIds,
   LOGIN_URL,
+  login as apiLogin,
   logout as apiLogout,
+  register as apiRegister,
   saveItem,
   unsaveItem,
   type User,
@@ -24,6 +26,8 @@ type UserState = {
   loading: boolean;
   savedIds: Set<string>;
   toggleSave: (id: string) => void;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, name?: string) => Promise<void>;
   logout: () => Promise<void>;
   loginUrl: string;
 };
@@ -60,6 +64,27 @@ export function UserProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // Adopt a freshly authenticated user and load their saved ids (same as the
+  // initial /me load). Used by both login and register.
+  const applySession = useCallback(async (u: User) => {
+    setUser(u);
+    setSavedIds(new Set(await getSavedIds()));
+  }, []);
+
+  const login = useCallback(
+    async (email: string, password: string) => {
+      await applySession(await apiLogin(email, password));
+    },
+    [applySession],
+  );
+
+  const register = useCallback(
+    async (email: string, password: string, name?: string) => {
+      await applySession(await apiRegister(email, password, name));
+    },
+    [applySession],
+  );
+
   const logout = useCallback(async () => {
     await apiLogout();
     setUser(null);
@@ -68,7 +93,16 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   return (
     <UserCtx.Provider
-      value={{ user, loading, savedIds, toggleSave, logout, loginUrl: LOGIN_URL }}
+      value={{
+        user,
+        loading,
+        savedIds,
+        toggleSave,
+        login,
+        register,
+        logout,
+        loginUrl: LOGIN_URL,
+      }}
     >
       {children}
     </UserCtx.Provider>
