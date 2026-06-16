@@ -13,8 +13,10 @@ dependencies = [
     "anthropic>=0.40",
     "httpx>=0.27",
     "rapidfuzz>=3.9",
-    "authlib>=1.3",        # Google OAuth (OIDC) client
-    "itsdangerous>=2.2",   # signs the Starlette session cookie
+    "authlib>=1.3",          # Google OAuth (OIDC) client
+    "itsdangerous>=2.2",     # signs the Starlette session cookie
+    "bcrypt>=4.1",           # password hashing for email/password accounts
+    "email-validator>=2.1",  # pydantic EmailStr validation
 ]
 
 [project.optional-dependencies]

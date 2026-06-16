@@ -76,15 +76,20 @@ class Item(Base):
 
 
 class User(Base):
-    """An authenticated user (identified by their Google account)."""
+    """An authenticated user. Identity can come from Google (google_sub) or from
+    an email + password (password_hash); email is the shared, unique identifier."""
 
     __tablename__ = "users"
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
     )
-    google_sub: Mapped[str] = mapped_column(Text, unique=True)  # Google's stable user id
-    email: Mapped[str | None] = mapped_column(Text)
+    # Google's stable user id — NULL for password-only accounts (UNIQUE still
+    # holds; Postgres allows multiple NULLs).
+    google_sub: Mapped[str | None] = mapped_column(Text, unique=True)
+    # bcrypt hash — NULL for Google-only accounts.
+    password_hash: Mapped[str | None] = mapped_column(Text)
+    email: Mapped[str | None] = mapped_column(Text, unique=True)  # the login identifier
     name: Mapped[str | None] = mapped_column(Text)
     avatar_url: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
