@@ -4,7 +4,7 @@ import uuid
 from collections.abc import Iterator
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import func
@@ -73,6 +73,15 @@ def upcoming(limit: int = 12, session: Session = Depends(get_session)) -> list[I
         .all()
     )
     return [ItemOut.model_validate(item) for item in items]
+
+
+@router.get("/items/{item_id}")
+def get_item(item_id: uuid.UUID, session: Session = Depends(get_session)) -> ItemOut:
+    """Full details for a single card — backs the item detail page."""
+    item = session.get(Item, item_id)
+    if item is None:
+        raise HTTPException(404, "Item not found")
+    return ItemOut.model_validate(item)
 
 
 @router.post("/search")

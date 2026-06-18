@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 import type { Card } from "@/lib/api";
@@ -68,11 +69,9 @@ export function EventCard({ card, index }: { card: Card; index: number }) {
         {card.blurb && (
           <p className="mt-2 line-clamp-3 text-sm leading-snug text-fg/75">{card.blurb}</p>
         )}
-        {card.source_url && (
-          <span className="mt-3 inline-flex items-center gap-1 font-mono text-[11px] tracking-wide text-muted transition-colors group-hover:text-fg">
-            {card.source} ↗
-          </span>
-        )}
+        <span className="mt-3 inline-flex items-center gap-1 font-mono text-[11px] tracking-wide text-muted transition-colors group-hover:text-fg">
+          {card.source} →
+        </span>
       </div>
     </article>
   );
@@ -96,13 +95,10 @@ export function EventCard({ card, index }: { card: Card; index: number }) {
         </button>
       )}
 
-      {card.source_url ? (
-        <a href={card.source_url} target="_blank" rel="noreferrer" className="block">
-          {inner}
-        </a>
-      ) : (
-        inner
-      )}
+      {/* The card opens our detail page; the link to the source lives there. */}
+      <Link href={`/item/${card.id}`} className="block">
+        {inner}
+      </Link>
     </div>
   );
 }

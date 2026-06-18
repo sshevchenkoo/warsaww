@@ -42,6 +42,12 @@ export async function getUpcoming(limit = 12): Promise<Card[]> {
   return res.ok ? res.json() : [];
 }
 
+// Full details for one card — backs the /item/[id] detail page.
+export async function getItem(id: string): Promise<Card | null> {
+  const res = await fetch(`${API_URL}/items/${id}`);
+  return res.ok ? res.json() : null;
+}
+
 function parseFrame(frame: string): { event: string; data: string } {
   let event = "message";
   const data: string[] = [];
