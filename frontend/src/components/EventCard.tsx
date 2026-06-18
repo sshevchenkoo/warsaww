@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import type { Card } from "@/lib/api";
 import { useUser } from "@/components/UserContext";
 import { categoryLabel, fallbackHue, formatPrice, formatWhen } from "@/lib/format";
@@ -10,6 +12,9 @@ export function EventCard({ card, index }: { card: Card; index: number }) {
   const hue = fallbackHue(card.id);
   const { user, savedIds, toggleSave } = useUser();
   const saved = savedIds.has(card.id);
+  // Many image_urls point at arbitrary external hosts that 404 / block hotlinking;
+  // fall back to the colored placeholder when the photo fails to load.
+  const [imgError, setImgError] = useState(false);
 
   const inner = (
     <article
@@ -17,12 +22,13 @@ export function EventCard({ card, index }: { card: Card; index: number }) {
       style={{ animationDelay: `${Math.min(index, 12) * 55}ms` }}
     >
       {/* Photo (plain <img> — sources are arbitrary external hosts). */}
-      {card.image_url ? (
+      {card.image_url && !imgError ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={card.image_url}
           alt=""
           loading="lazy"
+          onError={() => setImgError(true)}
           className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
         />
       ) : (
