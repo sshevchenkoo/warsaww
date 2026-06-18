@@ -36,6 +36,12 @@ type Handlers = {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+// Soonest upcoming events for the home-page default feed (no prompt, no cookie).
+export async function getUpcoming(limit = 12): Promise<Card[]> {
+  const res = await fetch(`${API_URL}/upcoming?limit=${limit}`);
+  return res.ok ? res.json() : [];
+}
+
 function parseFrame(frame: string): { event: string; data: string } {
   let event = "message";
   const data: string[] = [];
