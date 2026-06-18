@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { EventCard } from "@/components/EventCard";
-import { streamSearch, type Card, type Intent } from "@/lib/api";
+import { getUpcoming, streamSearch, type Card, type Intent } from "@/lib/api";
 
 const EXAMPLES = [
   "museum about Chopin",
@@ -21,7 +21,13 @@ export default function Home() {
   const [intent, setIntent] = useState<Intent | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [placeholder, setPlaceholder] = useState(EXAMPLES[0]);
+  const [upcoming, setUpcoming] = useState<Card[]>([]);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Load the default "upcoming" feed once on mount.
+  useEffect(() => {
+    getUpcoming().then(setUpcoming);
+  }, []);
 
   // Cycle the placeholder while the user hasn't typed anything.
   useEffect(() => {
@@ -161,6 +167,21 @@ export default function Home() {
           {cards.map((card, i) => (
             <EventCard key={card.id} card={card} index={i} />
           ))}
+        </section>
+      )}
+
+      {/* Upcoming feed: sits under the prompt by default, slides below the
+          results once the user searches. */}
+      {upcoming.length > 0 && (
+        <section className="mt-12">
+          <h2 className="mb-4 font-mono text-[11px] uppercase tracking-widest text-muted">
+            {status === "idle" ? "upcoming" : "also coming up"}
+          </h2>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+            {upcoming.map((card, i) => (
+              <EventCard key={card.id} card={card} index={i} />
+            ))}
+          </div>
         </section>
       )}
     </main>

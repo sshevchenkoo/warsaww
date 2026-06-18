@@ -2,11 +2,12 @@ import json
 import time
 import uuid
 from collections.abc import Iterator
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.catalog.db import get_session
@@ -56,6 +57,22 @@ def _card(item: Item, blurb: str | None) -> dict:
 @router.get("/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+@router.get("/upcoming")
+def upcoming(limit: int = 12, session: Session = Depends(get_session)) -> list[ItemOut]:
+    """Soonest upcoming events (no prompt, no LLM) — the home-page default feed.
+    An event counts as upcoming until it ends (or starts, if it has no end)."""
+    now = datetime.now(timezone.utc)
+    items = (
+        session.query(Item)
+        .filter(Item.kind == "event", Item.starts_at.isnot(None))
+        .filter(func.coalesce(Item.ends_at, Item.starts_at) >= now)
+        .order_by(Item.starts_at.asc())
+        .limit(min(max(limit, 1), 48))
+        .all()
+    )
+    return [ItemOut.model_validate(item) for item in items]
 
 
 @router.post("/search")
