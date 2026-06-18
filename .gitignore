@@ -36,6 +36,13 @@ docker_compose/.env
 .DS_Store
 Thumbs.db
 
+# macOS iCloud / Finder conflict copies ("file 2.ext", "Dockerfile 3", …).
+# This repo currently lives on an iCloud-synced folder; ignore the duplicates
+# it creates so they never pollute git status or get committed.
+* [2-9].*
+* [2-9]
+*.icloud
+
 # IDE
 .idea/
 .vscode/
