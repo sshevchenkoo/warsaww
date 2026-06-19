@@ -12,7 +12,9 @@ import httpx
 from app.config import settings
 
 VOYAGE_URL = "https://api.voyageai.com/v1/embeddings"
-BATCH_SIZE = 64  # smaller batches stay under the per-minute token limit
+BATCH_SIZE = 16  # small enough that one request fits the free tier's per-minute
+# token limit (a 64-doc batch alone exceeds it, so 429s never clear); the 429
+# backoff below paces successive batches.
 MAX_RETRIES = 6
 
 
