@@ -11,7 +11,11 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 ARG NEXT_PUBLIC_API_URL=""
+# next.config rewrites are baked at build time, so the API upstream must be set
+# here (not just at runtime). In compose this is the api service: http://api:8000.
+ARG BACKEND_INTERNAL_URL="http://localhost:8000"
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
+    BACKEND_INTERNAL_URL=$BACKEND_INTERNAL_URL \
     NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
