@@ -59,12 +59,21 @@ function parseFrame(frame: string): { event: string; data: string } {
 }
 
 export async function streamSearch(prompt: string, handlers: Handlers): Promise<void> {
-  const res = await fetch(`${API_URL}/search`, {
+  // Relative path (proxied to the API in dev, same-origin in prod) so the
+  // session cookie backing the daily rate limit is sent.
+  const res = await fetch(`/search`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ prompt }),
+    credentials: "include",
     signal: handlers.signal,
   });
+  if (res.status === 429) {
+    const data = await res.json().catch(() => null);
+    const err = new Error(data?.detail ?? "Daily search limit reached.");
+    err.name = "RateLimitError";
+    throw err;
+  }
   if (!res.ok || !res.body) {
     throw new Error(`search failed: ${res.status}`);
   }

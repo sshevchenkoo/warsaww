@@ -4,7 +4,7 @@ import uuid
 from collections.abc import Iterator
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import func
@@ -16,6 +16,7 @@ from app.config import settings
 from app.llm.embeddings import embed_query
 from app.llm.intent import ClaudeIntentExtractor
 from app.llm.rerank import rerank_stream
+from app.ratelimit import check_search_quota
 from app.retrieval.search import search_items
 
 router = APIRouter()
@@ -85,9 +86,25 @@ def get_item(item_id: uuid.UUID, session: Session = Depends(get_session)) -> Ite
 
 
 @router.post("/search")
-def search(req: SearchRequest, session: Session = Depends(get_session)) -> StreamingResponse:
+def search(
+    req: SearchRequest, request: Request, session: Session = Depends(get_session)
+) -> StreamingResponse:
     """Server-Sent Events: an `intent` event, then a `card` event per ranked
     result, then `done`. The DB/LLM prep runs before streaming starts."""
+    # Per-session daily quota (the only costly endpoint). Anonymous visitors get
+    # a session id so the limit follows them too.
+    sid = request.session.get("sid")
+    if not sid:
+        sid = uuid.uuid4().hex
+        request.session["sid"] = sid
+    allowed, remaining = check_search_quota(sid)
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Daily limit of {settings.search_daily_limit} searches reached. "
+            "Try again tomorrow.",
+        )
+
     extractor = ClaudeIntentExtractor()
 
     started = time.monotonic()

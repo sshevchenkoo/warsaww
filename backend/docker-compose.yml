@@ -28,6 +28,8 @@ services:
     environment:
       # Override the .env DATABASE_URL: inside compose the host is `db`, not localhost.
       DATABASE_URL: postgresql+psycopg://app:app@db:5432/events
+      # Inside compose the Redis host is `redis`, not localhost.
+      REDIS_URL: redis://redis:6379/0
     ports:
       - "8000:8000"
     depends_on:
