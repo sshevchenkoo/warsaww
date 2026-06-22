@@ -13,7 +13,7 @@ const EXAMPLES = [
   "where to take a date tonight",
 ];
 
-type Status = "idle" | "loading" | "streaming" | "done" | "error";
+type Status = "idle" | "loading" | "streaming" | "done" | "error" | "limited";
 
 export default function Home() {
   const [query, setQuery] = useState("");
@@ -22,6 +22,7 @@ export default function Home() {
   const [status, setStatus] = useState<Status>("idle");
   const [placeholder, setPlaceholder] = useState(EXAMPLES[0]);
   const [upcoming, setUpcoming] = useState<Card[]>([]);
+  const [limitMsg, setLimitMsg] = useState("");
   const abortRef = useRef<AbortController | null>(null);
 
   // Load the default "upcoming" feed once on mount.
@@ -63,7 +64,14 @@ export default function Home() {
         onDone: () => setStatus("done"),
       });
     } catch (err) {
-      if ((err as Error).name !== "AbortError") setStatus("error");
+      const e = err as Error;
+      if (e.name === "AbortError") return;
+      if (e.name === "RateLimitError") {
+        setLimitMsg(e.message);
+        setStatus("limited");
+      } else {
+        setStatus("error");
+      }
     }
   }
 
@@ -159,6 +167,9 @@ export default function Home() {
         <p className="mt-8 font-mono text-sm text-accent">
           couldn&apos;t reach the city. is the API running on :8000?
         </p>
+      )}
+      {status === "limited" && (
+        <p className="mt-8 font-mono text-sm text-accent">{limitMsg}</p>
       )}
 
       {/* Results grid */}

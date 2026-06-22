@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     # CORS origins allowed to call the API from a browser ("*" for local dev).
     cors_origins: list[str] = ["*"]
 
+    # Redis (used for the per-session search rate limit). Inside compose/k8s the
+    # host is `redis`, not localhost.
+    redis_url: str = "redis://localhost:6379/0"
+    search_daily_limit: int = 10  # searches allowed per session per day
+
     # Auth: Google OAuth + signed-cookie sessions (no server-side state, so the
     # API stays stateless across replicas — every replica validates with the
     # same session_secret).
