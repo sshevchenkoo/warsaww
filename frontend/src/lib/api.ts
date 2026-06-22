@@ -34,17 +34,18 @@ type Handlers = {
   signal?: AbortSignal;
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// All API calls use relative paths so the app works behind a single origin
+// (the web service proxies them to the API; see next.config.ts / the ingress).
 
 // Soonest upcoming events for the home-page default feed (no prompt, no cookie).
 export async function getUpcoming(limit = 12): Promise<Card[]> {
-  const res = await fetch(`${API_URL}/upcoming?limit=${limit}`);
+  const res = await fetch(`/upcoming?limit=${limit}`);
   return res.ok ? res.json() : [];
 }
 
 // Full details for one card — backs the /item/[id] detail page.
 export async function getItem(id: string): Promise<Card | null> {
-  const res = await fetch(`${API_URL}/items/${id}`);
+  const res = await fetch(`/items/${id}`);
   return res.ok ? res.json() : null;
 }
 
