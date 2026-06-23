@@ -121,6 +121,15 @@ def search(
     )
     session.commit()
 
+    # Gibberish / off-topic prompt: skip the costly embedding + vector search +
+    # re-rank and return an empty result fast (the frontend shows "nothing matched").
+    if not intent.on_topic:
+        def empty_stream() -> Iterator[str]:
+            yield _sse("intent", intent.model_dump())
+            yield _sse("done", {})
+
+        return StreamingResponse(empty_stream(), media_type="text/event-stream")
+
     # The raw prompt (not the intent) is embedded — it keeps nuances the
     # intent schema drops ("romantic", "with a view"...).
     query_embedding = embed_query(req.prompt) if settings.voyage_api_key else None
