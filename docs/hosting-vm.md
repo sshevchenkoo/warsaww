@@ -95,6 +95,23 @@ volume). The services use `restart: unless-stopped`, so they survive reboots.
   `FRONTEND_URL=https://<domain>` + `SESSION_HTTPS_ONLY=true`, and add
   `https://<domain>/auth/callback` to the Google OAuth client.
 
+## HTTPS with a domain (Caddy)
+
+For a real URL + TLS (and Google login), use `docker-compose.https.yml`, which adds
+a Caddy reverse proxy that auto-fetches a Let's Encrypt cert. Same project/volume
+as the http compose, so seeded data carries over.
+
+1. DNS: add an **A record** `your-domain -> <server IP>` at your registrar; wait
+   for it to resolve (`dig +short your-domain`).
+2. On the server, set the domain + URL:
+   ```bash
+   printf 'DOMAIN=your-domain\nFRONTEND_URL=https://your-domain\nSESSION_HTTPS_ONLY=true\n' > .env
+   docker compose -f docker-compose.host.yml down            # free port 80
+   docker compose -f docker-compose.https.yml up -d --build  # Caddy gets the cert
+   ```
+3. Open `https://your-domain`. For Google login, add `https://your-domain/auth/callback`
+   to the Google OAuth client and put GOOGLE_CLIENT_ID/SECRET in `backend/.env`.
+
 ## Teardown (stop the Azure bill)
 
 ```bash

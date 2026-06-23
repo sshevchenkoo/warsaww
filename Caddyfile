@@ -1,0 +1,5 @@
+# Caddy auto-provisions a Let's Encrypt certificate for $DOMAIN and reverse-proxies
+# to the Next.js web container (which in turn proxies the API paths internally).
+{$DOMAIN} {
+	reverse_proxy web:3000
+}
