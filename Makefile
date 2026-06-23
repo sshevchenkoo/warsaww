@@ -5,7 +5,9 @@
         get-kubeconfig create-secrets deploy full-deploy \
         db-backup db-restore db-backup-list \
         all fclean \
-        dev app-up app-down app-logs app-seed web web-bg web-logs
+        dev app-up app-down app-logs app-seed web web-bg web-logs \
+        do-infra-up do-infra-plan do-infra-down do-kubeconfig do-db-init \
+        do-images do-platform do-deploy do-elk
 
 # ─── Load .env ────────────────────────────────────────────────────────────────
 -include .env
@@ -23,6 +25,12 @@ KUBECONFIG  := $(ROOT_DIR)/.kube/config
 BACKEND_DIR  := $(ROOT_DIR)/backend
 FRONTEND_DIR := $(ROOT_DIR)/frontend
 WEB_LOG      := /tmp/warsaw-web-dev.log
+
+# ─── DigitalOcean prod (DOKS) ─────────────────────────────────────────────────
+DO_TF_DIR    := $(ROOT_DIR)/infrastructure/digitalocean
+KUBECONFIG_DO := $(ROOT_DIR)/.kube/config-do
+WARSAW_API_IMAGE := ghcr.io/$(GITHUB_USER)/warsaw-events
+WARSAW_WEB_IMAGE := ghcr.io/$(GITHUB_USER)/warsaw-web
 
 # ─── Terraform env vars (read automatically from .env via export) ──────────────
 export TF_VAR_hcloud_token=$(HCLOUD_TOKEN)
@@ -322,3 +330,66 @@ app-down:
 	@PIDS=$$(lsof -ti:3000 2>/dev/null); if [ -n "$$PIDS" ]; then kill $$PIDS 2>/dev/null && echo "$(GREEN)Frontend stopped$(NC)"; fi
 	cd $(BACKEND_DIR) && docker compose down
 	@echo "$(GREEN)App stack stopped (data kept in the pgdata volume)$(NC)"
+
+# ─── DigitalOcean prod (DOKS) ─────────────────────────────────────────────────
+# Prereqs: terraform, kubectl, helm, ansible, envsubst, psql, doctl/ssh.
+# .env: GITHUB_USER, GITHUB_TOKEN, ACME_EMAIL, WARSAW_DOMAIN, KIBANA_PASSWORD.
+# infrastructure/digitalocean/terraform.tfvars: do_token, ssh_public_key, admin_ip.
+# Full runbook: docs/hosting-digitalocean.md
+KDO := KUBECONFIG=$(KUBECONFIG_DO)
+
+do-infra-up:        ## Terraform: VPC + DOKS + managed Postgres + ELK droplet
+	cd $(DO_TF_DIR) && terraform init -upgrade && terraform apply -auto-approve
+	@$(MAKE) do-kubeconfig
+
+do-infra-plan:
+	cd $(DO_TF_DIR) && terraform init -upgrade && terraform plan
+
+do-infra-down:      ## Destroy the whole DO prod env (stop the bill)
+	cd $(DO_TF_DIR) && terraform destroy -auto-approve
+
+do-kubeconfig:      ## Save the DOKS kubeconfig to .kube/config-do
+	@mkdir -p $(ROOT_DIR)/.kube
+	cd $(DO_TF_DIR) && terraform output -raw kubeconfig > $(KUBECONFIG_DO)
+	@chmod 600 $(KUBECONFIG_DO)
+	@echo "$(GREEN)kubeconfig → $(KUBECONFIG_DO)$(NC)"
+
+do-db-init:         ## Enable pgvector on the managed DB (run once, needs psql)
+	@URL=$$(cd $(DO_TF_DIR) && terraform output -raw database_url | sed 's/+psycopg//'); \
+	 psql "$$URL" -c 'CREATE EXTENSION IF NOT EXISTS vector;' && echo "$(GREEN)pgvector enabled$(NC)"
+
+do-images:          ## Build + push warsaw-events / warsaw-web images to ghcr.io
+	echo "$(GITHUB_TOKEN)" | docker login ghcr.io -u $(GITHUB_USER) --password-stdin
+	docker build -t $(WARSAW_API_IMAGE):$(IMAGE_TAG) $(BACKEND_DIR)
+	docker push $(WARSAW_API_IMAGE):$(IMAGE_TAG)
+	docker build -t $(WARSAW_WEB_IMAGE):$(IMAGE_TAG) $(FRONTEND_DIR)
+	docker push $(WARSAW_WEB_IMAGE):$(IMAGE_TAG)
+
+do-platform:        ## Helm: ingress-nginx, cert-manager(+issuer), monitoring, fluent-bit
+	helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx >/dev/null 2>&1 || true
+	helm repo add jetstack https://charts.jetstack.io >/dev/null 2>&1 || true
+	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
+	helm repo add fluent https://fluent.github.io/helm-charts >/dev/null 2>&1 || true
+	helm repo update >/dev/null
+	$(KDO) helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx -n ingress-nginx --create-namespace
+	$(KDO) helm upgrade --install cert-manager jetstack/cert-manager -n cert-manager --create-namespace --set crds.enabled=true
+	$(KDO) helm upgrade --install monitoring prometheus-community/kube-prometheus-stack -n monitoring --create-namespace
+	@ELK_PRIVATE_IP=$$(cd $(DO_TF_DIR) && terraform output -raw elk_private_ip) envsubst < $(ROOT_DIR)/platform/fluent-bit-values.yaml | \
+		$(KDO) helm upgrade --install fluent-bit fluent/fluent-bit -n logging --create-namespace -f -
+	@ACME_EMAIL=$(ACME_EMAIL) envsubst < $(ROOT_DIR)/platform/clusterissuer.yaml | $(KDO) kubectl apply -f -
+
+do-deploy:          ## Apply the warsaw app manifests (managed DB, no in-cluster PG)
+	$(KDO) kubectl apply -f $(BACKEND_DIR)/k8s/00-namespace.yml
+	$(KDO) kubectl apply -f $(BACKEND_DIR)/k8s/secret.yml
+	$(KDO) kubectl apply -f $(BACKEND_DIR)/k8s/20-redis.yml
+	GITHUB_USER=$(GITHUB_USER) IMAGE_TAG=$(IMAGE_TAG) envsubst < $(BACKEND_DIR)/k8s/30-api.yml | $(KDO) kubectl apply -f -
+	GITHUB_USER=$(GITHUB_USER) IMAGE_TAG=$(IMAGE_TAG) envsubst < $(BACKEND_DIR)/k8s/50-cronjobs.yml | $(KDO) kubectl apply -f -
+	GITHUB_USER=$(GITHUB_USER) IMAGE_TAG=$(IMAGE_TAG) envsubst < $(FRONTEND_DIR)/k8s/web.yml | $(KDO) kubectl apply -f -
+	WARSAW_DOMAIN=$(WARSAW_DOMAIN) envsubst < $(BACKEND_DIR)/k8s/40-ingress.yml | $(KDO) kubectl apply -f -
+
+do-elk:             ## Provision the ELK droplet with Ansible
+	@PUB=$$(cd $(DO_TF_DIR) && terraform output -raw elk_public_ip); \
+	 PRIV=$$(cd $(DO_TF_DIR) && terraform output -raw elk_private_ip); \
+	 ELK_PUBLIC_IP=$$PUB ELK_PRIVATE_IP=$$PRIV KIBANA_PASSWORD=$(KIBANA_PASSWORD) \
+	   envsubst < $(ANSIBLE_DIR)/inventory.do.yml > /tmp/inv.do.yml; \
+	 cd $(ANSIBLE_DIR) && ansible-playbook -i /tmp/inv.do.yml playbooks/elk.yml --private-key $(SSH_KEY)
