@@ -7,6 +7,19 @@ The VM steps are the same on any provider; only provisioning differs.
 
 ## 1. Create the VM
 
+### Hetzner Cloud (console)
+- Cloud Console → project → **Add Server**.
+- **Location**: Falkenstein / Nuremberg (EU, close to Poland).
+- **Image**: Ubuntu 24.04.
+- **Type**: **CX22** (x86, 2 vCPU / 4 GB, ~€4/mo) — or **CAX11** (ARM, cheaper;
+  all our images are multi-arch, so ARM works too).
+- **SSH key**: add yours.
+- **Firewall** (optional, recommended): allow inbound **22, 80, 443**.
+- Create → note the server's public IP. Default SSH user is **root** (so skip
+  `sudo` in the steps below).
+
+Or with the CLI: `hcloud server create --name warsaw-vm --type cx22 --image ubuntu-24.04 --ssh-key <key> --location fsn1`
+
 ### Azure (CLI)
 ```bash
 az login
