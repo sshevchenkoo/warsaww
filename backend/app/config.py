@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     # host is `redis`, not localhost.
     redis_url: str = "redis://localhost:6379/0"
     search_daily_limit: int = 10  # searches allowed per session per day
+    # Max cosine distance (voyage-3.5) for a card to count as a match. Candidates
+    # farther than this are dropped, so an off-base query returns empty fast
+    # instead of re-ranking junk. Relevant hits measure ~0.4–0.56, clearly
+    # unrelated ones ~0.62+. Tune if real queries get wrongly dropped.
+    search_max_distance: float = 0.62
 
     # Auth: Google OAuth + signed-cookie sessions (no server-side state, so the
     # API stays stateless across replicas — every replica validates with the

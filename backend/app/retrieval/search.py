@@ -4,6 +4,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.catalog.models import Item
+from app.config import settings
 from app.llm.schemas import Intent
 
 
@@ -37,8 +38,11 @@ def search_items(
         query = query.where(Item.category.in_(intent.categories))
 
     if query_embedding is not None:
-        query = query.where(Item.embedding.is_not(None)).order_by(
-            Item.embedding.cosine_distance(query_embedding)
-        )
+        distance = Item.embedding.cosine_distance(query_embedding)
+        # Keep only semantically close cards; drop the rest so an off-base query
+        # yields nothing (and skips the re-rank) instead of returning far junk.
+        query = query.where(
+            Item.embedding.is_not(None), distance <= settings.search_max_distance
+        ).order_by(distance)
 
     return list(session.scalars(query.limit(limit)))
