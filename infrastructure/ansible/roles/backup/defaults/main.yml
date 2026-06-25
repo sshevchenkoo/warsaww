@@ -1,6 +1,0 @@
----
-backup_dir: /var/backups/postgresql
-backup_retention_days: 7
-postgres_db: "transcendence"
-postgres_user: "transcendence"
-postgres_private_ip: "10.0.1.20"

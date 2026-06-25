@@ -3,8 +3,8 @@
 The app ships as **one Docker image** used by both the API (uvicorn) and the
 ingestion CronJobs (`python -m app.ingestion.runner --source=X`); only the
 command differs. Manifests live in [`backend/k8s/`](../backend/k8s) and target a
-dedicated `warsaw` namespace (separate from the ft_transcendence Django service).
-The platform they run on is documented in [infrastructure.md](infrastructure.md).
+dedicated `warsaw` namespace. The platform they run on (DOKS) is documented in
+[hosting-digitalocean.md](hosting-digitalocean.md).
 
 Manifests are applied with `${VAR}` substitution via `envsubst`, matching the
 repo convention. Variables used: `GITHUB_USER`, `IMAGE_TAG`, `WARSAW_DOMAIN`.

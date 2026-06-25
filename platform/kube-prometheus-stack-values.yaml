@@ -1,0 +1,104 @@
+# kube-prometheus-stack values for the DigitalOcean prod cluster.
+# Rendered with `envsubst` (GRAFANA_PASSWORD, WARSAW_DOMAIN come from .env) and
+# passed to `helm upgrade --install` by the Makefile `do-platform` target.
+#
+# Sets the Grafana password, scrape configs, retention/persistence and resource
+# limits (the chart's defaults leave all of these unset).
+grafana:
+  adminPassword: "${GRAFANA_PASSWORD}"
+  # Persist Grafana's SQLite DB so dashboards, users and alert state survive a
+  # pod reschedule (the audit flagged data loss on restart).
+  persistence:
+    enabled: true
+    size: 2Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+      - "grafana.${WARSAW_DOMAIN}"
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - "grafana.${WARSAW_DOMAIN}"
+
+  sidecar:
+    datasources:
+      enabled: true
+      label: grafana_datasource
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+
+prometheus:
+  prometheusSpec:
+    retention: 15d
+    # Durable storage — retention is meaningless on an emptyDir that vanishes
+    # with the pod.
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
+    # Bound Prometheus so a cardinality/query spike can't OOM the node.
+    resources:
+      requests:
+        cpu: 250m
+        memory: 1Gi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+
+    additionalScrapeConfigs:
+      # The FastAPI app's own /metrics (prometheus-fastapi-instrumentator):
+      # request rate, latency histograms — backs the API alerts.
+      - job_name: warsaw-api
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["api.warsaw.svc.cluster.local:8000"]
+
+      # OTel Collector re-exposes any OTLP metrics it receives on port 8889.
+      - job_name: otel-collector
+        static_configs:
+          - targets: ["otel-collector-opentelemetry-collector.monitoring:8889"]
+      # NOTE: DigitalOcean Postgres is a managed service (no in-cluster
+      # postgres_exporter), so the PostgresDown / PostgresTooManyConnections
+      # alerts have no target here — managed-DB metrics come from DO's panel.
+
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    config:
+      global:
+        resolve_timeout: 5m
+      route:
+        group_by: ['alertname', 'namespace']
+        group_wait: 30s
+        group_interval: 5m
+        repeat_interval: 4h
+        receiver: 'null'
+      receivers:
+        - name: 'null'   # wire a real receiver (Telegram/email/webhook) before relying on alerts
+
+nodeExporter:
+  enabled: true
+kubeStateMetrics:
+  enabled: true
+
+kubeEtcd:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false

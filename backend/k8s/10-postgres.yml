@@ -37,9 +37,22 @@ spec:
       labels:
         app: postgres
     spec:
+      securityContext:
+        # postgres uid/gid in the official image is 999. fsGroup makes the PVC
+        # group-writable by it; PGDATA is a subdir so initdb can still chmod 700.
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: postgres
           image: pgvector/pgvector:pg16
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - containerPort: 5432
           env:

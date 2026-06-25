@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -23,7 +23,9 @@ router = APIRouter()
 
 
 class SearchRequest(BaseModel):
-    prompt: str
+    # Cap the prompt: it is embedded and sent to the intent LLM, so an unbounded
+    # string is a cost/latency abuse vector on the most expensive endpoint.
+    prompt: str = Field(min_length=1, max_length=2000)
 
 
 class ItemOut(BaseModel):

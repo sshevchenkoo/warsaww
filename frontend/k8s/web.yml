@@ -29,9 +29,18 @@ spec:
       labels:
         app: web
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: web
           image: ghcr.io/${GITHUB_USER}/warsaw-web:${IMAGE_TAG}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           ports:
             - containerPort: 3000
           readinessProbe:
@@ -55,3 +64,15 @@ spec:
             limits:
               cpu: "300m"
               memory: "256Mi"
+          volumeMounts:
+            # Next.js standalone writes its ISR/data cache and temp files at
+            # runtime; readOnlyRootFilesystem needs these backed by writable dirs.
+            - name: next-cache
+              mountPath: /app/.next/cache
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: next-cache
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

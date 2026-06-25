@@ -1,8 +1,23 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
+
+# Signing key shipped as the local-dev default. It is public knowledge, so a
+# production deploy that still uses it has forgeable session cookies — the
+# validator below refuses to start in that case.
+INSECURE_SESSION_SECRET = "dev-insecure-change-me"
 
 
 class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://app:app@localhost:5432/events"
+    # Connection pool. pool_pre_ping checks a connection is alive before use so a
+    # managed Postgres dropping idle connections doesn't surface as a mid-request
+    # error; pool_recycle proactively retires connections before the server's
+    # idle timeout. Size is modest — the API holds a connection per in-flight
+    # request (and streaming /search holds one for the whole LLM stream).
+    db_pool_size: int = 5
+    db_max_overflow: int = 10
+    db_pool_recycle: int = 1800  # seconds; recycle connections older than 30 min
+    db_pool_pre_ping: bool = True
     anthropic_api_key: str | None = None  # None → SDK falls back to ANTHROPIC_API_KEY env var
     intent_model: str = "claude-haiku-4-5"
     rerank_model: str = "claude-sonnet-4-6"  # cheaper than Opus ($3/$15 vs $5/$25)
@@ -28,7 +43,7 @@ class Settings(BaseSettings):
     # same session_secret).
     google_client_id: str | None = None
     google_client_secret: str | None = None
-    session_secret: str = "dev-insecure-change-me"  # signs the session cookie
+    session_secret: str = INSECURE_SESSION_SECRET  # signs the session cookie
     # Where the browser-facing app lives: the OAuth redirect URI is
     # f"{frontend_url}/auth/callback" and login redirects back here when done.
     frontend_url: str = "http://localhost:3000"
@@ -36,6 +51,27 @@ class Settings(BaseSettings):
     session_https_only: bool = False
 
     model_config = {"env_file": ".env", "extra": "ignore"}
+
+    @model_validator(mode="after")
+    def _reject_insecure_prod_config(self) -> "Settings":
+        """Fail fast when a production-shaped deploy still carries dev defaults.
+
+        `session_https_only` is our production signal (secure cookies require
+        HTTPS). In that mode a default signing key or wildcard CORS would be a
+        silent security hole, so we refuse to boot rather than ship it."""
+        if self.session_https_only:
+            if self.session_secret == INSECURE_SESSION_SECRET:
+                raise ValueError(
+                    "session_secret is still the insecure dev default while "
+                    "session_https_only is on. Set SESSION_SECRET to a strong "
+                    "random value in production (e.g. `openssl rand -hex 32`)."
+                )
+            if "*" in self.cors_origins:
+                raise ValueError(
+                    "cors_origins contains '*' while session_https_only is on. "
+                    "Pin CORS_ORIGINS to explicit frontend origins in production."
+                )
+        return self
 
 
 settings = Settings()

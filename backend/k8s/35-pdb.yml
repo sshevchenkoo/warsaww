@@ -1,0 +1,25 @@
+# PodDisruptionBudgets keep at least one replica of the stateless services up
+# during voluntary disruptions (node drains/upgrades). Applied to api and web
+# only — they run 2+ replicas (api also has an HPA). Postgres/Redis are
+# single-replica, where a PDB would just deadlock drains, so they are omitted.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api
+  namespace: warsaw
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: api
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: web
+  namespace: warsaw
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: web

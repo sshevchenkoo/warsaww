@@ -1,5 +1,0 @@
----
-- name: Setup monitoring stack on k3s
-  hosts: k3s_master
-  roles:
-    - monitoring

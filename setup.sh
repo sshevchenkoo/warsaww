@@ -149,5 +149,5 @@ fi
 echo ""
 log "Next step:"
 echo "  cp .env.example .env       # fill in tokens and passwords"
-echo "  make all                   # keys → infra-up → configure"
-echo "  make full-deploy           # build-push → secrets → deploy"
+echo "  make dev                   # run the app locally (API :8000 + web :3000)"
+echo "  # DigitalOcean prod: make do-infra-up → do-platform → do-deploy (docs/hosting-digitalocean.md)"

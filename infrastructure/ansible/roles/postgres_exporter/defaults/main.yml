@@ -1,6 +1,0 @@
----
-postgres_exporter_version: "0.15.0"
-postgres_exporter_user: "monitoring"
-postgres_exporter_password: "{{ postgres_password }}"   # reuses postgres_password from .env
-postgres_db: "transcendence"
-postgres_private_ip: "10.0.1.20"

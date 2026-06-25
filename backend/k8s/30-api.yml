@@ -27,14 +27,30 @@ spec:
       labels:
         app: api
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: api
           image: ghcr.io/${GITHUB_USER}/warsaw-events:${IMAGE_TAG}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           ports:
             - containerPort: 8000
           env:
             - name: REDIS_URL
               value: "redis://redis.warsaw.svc.cluster.local:6379/0"
+            # Observability: export traces to the OTel Collector in `monitoring`
+            # (which forwards to Tempo). Metrics are scraped from /metrics.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector-opentelemetry-collector.monitoring.svc.cluster.local:4317"
+            - name: OTEL_SERVICE_NAME
+              value: "warsaw-events-api"
             # Auth: the app is served from one HTTPS domain, so the OAuth
             # redirect + session cookie use that origin.
             - name: FRONTEND_URL
@@ -92,6 +108,13 @@ spec:
             limits:
               cpu: "500m"
               memory: "512Mi"
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        # readOnlyRootFilesystem is on, so give the process a writable scratch dir.
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler

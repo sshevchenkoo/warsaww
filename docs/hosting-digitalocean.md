@@ -1,9 +1,9 @@
 # Prod on DigitalOcean (DOKS + managed Postgres + ELK)
 
-The "big" deploy: the app on a managed Kubernetes cluster (DOKS), Postgres as a DO
-Managed Database, monitoring in-cluster, and ELK on a separate droplet. The Hetzner
-single-VM docker-compose stays as the dev preview; this is independent
-(`infrastructure/digitalocean/`, separate from `infrastructure/tf_clean`).
+The production deploy: the app on a managed Kubernetes cluster (DOKS), Postgres as a
+DO Managed Database, monitoring in-cluster, and ELK on a separate droplet. IaC lives
+in `infrastructure/digitalocean/`; for local development use `make dev`
+(docker-compose).
 
 ```
 DOKS cluster ── ingress-nginx (DO LoadBalancer) ── cert-manager (Let's Encrypt)

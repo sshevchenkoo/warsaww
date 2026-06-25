@@ -11,7 +11,8 @@
 *.tfstate
 *.tfstate.backup
 .terraform/
-.terraform.lock.hcl
+# NOTE: .terraform.lock.hcl is intentionally NOT ignored — it pins provider
+# versions/hashes and must be committed for reproducible `terraform init`.
 
 # Python
 __pycache__/
@@ -23,14 +24,6 @@ venv/
 .pytest_cache/
 .coverage
 htmlcov/
-
-# Django
-docker_compose/backend/static/
-docker_compose/backend/media/
-db.sqlite3
-
-# Docker
-docker_compose/.env
 
 # OS
 .DS_Store

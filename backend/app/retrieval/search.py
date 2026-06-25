@@ -9,7 +9,16 @@ from app.llm.schemas import Intent
 
 
 def _dt(value: str | None) -> datetime | None:
-    return datetime.fromisoformat(value) if value else None
+    """Parse an ISO date from the LLM intent, tolerating drift.
+
+    date_from/date_to are produced by the model, so a non-ISO value is
+    possible; treat it as 'no bound' rather than 500-ing the search."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
 
 
 def search_items(

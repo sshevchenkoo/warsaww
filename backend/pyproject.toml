@@ -18,6 +18,13 @@ dependencies = [
     "bcrypt>=4.1",           # password hashing for email/password accounts
     "email-validator>=2.1",  # pydantic EmailStr validation
     "redis>=5",              # per-session search rate limit
+    # Observability: Prometheus /metrics + OpenTelemetry traces to the collector.
+    "prometheus-fastapi-instrumentator>=7",
+    "opentelemetry-sdk>=1.27",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.27",
+    "opentelemetry-instrumentation-fastapi>=0.48b0",
+    "opentelemetry-instrumentation-sqlalchemy>=0.48b0",
+    "opentelemetry-instrumentation-httpx>=0.48b0",
 ]
 
 [project.optional-dependencies]

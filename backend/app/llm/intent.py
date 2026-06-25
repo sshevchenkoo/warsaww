@@ -1,9 +1,8 @@
 from datetime import date
 from typing import Protocol
 
-import anthropic
-
 from app.config import settings
+from app.llm.client import get_anthropic_client
 from app.llm.schemas import Intent
 
 SYSTEM_PROMPT = """\
@@ -31,7 +30,7 @@ class IntentExtractor(Protocol):
 
 class ClaudeIntentExtractor:
     def __init__(self) -> None:
-        self._client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        self._client = get_anthropic_client()
 
     def extract(self, prompt: str) -> Intent:
         response = self._client.messages.parse(

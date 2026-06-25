@@ -1,18 +1,4 @@
-# Secrets and config — values come from root .env via Makefile --extra-vars
+# Config for the DigitalOcean ELK droplet — the only Ansible-managed host.
+# elk_private_ip is set per-host from terraform output in inventory.do.yml.
 ---
-project_name: transcendence
-
-# PostgreSQL
-postgres_private_ip: "10.0.1.20"
-postgres_db:         "transcendence"
-postgres_user:       "transcendence"
-
-# Hetzner token — for hcloud dynamic inventory plugin
-hcloud_token: "{{ lookup('env', 'HCLOUD_TOKEN') }}"
-
-# k3s
-k3s_version: "v1.29.4+k3s1"
-
-# ELK
-elk_private_ip: "10.0.1.30"
-elk_version:    "7.17.21"
+elk_version: "7.17.21"

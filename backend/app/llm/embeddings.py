@@ -42,6 +42,12 @@ def _embed(texts: list[str], input_type: str) -> list[list[float]]:
         data = _post_with_retry(payload)
         ordered = sorted(data["data"], key=lambda d: d["index"])
         vectors.extend(d["embedding"] for d in ordered)
+    if len(vectors) != len(texts):
+        # Guard the positional items↔vectors zip in the pipeline: a short
+        # response would otherwise silently leave some cards unembedded.
+        raise RuntimeError(
+            f"Voyage returned {len(vectors)} vectors for {len(texts)} texts"
+        )
     return vectors
 
 

@@ -1,6 +1,6 @@
 # Prod platform on DigitalOcean: a managed Kubernetes cluster (DOKS) for the app +
 # monitoring, a managed Postgres (pgvector) outside the cluster, and one droplet for
-# ELK. The Hetzner setup in ../tf_clean is untouched.
+# ELK.
 
 data "digitalocean_kubernetes_versions" "current" {}
 

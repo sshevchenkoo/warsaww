@@ -1,0 +1,155 @@
+# Grafana dashboard ConfigMap — applied by the Makefile `do-platform` target.
+# The {{ instance }} / {{ namespace }} / {{ pod }} are Grafana legend templating;
+# plain YAML (not a .j2) keeps them intact.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: transcendence-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  transcendence.json: |
+    {
+      "title": "Transcendence — Cluster Overview",
+      "uid": "transcendence-overview",
+      "tags": ["transcendence"],
+      "timezone": "browser",
+      "schemaVersion": 38,
+      "refresh": "30s",
+      "time": { "from": "now-1h", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "Running Pods",
+          "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+          "targets": [{
+            "expr": "count(kube_pod_status_phase{phase=\"Running\", namespace!~\"kube-system|monitoring\"})",
+            "legendFormat": "pods"
+          }],
+          "options": { "colorMode": "background", "graphMode": "none" },
+          "fieldConfig": { "defaults": { "color": { "fixedColor": "green", "mode": "fixed" } } }
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "Pod Restarts (1h)",
+          "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+          "targets": [{
+            "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace!~\"kube-system|monitoring\"}[1h]))",
+            "legendFormat": "restarts"
+          }],
+          "options": { "colorMode": "background", "graphMode": "none" },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 3 },
+                  { "color": "red", "value": 10 }
+                ]
+              },
+              "color": { "mode": "thresholds" }
+            }
+          }
+        },
+        {
+          "id": 3,
+          "type": "stat",
+          "title": "PostgreSQL Up",
+          "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+          "targets": [{
+            "expr": "pg_up",
+            "legendFormat": "postgres"
+          }],
+          "options": { "colorMode": "background", "graphMode": "none" },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+              ],
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 1 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": 4,
+          "type": "timeseries",
+          "title": "CPU Usage per Node (%)",
+          "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+          "targets": [{
+            "expr": "100 - (avg by(instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+            "legendFormat": "{{ instance }}"
+          }],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 70 },
+                  { "color": "red", "value": 85 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": 5,
+          "type": "timeseries",
+          "title": "Memory Usage per Node (%)",
+          "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+          "targets": [{
+            "expr": "(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100",
+            "legendFormat": "{{ instance }}"
+          }],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 70 },
+                  { "color": "red", "value": 85 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": 6,
+          "type": "timeseries",
+          "title": "PostgreSQL Connections",
+          "gridPos": { "x": 0, "y": 12, "w": 12, "h": 6 },
+          "targets": [{
+            "expr": "sum(pg_stat_database_numbackends)",
+            "legendFormat": "active connections"
+          }]
+        },
+        {
+          "id": 7,
+          "type": "timeseries",
+          "title": "Container Restarts",
+          "gridPos": { "x": 12, "y": 12, "w": 12, "h": 6 },
+          "targets": [{
+            "expr": "rate(kube_pod_container_status_restarts_total{namespace!~\"kube-system|monitoring\"}[5m]) * 300",
+            "legendFormat": "{{ namespace }}/{{ pod }}"
+          }]
+        }
+      ]
+    }

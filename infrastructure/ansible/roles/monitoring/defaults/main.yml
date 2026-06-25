@@ -1,9 +1,0 @@
----
-grafana_password: "changeme"
-elk_private_ip: "10.0.1.30"
-
-# Helm chart versions (leave empty to install latest)
-kube_prometheus_stack_version: ""
-tempo_version: ""
-otel_collector_version: ""
-fluent_bit_version: ""

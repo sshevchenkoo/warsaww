@@ -16,6 +16,7 @@ is recorded on the canonical card's `sources` list instead. Two cards from
 the *same* source_url are left to the (source, source_url) upsert, not here.
 """
 
+import logging
 import re
 import unicodedata
 from collections import defaultdict
@@ -25,6 +26,9 @@ import anthropic
 from rapidfuzz import fuzz
 
 from app.config import settings
+from app.llm.client import get_anthropic_client
+
+log = logging.getLogger(__name__)
 
 AUTO_MATCH = 90  # >= this: same entity, no LLM needed
 AMBIGUOUS = 75  # [AMBIGUOUS, AUTO_MATCH): ask the adjudicator
@@ -95,7 +99,7 @@ def make_haiku_adjudicator() -> Adjudicator | None:
     run — a sync call per pair is fine. At scale, move to the Batches API."""
     if not settings.anthropic_api_key:
         return None
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    client = get_anthropic_client()
 
     def adjudicate(a, b) -> bool:
         question = (
@@ -104,11 +108,19 @@ def make_haiku_adjudicator() -> Adjudicator | None:
             f"A: {a.name} | {getattr(a, 'starts_at', None)}\n"
             f"B: {b.name} | {getattr(b, 'starts_at', None)}"
         )
-        resp = client.messages.create(
-            model=settings.intent_model,
-            max_tokens=5,
-            messages=[{"role": "user", "content": question}],
-        )
+        try:
+            resp = client.messages.create(
+                model=settings.intent_model,
+                max_tokens=5,
+                messages=[{"role": "user", "content": question}],
+            )
+        except anthropic.AnthropicError:
+            # A transient LLM failure must not abort the whole ingest run; the
+            # conservative fallback is "not a match", which keeps both cards
+            # (a possible duplicate) rather than dropping the batch entirely.
+            log.warning("adjudicator call failed for %r / %r — keeping separate",
+                        a.name, b.name, exc_info=True)
+            return False
         text = "".join(blk.text for blk in resp.content if blk.type == "text")
         return text.strip().lower().startswith("y")
 

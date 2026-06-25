@@ -1,0 +1,150 @@
+# Prometheus alert rules — applied by the Makefile `do-platform` target
+# (`kubectl apply -f`). The {{ $labels }} / {{ $value }} are Prometheus
+# annotation templating; plain YAML (not a .j2) keeps them intact.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: transcendence-alerts
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: application
+      rules:
+        - alert: APIDown
+          # The warsaw-api scrape target has no healthy instances.
+          expr: |
+            absent(up{job="warsaw-api"} == 1)
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "warsaw-api is down"
+            description: "No healthy warsaw-api instance has been scraped for 2m."
+
+        - alert: APIHighErrorRate
+          # >5% of requests are 5xx over 5m (status is grouped to Nxx by the
+          # instrumentator, so 5.* covers both "5xx" and "500").
+          expr: |
+            sum(rate(http_requests_total{job="warsaw-api", status=~"5.*"}[5m]))
+              / sum(rate(http_requests_total{job="warsaw-api"}[5m])) > 0.05
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "warsaw-api 5xx error rate above 5%"
+            description: "{{ $value | humanizePercentage }} of requests are failing."
+
+        - alert: APIHighLatencyP95
+          expr: |
+            histogram_quantile(0.95,
+              sum by (le) (rate(http_request_duration_seconds_bucket{job="warsaw-api"}[5m]))
+            ) > 1.5
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "warsaw-api p95 latency above 1.5s"
+            description: "p95 request latency is {{ $value | printf \"%.2f\" }}s."
+
+    - name: monitoring-self
+      rules:
+        - alert: TargetDown
+          # Any scrape target (exporters, app, kube components) unreachable.
+          expr: up == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Scrape target {{ $labels.job }} / {{ $labels.instance }} is down"
+
+        - alert: CertificateExpiringSoon
+          # Requires cert-manager controller metrics to be scraped (ServiceMonitor).
+          # Fires two weeks before a managed TLS cert expires.
+          expr: |
+            certmanager_certificate_expiration_timestamp_seconds - time() < 14 * 24 * 3600
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "TLS certificate {{ $labels.name }} expires within 14 days"
+
+    - name: pods
+      rules:
+        - alert: PodCrashLooping
+          expr: rate(kube_pod_container_status_restarts_total[10m]) * 60 > 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash looping"
+            description: "Container {{ $labels.container }} restarted more than once per minute."
+
+        - alert: PodNotReady
+          expr: kube_pod_status_ready{condition="true"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is not ready"
+
+        - alert: DeploymentReplicasMismatch
+          expr: |
+            kube_deployment_spec_replicas
+              != kube_deployment_status_replicas_available
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has unavailable replicas"
+
+    - name: nodes
+      rules:
+        - alert: NodeHighMemory
+          expr: |
+            (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 85
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Node {{ $labels.instance }} memory usage above 85%"
+            description: "Memory usage is {{ $value | printf \"%.0f\" }}%"
+
+        - alert: NodeHighCPU
+          expr: |
+            100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Node {{ $labels.instance }} CPU usage above 80%"
+            description: "CPU usage is {{ $value | printf \"%.0f\" }}%"
+
+        - alert: NodeDiskPressure
+          expr: |
+            (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 15
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Node {{ $labels.instance }} disk space below 15%"
+
+    - name: postgres
+      rules:
+        - alert: PostgresDown
+          expr: pg_up == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "PostgreSQL is down"
+
+        - alert: PostgresTooManyConnections
+          expr: |
+            pg_stat_database_numbackends / pg_settings_max_connections * 100 > 80
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PostgreSQL connections above 80% of max_connections"

@@ -7,6 +7,9 @@ Plus /auth/logout and the /me probe. Accounts are keyed by email, so signing up
 by password and later using Google with the same email is one account.
 """
 
+import logging
+
+from authlib.integrations.starlette_client import OAuthError
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, EmailStr, Field
@@ -18,6 +21,8 @@ from app.auth.passwords import MAX_PASSWORD_BYTES, hash_password, verify_passwor
 from app.catalog.db import get_session
 from app.catalog.models import User
 from app.config import settings
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -52,8 +57,15 @@ async def login_google(request: Request) -> RedirectResponse:
 async def auth_callback(
     request: Request, session: Session = Depends(get_session)
 ) -> RedirectResponse:
-    token = await oauth.google.authorize_access_token(request)
-    info = token.get("userinfo") or await oauth.google.userinfo(token=token)
+    try:
+        token = await oauth.google.authorize_access_token(request)
+        info = token.get("userinfo") or await oauth.google.userinfo(token=token)
+    except OAuthError as exc:
+        # Expected failure modes (state mismatch, expired/denied code, Google
+        # 5xx) are routine — send the user back to login with an error flag
+        # instead of returning a 500.
+        log.warning("OAuth callback failed: %s", exc)
+        return RedirectResponse(f"{settings.frontend_url}/login?error=oauth")
     sub = info.get("sub")
     email = info.get("email")
     if not sub:

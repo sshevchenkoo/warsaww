@@ -107,7 +107,7 @@ export default function Home() {
           placeholder={placeholder}
           autoFocus
           aria-label="Search prompt"
-          className="w-full border-b-2 border-line bg-transparent pb-3 pr-14 text-2xl font-bold tracking-tight text-fg outline-none transition-colors placeholder:text-muted/70 focus:border-accent sm:text-4xl"
+          className="w-full border-b-2 border-line bg-transparent pb-3 pr-14 text-2xl font-bold tracking-tight text-fg transition-colors placeholder:text-muted/70 focus:border-accent sm:text-4xl"
         />
         <button
           type="submit"
@@ -125,6 +125,7 @@ export default function Home() {
           {EXAMPLES.map((ex) => (
             <button
               key={ex}
+              type="button"
               onClick={() => run(ex)}
               className="rounded-full border border-line px-3 py-1.5 font-mono text-xs tracking-wide text-muted transition-colors hover:border-accent hover:text-fg"
             >
@@ -151,26 +152,28 @@ export default function Home() {
         </div>
       )}
 
-      {/* Status line */}
-      {busy && (
-        <p className="mt-8 flex items-center gap-2 font-mono text-sm text-muted">
-          <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-          {status === "loading" ? "reading the city…" : "ranking your night…"}
-        </p>
-      )}
-      {status === "done" && cards.length === 0 && (
-        <p className="mt-8 font-mono text-sm text-muted">
-          nothing matched — try a looser vibe.
-        </p>
-      )}
-      {status === "error" && (
-        <p className="mt-8 font-mono text-sm text-accent">
-          couldn&apos;t reach the city. is the API running on :8000?
-        </p>
-      )}
-      {status === "limited" && (
-        <p className="mt-8 font-mono text-sm text-accent">{limitMsg}</p>
-      )}
+      {/* Status line — announced to screen readers as it changes. */}
+      <div role="status" aria-live="polite">
+        {busy && (
+          <p className="mt-8 flex items-center gap-2 font-mono text-sm text-muted">
+            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
+            {status === "loading" ? "reading the city…" : "ranking your night…"}
+          </p>
+        )}
+        {status === "done" && cards.length === 0 && (
+          <p className="mt-8 font-mono text-sm text-muted">
+            nothing matched — try a looser vibe.
+          </p>
+        )}
+        {status === "error" && (
+          <p className="mt-8 font-mono text-sm text-accent">
+            couldn&apos;t reach the city. is the API running on :8000?
+          </p>
+        )}
+        {status === "limited" && (
+          <p className="mt-8 font-mono text-sm text-accent">{limitMsg}</p>
+        )}
+      </div>
 
       {/* Results grid */}
       {cards.length > 0 && (
