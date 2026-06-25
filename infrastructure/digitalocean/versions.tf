@@ -11,5 +11,6 @@ terraform {
 }
 
 provider "digitalocean" {
-  token = var.do_token
+  # Token is read from the DIGITALOCEAN_TOKEN env var (exported from .env by the
+  # Makefile) — kept out of any .tf / .tfvars file.
 }

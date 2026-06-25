@@ -1,8 +1,5 @@
-variable "do_token" {
-  description = "DigitalOcean API token (API → Tokens, read & write)"
-  type        = string
-  sensitive   = true
-}
+# The DigitalOcean API token is NOT a variable — the provider reads it from the
+# DIGITALOCEAN_TOKEN env var (set in .env, exported by the Makefile).
 
 variable "project_name" {
   description = "Prefix for all DO resources"
@@ -17,12 +14,12 @@ variable "region" {
 }
 
 variable "ssh_public_key" {
-  description = "Public SSH key for the ELK droplet (e.g. contents of ~/.ssh/hetzner_warsaw.pub)"
+  description = "Public SSH key for the ELK droplet. Set via TF_VAR_ssh_public_key in .env (e.g. contents of .ssh/id_ed25519.pub)."
   type        = string
 }
 
 variable "admin_ip" {
-  description = "Your public IP in CIDR form for SSH + Kibana access, e.g. 1.2.3.4/32 (curl ifconfig.me)"
+  description = "Your public IP in CIDR form for SSH + Kibana access, e.g. 1.2.3.4/32 (curl ifconfig.me). Set via TF_VAR_admin_ip in .env."
   type        = string
 }
 
