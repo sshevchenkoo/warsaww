@@ -19,9 +19,10 @@ api ──► (VPC) ──► DO Managed Postgres 16 (pgvector)
 ## Prerequisites
 - CLIs: `terraform`, `kubectl`, `helm`, `ansible`, `doctl` (optional), `psql`, `envsubst`.
 - A DO API token, a domain, and a GitHub token (ghcr) — or make the ghcr packages public.
-- `infrastructure/digitalocean/terraform.tfvars` (copy from `.example`):
-  `do_token`, `ssh_public_key` (e.g. `cat ~/.ssh/hetzner_warsaw.pub`), `admin_ip` (`curl ifconfig.me` + `/32`).
-- `.env` (repo root): `GITHUB_USER`, `GITHUB_TOKEN`, `ACME_EMAIL`, `WARSAW_DOMAIN`, `KIBANA_PASSWORD`.
+- An SSH key: `make keys` (creates `.ssh/id_ed25519`; used for the ELK droplet).
+- `.env` (repo root) — all Terraform/DO config lives here, no `terraform.tfvars`:
+  - `DIGITALOCEAN_TOKEN` (the provider reads this), `TF_VAR_ssh_public_key` (`cat .ssh/id_ed25519.pub`), `TF_VAR_admin_ip` (`curl ifconfig.me` + `/32`)
+  - `GITHUB_USER`, `GITHUB_TOKEN`, `ACME_EMAIL`, `WARSAW_DOMAIN`, `GRAFANA_PASSWORD`, `KIBANA_PASSWORD`
 
 ## Steps (all via the Makefile)
 

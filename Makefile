@@ -10,8 +10,9 @@ export
 # ─── Paths ────────────────────────────────────────────────────────────────────
 ROOT_DIR    := $(shell pwd)
 SSH_DIR     := $(ROOT_DIR)/.ssh
-SSH_KEY     := $(SSH_DIR)/id_ed25519
-SSH_KEY_PUB := $(SSH_DIR)/id_ed25519.pub
+# Override SSH_KEY in .env to reuse an existing private key (e.g. ~/.ssh/hetzner_warsaw).
+SSH_KEY     ?= $(SSH_DIR)/id_ed25519
+SSH_KEY_PUB := $(SSH_KEY).pub
 ANSIBLE_DIR := $(ROOT_DIR)/infrastructure/ansible
 BACKEND_DIR  := $(ROOT_DIR)/backend
 FRONTEND_DIR := $(ROOT_DIR)/frontend
@@ -124,8 +125,9 @@ app-down:
 
 # ─── DigitalOcean prod (DOKS) ─────────────────────────────────────────────────
 # Prereqs: terraform, kubectl, helm, ansible, envsubst, psql, doctl/ssh.
-# .env: GITHUB_USER, GITHUB_TOKEN, ACME_EMAIL, WARSAW_DOMAIN, KIBANA_PASSWORD.
-# infrastructure/digitalocean/terraform.tfvars: do_token, ssh_public_key, admin_ip.
+# All config comes from .env (exported below): DIGITALOCEAN_TOKEN,
+# TF_VAR_ssh_public_key, TF_VAR_admin_ip, GITHUB_USER/TOKEN, WARSAW_DOMAIN,
+# ACME_EMAIL, GRAFANA_PASSWORD, KIBANA_PASSWORD. No terraform.tfvars needed.
 # Full runbook: docs/hosting-digitalocean.md
 KDO := KUBECONFIG=$(KUBECONFIG_DO)
 
