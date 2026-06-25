@@ -1,5 +1,0 @@
----
-- name: Setup automated PostgreSQL backups
-  hosts: postgres
-  roles:
-    - backup

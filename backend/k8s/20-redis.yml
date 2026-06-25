@@ -27,9 +27,19 @@ spec:
       labels:
         app: redis
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999   # redis uid in redis:7-alpine
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: redis
           image: redis:7-alpine
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           ports:
             - containerPort: 6379
           resources:
@@ -39,3 +49,11 @@ spec:
             limits:
               cpu: "200m"
               memory: "128Mi"
+          volumeMounts:
+            # redis writes its working dir (/data) even without persistence;
+            # readOnlyRootFilesystem needs it backed by a writable volume.
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          emptyDir: {}

@@ -3,9 +3,9 @@
 #   ELK_PUBLIC_IP=$(terraform -chdir=infrastructure/digitalocean output -raw elk_public_ip) \
 #   ELK_PRIVATE_IP=$(terraform -chdir=infrastructure/digitalocean output -raw elk_private_ip) \
 #   envsubst < inventory.do.yml > /tmp/inv.do.yml
-#   ansible-playbook -i /tmp/inv.do.yml playbooks/elk.yml --private-key ~/.ssh/hetzner_warsaw
+#   ansible-playbook -i /tmp/inv.do.yml playbooks/elk.yml --private-key .ssh/id_ed25519
 #
-# Default inventory in ansible.cfg is Hetzner's — always pass -i for the DO one.
+# This is the default inventory in ansible.cfg; make do-elk renders it via envsubst.
 elk:
   hosts:
     warsaw-elk:

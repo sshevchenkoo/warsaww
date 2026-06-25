@@ -31,6 +31,27 @@
     background: var(--color-accent);
     color: var(--color-accent-ink);
   }
+  /* A consistent, visible keyboard-focus ring for every interactive element.
+     Replaces the missing focus states the audit flagged (buttons, links, chips,
+     the search input) — keyboard users can always see where focus is. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+}
+
+/* Honor users who ask for less motion: neutralize the rise/caret/hover
+   animations rather than playing them. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Photo scrim so overlaid text stays legible on any image. */

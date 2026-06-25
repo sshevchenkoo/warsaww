@@ -1,7 +1,0 @@
----
-# FIX: added become: yes — needed to switch to the postgres user
-- name: Setup PostgreSQL
-  hosts: postgres
-  become: yes
-  roles:
-    - postgres

@@ -15,7 +15,14 @@ def current_user(request: Request, session: Session = Depends(get_session)) -> U
     user_id = request.session.get("user_id")
     if not user_id:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
-    user = session.get(User, uuid.UUID(user_id))
+    try:
+        user_uuid = uuid.UUID(user_id)
+    except (ValueError, TypeError):
+        # A tampered or stale-format cookie value: clear it and treat as
+        # unauthenticated rather than letting the parse raise a 500.
+        request.session.clear()
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated") from None
+    user = session.get(User, user_uuid)
     if user is None:
         request.session.clear()
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")

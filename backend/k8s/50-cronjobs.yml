@@ -14,11 +14,24 @@ spec:
     spec:
       backoffLimit: 2
       template:
+        metadata:
+          labels:
+            app: ingest
         spec:
           restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            seccompProfile:
+              type: RuntimeDefault
           containers:
             - name: ingest
               image: ghcr.io/${GITHUB_USER}/warsaw-events:${IMAGE_TAG}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
               command: ["python", "-m", "app.ingestion.runner", "--source=places"]
               env:
                 - name: DATABASE_URL
@@ -43,6 +56,12 @@ spec:
                 limits:
                   cpu: "500m"
                   memory: "512Mi"
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir: {}
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -58,11 +77,24 @@ spec:
     spec:
       backoffLimit: 2
       template:
+        metadata:
+          labels:
+            app: ingest
         spec:
           restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            seccompProfile:
+              type: RuntimeDefault
           containers:
             - name: ingest
               image: ghcr.io/${GITHUB_USER}/warsaw-events:${IMAGE_TAG}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
               command: ["python", "-m", "app.ingestion.runner", "--source=facebook_events"]
               env:
                 - name: DATABASE_URL
@@ -92,6 +124,12 @@ spec:
                 limits:
                   cpu: "500m"
                   memory: "512Mi"
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir: {}
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -107,11 +145,24 @@ spec:
     spec:
       backoffLimit: 2
       template:
+        metadata:
+          labels:
+            app: ingest
         spec:
           restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            seccompProfile:
+              type: RuntimeDefault
           containers:
             - name: ingest
               image: ghcr.io/${GITHUB_USER}/warsaw-events:${IMAGE_TAG}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
               command: ["python", "-m", "app.ingestion.runner", "--source=ticketmaster"]
               env:
                 - name: DATABASE_URL
@@ -141,3 +192,9 @@ spec:
                 limits:
                   cpu: "500m"
                   memory: "512Mi"
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir: {}

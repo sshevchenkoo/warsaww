@@ -1,0 +1,42 @@
+# ─── Remote, encrypted Terraform state on DigitalOcean Spaces ──────────────────
+#
+# WHY: by default the state lives in a local `terraform.tfstate` — plaintext, no
+# locking, holding the DO token, the managed-Postgres password and the full
+# kubeconfig. A remote backend encrypts it, enables locking, and survives the
+# loss of this machine.
+#
+# DO Spaces is S3-compatible, so the built-in `s3` backend works with a few skip
+# flags. Terraform >= 1.6 is required for the `endpoints` / `skip_s3_checksum`
+# options used here.
+#
+# ── ONE-TIME SETUP (user action) ───────────────────────────────────────────────
+#   1. Create a Space (bucket), e.g. `warsaw-tfstate`, in a region (e.g. fra1).
+#      Enable "Encrypt files at rest" on the Space.
+#   2. Generate a Spaces access key pair (API → Spaces Keys). Export them so the
+#      s3 backend can authenticate (NOT the DO API token):
+#        export AWS_ACCESS_KEY_ID=<spaces_key>
+#        export AWS_SECRET_ACCESS_KEY=<spaces_secret>
+#   3. Rename this file to `backend.tf`, set bucket/region below, then run:
+#        terraform init -migrate-state
+#      to move the existing local state into the Space.
+#
+# After migration, delete any local terraform.tfstate* copies.
+
+terraform {
+  backend "s3" {
+    endpoints = {
+      s3 = "https://fra1.digitaloceanspaces.com" # match your Space's region
+    }
+    bucket = "warsaw-tfstate"
+    key    = "digitalocean/terraform.tfstate"
+
+    # DO Spaces is not real AWS S3 — skip the AWS-specific validations and the
+    # checksum the AWS SDK now sends by default (Spaces rejects it).
+    region                      = "us-east-1" # dummy; required but unused by Spaces
+    skip_credentials_validation = true
+    skip_metadata_api_check     = true
+    skip_region_validation      = true
+    skip_requesting_account_id  = true
+    skip_s3_checksum            = true
+  }
+}

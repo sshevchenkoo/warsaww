@@ -1,10 +1,4 @@
-.PHONY: help check-env keys check-keys \
-        infra-up infra-down infra-plan \
-        configure ping \
-        build push build-push \
-        get-kubeconfig create-secrets deploy full-deploy \
-        db-backup db-restore db-backup-list \
-        all fclean \
+.PHONY: help keys check-keys \
         dev app-up app-down app-logs app-seed web web-bg web-logs \
         do-infra-up do-infra-plan do-infra-down do-kubeconfig do-db-init \
         do-images do-platform do-deploy do-elk
@@ -18,10 +12,7 @@ ROOT_DIR    := $(shell pwd)
 SSH_DIR     := $(ROOT_DIR)/.ssh
 SSH_KEY     := $(SSH_DIR)/id_ed25519
 SSH_KEY_PUB := $(SSH_DIR)/id_ed25519.pub
-TF_DIR      := $(ROOT_DIR)/infrastructure/tf_clean
 ANSIBLE_DIR := $(ROOT_DIR)/infrastructure/ansible
-K8S_DIR     := $(ROOT_DIR)/k8s
-KUBECONFIG  := $(ROOT_DIR)/.kube/config
 BACKEND_DIR  := $(ROOT_DIR)/backend
 FRONTEND_DIR := $(ROOT_DIR)/frontend
 WEB_LOG      := /tmp/warsaw-web-dev.log
@@ -32,12 +23,7 @@ KUBECONFIG_DO := $(ROOT_DIR)/.kube/config-do
 WARSAW_API_IMAGE := ghcr.io/$(GITHUB_USER)/warsaw-events
 WARSAW_WEB_IMAGE := ghcr.io/$(GITHUB_USER)/warsaw-web
 
-# ─── Terraform env vars (read automatically from .env via export) ──────────────
-export TF_VAR_hcloud_token=$(HCLOUD_TOKEN)
-export TF_VAR_your_ssh_ip=$(YOUR_SSH_IP)
-
-# ─── Image ────────────────────────────────────────────────────────────────────
-IMAGE     := ghcr.io/$(GITHUB_USER)/transcendence
+# ─── Image tag (used by the do-* image build/deploy) ──────────────────────────
 IMAGE_TAG ?= latest
 
 # ─── Colors ───────────────────────────────────────────────────────────────────
@@ -49,86 +35,39 @@ NC     := \033[0m
 # ─── Help ─────────────────────────────────────────────────────────────────────
 help:
 	@echo ""
-	@echo "  $(GREEN)Transcendence — infrastructure management$(NC)"
+	@echo "  $(GREEN)Warsaw events — local dev + DigitalOcean prod$(NC)"
 	@echo ""
-	@echo "  $(YELLOW)First time setup:$(NC)"
-	@echo "    cp .env.example .env  — fill in your values (once)"
-	@echo ""
-	@echo "  $(YELLOW)Local app (Warsaw events):$(NC)"
-	@echo "    make dev             — one command: start everything (API :8000 + web :3000) in the background"
-	@echo "    make app-down        — one command: stop everything (frontend + backend stack)"
+	@echo "  $(YELLOW)Local app (docker-compose):$(NC)"
+	@echo "    make dev             — start everything (API :8000 + web :3000) in the background"
+	@echo "    make app-down        — stop everything (frontend + backend stack)"
 	@echo "    make app-up          — build + start API, Postgres, Redis on :8000"
 	@echo "    make app-seed        — load Warsaw places + events into the DB"
 	@echo "    make web             — start the Next.js frontend on :3000 (foreground)"
 	@echo "    make app-logs        — follow the API logs"
 	@echo "    make web-logs        — follow the frontend logs"
 	@echo ""
-	@echo "  $(YELLOW)Infrastructure:$(NC)"
-	@echo "    make keys            — generate SSH keys in .ssh/"
-	@echo "    make infra-up        — create VMs on Hetzner"
-	@echo "    make infra-plan      — show plan without applying"
-	@echo "    make infra-down      — destroy VMs on Hetzner"
-	@echo "    make configure       — provision servers with Ansible"
-	@echo "    make ping            — check Ansible can reach all hosts"
-	@echo ""
-	@echo "  $(YELLOW)Docker image:$(NC)"
-	@echo "    make build           — build production image"
-	@echo "    make push            — push image to ghcr.io"
-	@echo "    make build-push      — build + push"
-	@echo ""
-	@echo "  $(YELLOW)Kubernetes:$(NC)"
-	@echo "    make get-kubeconfig  — download kubeconfig from master"
-	@echo "    make create-secrets  — create k8s Secret from .env"
-	@echo "    make deploy          — apply k8s manifests"
-	@echo ""
-	@echo "  $(YELLOW)Monitoring (deployed by 'make configure'):$(NC)"
-	@echo "    Prometheus + Grafana  — https://grafana.DOMAIN (grafana_password from .env)"
-	@echo "    Tempo                 — traces backend (ClusterIP, via Grafana)"
-	@echo "    OTel Collector        — OTLP :4317/:4318 (ClusterIP inside k8s)"
-	@echo "    Fluent Bit            — ships k8s logs → ELK VM :5000"
-	@echo "    Kibana                — http://ELK_IP:5601 (firewall: your IP only)"
-	@echo ""
-	@echo "  $(YELLOW)Database backup & restore:$(NC)"
-	@echo "    make db-backup       — run on-demand backup on postgres VM"
-	@echo "    make db-backup-list  — list available backups"
-	@echo "    make db-restore BACKUP=<path> — restore from backup file"
-	@echo ""
-	@echo "  $(YELLOW)Full pipelines:$(NC)"
-	@echo "    make all             — keys → infra-up → configure"
-	@echo "    make full-deploy     — build-push → create-secrets → deploy"
-	@echo "    make fclean          — destroy everything + remove .ssh/"
+	@echo "  $(YELLOW)DigitalOcean prod (DOKS) — full runbook: docs/hosting-digitalocean.md:$(NC)"
+	@echo "    make keys            — generate the SSH key in .ssh/ (used by do-elk)"
+	@echo "    make do-infra-up     — Terraform: VPC + DOKS + managed Postgres + ELK droplet"
+	@echo "    make do-db-init      — enable pgvector on the managed DB (once)"
+	@echo "    make do-images       — build + push warsaw-events / warsaw-web to ghcr.io"
+	@echo "    make do-platform     — Helm: ingress-nginx, cert-manager, monitoring, fluent-bit"
+	@echo "    make do-deploy       — apply the warsaw app manifests"
+	@echo "    make do-elk          — provision the ELK droplet (Ansible)"
+	@echo "    make do-infra-down   — destroy the whole DO prod env (stop the bill)"
 	@echo ""
 
-# ─── Env check ────────────────────────────────────────────────────────────────
-check-env:
-	@if [ ! -f "$(ROOT_DIR)/.env" ]; then \
-		echo "$(RED).env not found!$(NC)"; \
-		echo "  cp .env.example .env"; \
-		exit 1; \
-	fi
-	@[ -n "$(HCLOUD_TOKEN)" ]      || (echo "$(RED)HCLOUD_TOKEN not set in .env$(NC)"      && exit 1)
-	@[ -n "$(YOUR_SSH_IP)" ]       || (echo "$(RED)YOUR_SSH_IP not set in .env$(NC)"       && exit 1)
-	@[ -n "$(GITHUB_USER)" ]       || (echo "$(RED)GITHUB_USER not set in .env$(NC)"       && exit 1)
-	@[ -n "$(GITHUB_TOKEN)" ]      || (echo "$(RED)GITHUB_TOKEN not set in .env$(NC)"      && exit 1)
-	@[ -n "$(DOMAIN)" ]            || (echo "$(RED)DOMAIN not set in .env$(NC)"            && exit 1)
-	@[ -n "$(LETSENCRYPT_EMAIL)" ] || (echo "$(RED)LETSENCRYPT_EMAIL not set in .env$(NC)" && exit 1)
-	@[ -n "$(POSTGRES_PASSWORD)" ] || (echo "$(RED)POSTGRES_PASSWORD not set in .env$(NC)" && exit 1)
-	@[ -n "$(DJANGO_SECRET_KEY)" ] || (echo "$(RED)DJANGO_SECRET_KEY not set in .env$(NC)" && exit 1)
-	@[ -n "$(GRAFANA_PASSWORD)" ]  || (echo "$(RED)GRAFANA_PASSWORD not set in .env$(NC)"  && exit 1)
-	@[ -n "$(KIBANA_PASSWORD)" ]   || (echo "$(RED)KIBANA_PASSWORD not set in .env$(NC)"   && exit 1)
-	@echo "$(GREEN).env OK$(NC)"
-
-# ─── SSH keys ─────────────────────────────────────────────────────────────────
+# ─── SSH key (used by do-elk to reach the ELK droplet) ────────────────────────
 keys:
 	@if [ -f "$(SSH_KEY)" ]; then \
 		echo "$(YELLOW)SSH key already exists: $(SSH_KEY)$(NC)"; \
 	else \
 		mkdir -p $(SSH_DIR); \
-		ssh-keygen -t ed25519 -C "transcendence-deploy" -f $(SSH_KEY) -N ""; \
+		ssh-keygen -t ed25519 -C "warsaw-deploy" -f $(SSH_KEY) -N ""; \
 		chmod 700 $(SSH_DIR); \
 		chmod 600 $(SSH_KEY); \
 		chmod 644 $(SSH_KEY_PUB); \
-		echo "$(GREEN)SSH keys created in $(SSH_DIR)$(NC)"; \
+		echo "$(GREEN)SSH key created in $(SSH_DIR)$(NC)"; \
 	fi
 
 check-keys:
@@ -136,154 +75,6 @@ check-keys:
 		echo "$(RED)SSH key not found. Run: make keys$(NC)"; \
 		exit 1; \
 	fi
-
-# ─── Terraform ────────────────────────────────────────────────────────────────
-infra-up: check-env check-keys
-	@echo "$(GREEN)Creating infrastructure on Hetzner...$(NC)"
-	cd $(TF_DIR) && terraform init -upgrade
-	cd $(TF_DIR) && terraform apply \
-		-var="ssh_public_key=$$(cat $(SSH_KEY_PUB))" \
-		-auto-approve
-	@echo "$(GREEN)Done! IPs:$(NC)"
-	cd $(TF_DIR) && terraform output
-
-infra-plan: check-env check-keys
-	cd $(TF_DIR) && terraform init -upgrade
-	cd $(TF_DIR) && terraform plan \
-		-var="ssh_public_key=$$(cat $(SSH_KEY_PUB))"
-
-infra-down: check-env check-keys
-	@echo "$(RED)Destroying infrastructure on Hetzner...$(NC)"
-	cd $(TF_DIR) && terraform destroy \
-		-var="ssh_public_key=$$(cat $(SSH_KEY_PUB))" \
-		-auto-approve
-	@echo "$(GREEN)Infrastructure destroyed$(NC)"
-
-# ─── Ansible ──────────────────────────────────────────────────────────────────
-configure: check-env check-keys
-	@echo "$(YELLOW)Waiting for VMs to accept SSH...$(NC)"
-	cd $(ANSIBLE_DIR) && \
-		HCLOUD_TOKEN="$(HCLOUD_TOKEN)" \
-		ANSIBLE_PRIVATE_KEY_FILE=$(SSH_KEY) \
-		ansible all -m wait_for_connection -a "timeout=180 delay=5"
-	@echo "$(GREEN)Provisioning servers with Ansible...$(NC)"
-	cd $(ANSIBLE_DIR) && \
-		HCLOUD_TOKEN="$(HCLOUD_TOKEN)" \
-		ANSIBLE_PRIVATE_KEY_FILE=$(SSH_KEY) \
-		ansible-playbook site.yml \
-		--extra-vars "postgres_password=$(POSTGRES_PASSWORD) \
-		              django_secret_key=$(DJANGO_SECRET_KEY) \
-		              domain=$(DOMAIN) \
-		              letsencrypt_email=$(LETSENCRYPT_EMAIL) \
-		              grafana_password=$(GRAFANA_PASSWORD) \
-		              kibana_password=$(KIBANA_PASSWORD) \
-		              alertmanager_telegram_token=$(ALERTMANAGER_TELEGRAM_TOKEN) \
-		              alertmanager_telegram_chat_id=$(ALERTMANAGER_TELEGRAM_CHAT_ID)"
-	@echo "$(GREEN)Servers provisioned!$(NC)"
-
-ping: check-env check-keys
-	cd $(ANSIBLE_DIR) && \
-		HCLOUD_TOKEN="$(HCLOUD_TOKEN)" \
-		ANSIBLE_PRIVATE_KEY_FILE=$(SSH_KEY) \
-		ansible all -m ping
-
-# ─── Docker image ─────────────────────────────────────────────────────────────
-build: check-env
-	@echo "$(GREEN)Building $(IMAGE):$(IMAGE_TAG)...$(NC)"
-	docker build \
-		--target production \
-		-t $(IMAGE):$(IMAGE_TAG) \
-		docker_compose/backend/
-	@echo "$(GREEN)Image built$(NC)"
-
-push: check-env
-	echo "$(GITHUB_TOKEN)" | docker login ghcr.io -u $(GITHUB_USER) --password-stdin
-	docker push $(IMAGE):$(IMAGE_TAG)
-	@echo "$(GREEN)Image pushed: $(IMAGE):$(IMAGE_TAG)$(NC)"
-
-build-push: build push
-
-# ─── Kubernetes ───────────────────────────────────────────────────────────────
-get-kubeconfig: check-env check-keys
-	@MASTER_IP=$$(cd $(TF_DIR) && terraform output -raw master_public_ip); \
-	echo "$(GREEN)Downloading kubeconfig from $$MASTER_IP...$(NC)"; \
-	mkdir -p $(ROOT_DIR)/.kube; \
-	scp -i $(SSH_KEY) -o StrictHostKeyChecking=no \
-		root@$$MASTER_IP:/etc/rancher/k3s/k3s.yaml $(KUBECONFIG); \
-	sed -i.bak "s|https://127.0.0.1:6443|https://$$MASTER_IP:6443|g" $(KUBECONFIG) && rm -f $(KUBECONFIG).bak; \
-	chmod 600 $(KUBECONFIG); \
-	echo "$(GREEN)Kubeconfig saved to .kube/config$(NC)"
-
-create-secrets: check-env
-	KUBECONFIG=$(KUBECONFIG) kubectl apply -f $(K8S_DIR)/namespace.yml
-	KUBECONFIG=$(KUBECONFIG) kubectl create secret generic app-secrets \
-		--namespace transcendence \
-		--from-literal=DATABASE_URL="postgresql://transcendence:$(POSTGRES_PASSWORD)@10.0.1.20:5432/transcendence" \
-		--from-literal=SECRET_KEY="$(DJANGO_SECRET_KEY)" \
-		--from-literal=ALLOWED_HOSTS="$(DOMAIN)" \
-		--dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG) kubectl apply -f -
-	@echo "$(GREEN)Secrets created!$(NC)"
-	@if KUBECONFIG=$(KUBECONFIG) kubectl get deploy/backend -n transcendence >/dev/null 2>&1; then \
-		echo "$(YELLOW)Restarting backend to pick up new secrets...$(NC)"; \
-		KUBECONFIG=$(KUBECONFIG) kubectl rollout restart deploy/backend -n transcendence; \
-	fi
-
-deploy: check-env
-	@if [ ! -f "$(KUBECONFIG)" ]; then \
-		echo "$(RED)Kubeconfig not found. Run: make get-kubeconfig$(NC)"; \
-		exit 1; \
-	fi
-	KUBECONFIG=$(KUBECONFIG) kubectl apply -f $(K8S_DIR)/namespace.yml
-	KUBECONFIG=$(KUBECONFIG) kubectl apply -f $(K8S_DIR)/redis/
-	GITHUB_USER=$(GITHUB_USER) IMAGE_TAG=$(IMAGE_TAG) \
-		envsubst < $(K8S_DIR)/backend/deployment.yml | \
-		KUBECONFIG=$(KUBECONFIG) kubectl apply -f -
-	KUBECONFIG=$(KUBECONFIG) kubectl apply -f $(K8S_DIR)/backend/service.yml
-	DOMAIN=$(DOMAIN) envsubst < $(K8S_DIR)/ingress.yml | \
-		KUBECONFIG=$(KUBECONFIG) kubectl apply -f -
-	@echo "$(GREEN)Deployed! Site: https://$(DOMAIN)$(NC)"
-
-# ─── Full pipelines ───────────────────────────────────────────────────────────
-all: keys infra-up configure
-	@echo ""
-	@echo "$(GREEN)Infrastructure ready!$(NC)"
-	@echo "$(YELLOW)Next: make full-deploy$(NC)"
-
-full-deploy: build-push create-secrets deploy
-	@echo ""
-	@echo "$(GREEN)Full deploy complete!$(NC)"
-	@echo "$(YELLOW)Site: https://$(DOMAIN)$(NC)"
-
-# ─── Database backup / restore ────────────────────────────────────────────────
-POSTGRES_IP := $(shell cd $(TF_DIR) && terraform output -raw postgres_public_ip 2>/dev/null)
-
-db-backup: check-env check-keys
-	@echo "$(GREEN)Running on-demand backup on postgres VM...$(NC)"
-	ssh -i $(SSH_KEY) -o StrictHostKeyChecking=no root@$(POSTGRES_IP) \
-		"sudo -u postgres /usr/local/bin/pg-backup.sh"
-	@echo "$(GREEN)Backup complete. Files on postgres VM: /var/backups/postgresql/$(NC)"
-
-# Usage: make db-restore BACKUP=/var/backups/postgresql/transcendence_20240101_020000.sql.gz
-db-restore: check-env check-keys
-	@if [ -z "$(BACKUP)" ]; then \
-		echo "$(RED)Usage: make db-restore BACKUP=<path_on_postgres_vm>$(NC)"; \
-		echo "  List backups: make db-backup-list"; \
-		exit 1; \
-	fi
-	@echo "$(RED)Restoring database from $(BACKUP)...$(NC)"
-	ssh -i $(SSH_KEY) -o StrictHostKeyChecking=no root@$(POSTGRES_IP) \
-		"sudo -u postgres /usr/local/bin/pg-restore.sh $(BACKUP)"
-
-db-backup-list: check-env check-keys
-	@echo "$(YELLOW)Backups on postgres VM:$(NC)"
-	ssh -i $(SSH_KEY) -o StrictHostKeyChecking=no root@$(POSTGRES_IP) \
-		"ls -lh /var/backups/postgresql/ 2>/dev/null || echo 'No backups yet'"
-
-# ─── Cleanup ──────────────────────────────────────────────────────────────────
-fclean: infra-down
-	@echo "$(RED)Removing SSH keys and kubeconfig...$(NC)"
-	rm -rf $(SSH_DIR) $(ROOT_DIR)/.kube
-	@echo "$(GREEN)All cleaned up$(NC)"
 
 # ─── Local app (Warsaw events) ────────────────────────────────────────────────
 # Runs the app stack from backend/docker-compose.yml (API + Postgres + Redis)
@@ -365,15 +156,31 @@ do-images:          ## Build + push warsaw-events / warsaw-web images to ghcr.io
 	docker build -t $(WARSAW_WEB_IMAGE):$(IMAGE_TAG) $(FRONTEND_DIR)
 	docker push $(WARSAW_WEB_IMAGE):$(IMAGE_TAG)
 
-do-platform:        ## Helm: ingress-nginx, cert-manager(+issuer), monitoring, fluent-bit
+do-platform:        ## Helm: ingress-nginx, cert-manager(+issuer), monitoring (full parity), fluent-bit
+	@[ -n "$(GRAFANA_PASSWORD)" ] || (echo "$(RED)GRAFANA_PASSWORD not set in .env$(NC)" && exit 1)
+	@[ -n "$(WARSAW_DOMAIN)" ]    || (echo "$(RED)WARSAW_DOMAIN not set in .env$(NC)"    && exit 1)
 	helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx >/dev/null 2>&1 || true
 	helm repo add jetstack https://charts.jetstack.io >/dev/null 2>&1 || true
 	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
+	helm repo add grafana https://grafana.github.io/helm-charts >/dev/null 2>&1 || true
+	helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts >/dev/null 2>&1 || true
 	helm repo add fluent https://fluent.github.io/helm-charts >/dev/null 2>&1 || true
 	helm repo update >/dev/null
 	$(KDO) helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx -n ingress-nginx --create-namespace
 	$(KDO) helm upgrade --install cert-manager jetstack/cert-manager -n cert-manager --create-namespace --set crds.enabled=true
-	$(KDO) helm upgrade --install monitoring prometheus-community/kube-prometheus-stack -n monitoring --create-namespace
+	# kube-prometheus-stack WITH values (Grafana pw, retention/persistence, resources,
+	# scrape configs). Release name matches the PrometheusRule `release` label so the
+	# operator picks up the shared alert rules. --wait so the PrometheusRule CRD exists.
+	@envsubst < $(ROOT_DIR)/platform/kube-prometheus-stack-values.yaml | \
+		$(KDO) helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+		-n monitoring --create-namespace --wait -f -
+	# Tracing backend + collector.
+	$(KDO) helm upgrade --install tempo grafana/tempo -n monitoring -f $(ROOT_DIR)/platform/tempo-values.yaml
+	$(KDO) helm upgrade --install otel-collector open-telemetry/opentelemetry-collector -n monitoring -f $(ROOT_DIR)/platform/otel-collector-values.yaml
+	# Alert rules + custom dashboard + Tempo datasource.
+	$(KDO) kubectl apply -f $(ROOT_DIR)/platform/alerting-rules.yaml
+	$(KDO) kubectl apply -f $(ROOT_DIR)/platform/grafana-dashboard.yaml
+	$(KDO) kubectl apply -f $(ROOT_DIR)/platform/grafana-tempo-datasource.yaml
 	@ELK_PRIVATE_IP=$$(cd $(DO_TF_DIR) && terraform output -raw elk_private_ip) envsubst < $(ROOT_DIR)/platform/fluent-bit-values.yaml | \
 		$(KDO) helm upgrade --install fluent-bit fluent/fluent-bit -n logging --create-namespace -f -
 	@ACME_EMAIL=$(ACME_EMAIL) envsubst < $(ROOT_DIR)/platform/clusterissuer.yaml | $(KDO) kubectl apply -f -
@@ -381,8 +188,10 @@ do-platform:        ## Helm: ingress-nginx, cert-manager(+issuer), monitoring, f
 do-deploy:          ## Apply the warsaw app manifests (managed DB, no in-cluster PG)
 	$(KDO) kubectl apply -f $(BACKEND_DIR)/k8s/00-namespace.yml
 	$(KDO) kubectl apply -f $(BACKEND_DIR)/k8s/secret.yml
+	$(KDO) kubectl apply -f $(BACKEND_DIR)/k8s/45-networkpolicies.yml
 	$(KDO) kubectl apply -f $(BACKEND_DIR)/k8s/20-redis.yml
 	GITHUB_USER=$(GITHUB_USER) IMAGE_TAG=$(IMAGE_TAG) envsubst < $(BACKEND_DIR)/k8s/30-api.yml | $(KDO) kubectl apply -f -
+	$(KDO) kubectl apply -f $(BACKEND_DIR)/k8s/35-pdb.yml
 	GITHUB_USER=$(GITHUB_USER) IMAGE_TAG=$(IMAGE_TAG) envsubst < $(BACKEND_DIR)/k8s/50-cronjobs.yml | $(KDO) kubectl apply -f -
 	GITHUB_USER=$(GITHUB_USER) IMAGE_TAG=$(IMAGE_TAG) envsubst < $(FRONTEND_DIR)/k8s/web.yml | $(KDO) kubectl apply -f -
 	WARSAW_DOMAIN=$(WARSAW_DOMAIN) envsubst < $(BACKEND_DIR)/k8s/40-ingress.yml | $(KDO) kubectl apply -f -

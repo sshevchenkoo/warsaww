@@ -50,7 +50,7 @@ export default function Login() {
             onChange={(e) => setName(e.target.value)}
             placeholder="name (optional)"
             autoComplete="name"
-            className="border-b-2 border-line bg-transparent pb-2 text-lg outline-none placeholder:text-muted/70 focus:border-accent"
+            className="border-b-2 border-line bg-transparent pb-2 text-lg placeholder:text-muted/70 focus:border-accent"
           />
         )}
         <input
@@ -85,6 +85,7 @@ export default function Login() {
       </form>
 
       <button
+        type="button"
         onClick={() => {
           setError(null);
           setMode(mode === "signup" ? "signin" : "signup");

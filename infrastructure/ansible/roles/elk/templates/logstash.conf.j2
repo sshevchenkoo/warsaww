@@ -1,5 +1,5 @@
 input {
-  # Receives JSON lines from Fluent Bit running on k3s nodes
+  # Receives JSON lines from Fluent Bit running on the DOKS nodes
   tcp {
     port  => 5000
     codec => json_lines

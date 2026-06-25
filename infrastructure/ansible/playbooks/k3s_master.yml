@@ -1,6 +1,0 @@
-# Install the k3s master node
----
-- name: Setup k3s master
-  hosts: k3s_master
-  roles:
-    - k3s_master

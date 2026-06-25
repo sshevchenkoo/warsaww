@@ -1,6 +1,0 @@
-# Base setup for all servers
----
-- name: Common setup
-  hosts: all
-  roles:
-    - common

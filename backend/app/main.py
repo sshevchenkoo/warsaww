@@ -12,6 +12,7 @@ from app.api.saved import router as saved_router
 from app.catalog import models  # noqa: F401 — registers tables in metadata
 from app.catalog.db import Base, engine
 from app.config import settings
+from app.observability import setup_observability
 
 
 def _create_schema(retries: int = 30, delay: float = 2.0) -> None:
@@ -55,3 +56,6 @@ app.add_middleware(
 app.include_router(router)
 app.include_router(auth_router)
 app.include_router(saved_router)
+
+# Prometheus /metrics (always) + OpenTelemetry traces (when OTEL endpoint set).
+setup_observability(app)

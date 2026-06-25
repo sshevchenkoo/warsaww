@@ -1,0 +1,108 @@
+# Default-deny ingress for the `warsaw` namespace, then explicit allows.
+# Egress is left open (the API/cronjobs call external LLM/source APIs and need
+# DNS). DOKS (Cilium) enforces NetworkPolicy.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: warsaw
+spec:
+  podSelector: {}        # all pods in the namespace
+  policyTypes:
+    - Ingress
+  # no ingress rules → all inbound denied unless another policy allows it
+---
+# API: reachable by the ingress controller (public routes), the web pod
+# (server-side calls), and Prometheus in `monitoring` (scrapes /metrics).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-api-ingress
+  namespace: warsaw
+spec:
+  podSelector:
+    matchLabels:
+      app: api
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+        - podSelector:
+            matchLabels:
+              app: web
+      ports:
+        - protocol: TCP
+          port: 8000
+---
+# Web: reachable only by the ingress controller.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-web-ingress
+  namespace: warsaw
+spec:
+  podSelector:
+    matchLabels:
+      app: web
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3000
+---
+# Postgres: reachable only by the API and the ingestion CronJobs (app=ingest).
+# (On DigitalOcean Postgres is managed/out-of-cluster, so this is a no-op there.)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-postgres-ingress
+  namespace: warsaw
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: api
+        - podSelector:
+            matchLabels:
+              app: ingest
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+# Redis: reachable only by the API (per-session search rate limit).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-redis-ingress
+  namespace: warsaw
+spec:
+  podSelector:
+    matchLabels:
+      app: redis
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: api
+      ports:
+        - protocol: TCP
+          port: 6379

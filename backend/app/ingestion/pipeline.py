@@ -1,3 +1,4 @@
+import logging
 from dataclasses import asdict
 
 from sqlalchemy import select
@@ -11,7 +12,9 @@ from app.ingestion.adapters import ADAPTERS
 from app.ingestion.adapters.base import RawItem
 from app.ingestion.dedup import deduplicate, make_haiku_adjudicator
 from app.ingestion.taxonomy import guess_category
-from app.llm.embeddings import card_text, embed_documents
+from app.llm.embeddings import BATCH_SIZE, card_text, embed_documents
+
+log = logging.getLogger(__name__)
 
 
 def normalize(raw: RawItem) -> RawItem:
@@ -21,21 +24,54 @@ def normalize(raw: RawItem) -> RawItem:
     return raw
 
 
-def embed(items: list[RawItem]) -> bool:
-    """Compute embeddings for all cards in the batch. Returns False (and
-    leaves the DB embeddings untouched) when VOYAGE_API_KEY is not set.
+def normalize_all(raw_items: list[RawItem]) -> list[RawItem]:
+    """Normalize every record, skipping (not aborting on) the bad ones.
 
-    A few hundred cards per source make re-embedding the whole batch
-    cheaper than tracking what changed. TODO: skip unchanged texts once
-    the base grows past tens of thousands."""
+    One malformed record from a source must not throw away the rest of the
+    batch — failures are logged and counted, survivors continue down the
+    pipeline."""
+    items, failed = [], 0
+    for raw in raw_items:
+        try:
+            items.append(normalize(raw))
+        except Exception:
+            failed += 1
+            log.warning("normalize failed for %r — skipping",
+                        getattr(raw, "name", "?"), exc_info=True)
+    if failed:
+        log.warning("normalize: skipped %d/%d malformed records", failed, len(raw_items))
+    return items
+
+
+def embed(items: list[RawItem]) -> list[RawItem]:
+    """Compute embeddings per batch and return only the cards that got one.
+
+    Returns an empty list (and leaves DB embeddings untouched) when
+    VOYAGE_API_KEY is not set. A single failing batch — a 429 storm or a bad
+    response — is logged and skipped so the rest of the batches still produce
+    vectors, instead of one failure discarding the whole run.
+
+    A few hundred cards per source make re-embedding cheaper than tracking
+    what changed. TODO: skip unchanged texts once the base grows past tens of
+    thousands."""
     if not settings.voyage_api_key:
-        print("VOYAGE_API_KEY not set — skipping embeddings")
-        return False
-    texts = [card_text(i.name, i.description, i.category) for i in items]
-    vectors = embed_documents(texts)
-    for item, vector in zip(items, vectors):
-        item.embedding = vector
-    return True
+        log.warning("VOYAGE_API_KEY not set — skipping embeddings")
+        return []
+    embedded: list[RawItem] = []
+    for start in range(0, len(items), BATCH_SIZE):
+        chunk = items[start : start + BATCH_SIZE]
+        texts = [card_text(i.name, i.description, i.category) for i in chunk]
+        try:
+            vectors = embed_documents(texts)
+        except Exception:
+            log.warning("embedding batch %d–%d failed — leaving those cards "
+                        "without a fresh vector", start, start + len(chunk),
+                        exc_info=True)
+            continue
+        for item, vector in zip(chunk, vectors):
+            item.embedding = vector
+            embedded.append(item)
+    return embedded
 
 
 def upsert(items: list[RawItem], refresh_embedding: bool = False) -> None:
@@ -43,6 +79,8 @@ def upsert(items: list[RawItem], refresh_embedding: bool = False) -> None:
 
     The embedding is overwritten only when this run actually computed it —
     otherwise an ingest without a Voyage key would erase existing vectors."""
+    if not items:
+        return
     rows = [asdict(item) for item in items]
     stmt = pg_insert(Item).values(rows)
     refreshable = [
@@ -84,8 +122,14 @@ def _apply_merges(session: Session, merges: list[tuple]) -> None:
 
 def run(source: str) -> None:
     adapter = ADAPTERS[source]()
-    raw_items = adapter.fetch()
-    items = [normalize(r) for r in raw_items]
+    try:
+        raw_items = adapter.fetch()
+    except Exception:
+        # A source being down/erroring must not surface as a raw traceback from
+        # the CronJob; log it and stop this source's run cleanly.
+        log.exception("[%s] fetch failed — aborting this source's run", source)
+        return
+    items = normalize_all(raw_items)
 
     Base.metadata.create_all(engine)
 
@@ -97,11 +141,18 @@ def run(source: str) -> None:
         _apply_merges(session, merges)
         session.commit()
 
+    # Embed per batch; cards whose batch failed keep their existing vector
+    # untouched (upserted with refresh_embedding=False) instead of being lost.
     embedded = embed(canonical)
-    upsert(canonical, refresh_embedding=embedded)
+    embedded_ids = {id(i) for i in embedded}
+    not_embedded = [i for i in canonical if id(i) not in embedded_ids]
+    upsert(embedded, refresh_embedding=True)
+    upsert(not_embedded, refresh_embedding=False)
 
     folded = len(items) - len(canonical) - len(merges)
-    print(
-        f"[{source}] fetched {len(items)} → {len(canonical)} new cards; "
-        f"merged {len(merges)} into existing, folded {folded} within batch"
+    log.info(
+        "[%s] fetched %d → %d new cards (%d embedded, %d without fresh vector); "
+        "merged %d into existing, folded %d within batch",
+        source, len(items), len(canonical), len(embedded), len(not_embedded),
+        len(merges), folded,
     )

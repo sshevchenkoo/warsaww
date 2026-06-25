@@ -10,10 +10,9 @@ line) so the API can push results to the frontend as they are produced.
 import json
 from collections.abc import Iterator
 
-import anthropic
-
 from app.catalog.models import Item
 from app.config import settings
+from app.llm.client import get_anthropic_client
 
 SYSTEM_PROMPT = """\
 You re-rank candidate cards for a service that finds events and places in \
@@ -57,7 +56,7 @@ def rerank_stream(prompt: str, items: list[Item], limit: int = 10) -> Iterator[t
     if not items:
         return
 
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    client = get_anthropic_client()
     user_content = f"User query:\n{prompt}\n\nCandidates:\n{_candidate_block(items)}"
 
     buffer = ""

@@ -25,6 +25,8 @@ export function Header() {
                 <img
                   src={user.avatar_url}
                   alt=""
+                  width={24}
+                  height={24}
                   className="h-6 w-6 rounded-full border border-line object-cover"
                 />
               ) : (
@@ -35,6 +37,7 @@ export function Header() {
               <span className="hidden sm:inline">saved</span>
             </Link>
             <button
+              type="button"
               onClick={logout}
               className="text-muted transition-colors hover:text-accent"
             >

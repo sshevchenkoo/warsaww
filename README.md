@@ -14,9 +14,9 @@ language.
 Free-form prompt → structured intent (LLM) → hybrid SQL + vector search →
 LLM re-ranking with per-card blurbs, streamed to the browser card-by-card.
 
-> This repository began as the **ft_transcendence** DevOps module — a
-> self-hosted k3s platform on Hetzner — and now also hosts the Warsaw-events
-> application built on top of that platform.
+> This repository began as the **ft_transcendence** DevOps module and evolved
+> into the Warsaw-events application: it runs locally via docker-compose and in
+> production on DigitalOcean (DOKS + managed Postgres + ELK).
 
 ---
 
@@ -38,7 +38,7 @@ Core API (FastAPI, modular monolith)
         └─ facebook_events   Apify actor
 
 Embeddings: Voyage voyage-3.5 (same model for cards and queries)
-Platform:   k3s on Hetzner · ELK logs · Prometheus/Grafana · cert-manager TLS
+Platform:   DigitalOcean DOKS · managed Postgres · ELK logs · Prometheus/Grafana · cert-manager TLS
 ```
 
 ## Features
@@ -47,7 +47,7 @@ Platform:   k3s on Hetzner · ELK logs · Prometheus/Grafana · cert-manager TLS
 - **Hybrid retrieval** — SQL filters (date, price, category) combined with vector similarity (pgvector HNSW, cosine distance) in one query.
 - **LLM re-ranking** — Claude Sonnet drops irrelevant candidates, reorders the rest, and writes a one-line pitch per card; results stream over Server-Sent Events.
 - **Pluggable ingestion** — a new source is one adapter class + one registry line + one CronJob; cross-source deduplication folds duplicates instead of showing them twice.
-- **Production platform** — Terraform + Ansible provision k3s on Hetzner with ELK logging, Prometheus/Grafana monitoring, and automatic TLS.
+- **Production platform** — Terraform provisions DigitalOcean DOKS + managed Postgres + an ELK droplet; Helm installs ELK logging, Prometheus/Grafana/Tempo monitoring, and automatic TLS (cert-manager).
 
 ## Tech stack
 
@@ -59,7 +59,7 @@ Platform:   k3s on Hetzner · ELK logs · Prometheus/Grafana · cert-manager TLS
 | LLM | Claude Haiku (intent), Claude Sonnet (re-rank), Anthropic SDK |
 | Embeddings | Voyage `voyage-3.5` (multilingual, 1024-dim) |
 | Ingestion | httpx adapters, rapidfuzz dedup, k8s CronJobs |
-| Platform | Terraform, Ansible, k3s, Hetzner Cloud, ELK, Prometheus/Grafana |
+| Platform | DigitalOcean DOKS, Terraform, managed Postgres, ELK, Prometheus/Grafana/Tempo |
 
 ## Repository layout
 
@@ -68,9 +68,9 @@ Platform:   k3s on Hetzner · ELK logs · Prometheus/Grafana · cert-manager TLS
 | `backend/` | Warsaw-events FastAPI app — API, LLM layer, retrieval, ingestion ([docs](docs/backend.md)) |
 | `frontend/` | Next.js UI, "Pure"-style ([docs](docs/frontend.md)) |
 | `backend/k8s/` | Kubernetes manifests for the app, namespace `warsaw` ([deploy docs](docs/deployment.md)) |
-| `infrastructure/` | Terraform + Ansible: the Hetzner k3s platform ([docs](docs/infrastructure.md)) |
-| `docker_compose/` | The original ft_transcendence Django service (local compose) |
-| `k8s/` | Kubernetes manifests for the ft_transcendence Django service |
+| `infrastructure/digitalocean/` | Terraform for DigitalOcean prod (DOKS + managed Postgres + ELK) |
+| `infrastructure/ansible/` | Ansible role that provisions the ELK droplet |
+| `platform/` | DOKS Helm values + manifests (monitoring, ingress, cert-manager) |
 | `docs/` | Project documentation (see below) |
 
 ## Quick start (local)
@@ -88,8 +88,8 @@ make app-down    # stop the stack (data kept in the pgdata volume)
 `make help` lists every target. The equivalent manual commands are in
 [docs/local-development.md](docs/local-development.md).
 
-Deploying to the cluster: app in [docs/deployment.md](docs/deployment.md), the
-platform itself in [docs/infrastructure.md](docs/infrastructure.md).
+Deploying to prod (DigitalOcean DOKS): app in [docs/deployment.md](docs/deployment.md),
+the full platform runbook in [docs/hosting-digitalocean.md](docs/hosting-digitalocean.md).
 
 ## Documentation
 
@@ -104,4 +104,4 @@ platform itself in [docs/infrastructure.md](docs/infrastructure.md).
 | [Ingestion](docs/ingestion.md) | Adapters, sources, enrichment, deduplication |
 | [Deployment](docs/deployment.md) | Docker image, k8s manifests, CronJobs |
 | [Local development](docs/local-development.md) | Running and testing locally |
-| [Infrastructure](docs/infrastructure.md) | The Hetzner k3s platform (Terraform/Ansible) |
+| [Hosting (DigitalOcean)](docs/hosting-digitalocean.md) | Prod on DOKS — Terraform, Helm, ELK |

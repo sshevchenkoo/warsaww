@@ -1,7 +1,0 @@
-# Install the k3s worker nodes
-# Runs AFTER k3s_master.yml — needs the join token from the master
----
-- name: Setup k3s workers
-  hosts: k3s_workers
-  roles:
-    - k3s_worker
