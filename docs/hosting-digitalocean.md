@@ -60,8 +60,22 @@ KUBECONFIG=.kube/config-do kubectl -n warsaw create job --from=cronjob/ingest-pl
 
 ## Access
 - App: `https://<WARSAW_DOMAIN>` (TLS by cert-manager).
-- Grafana: `kubectl -n monitoring port-forward svc/monitoring-grafana 3000:80` (admin pass: `kubectl -n monitoring get secret monitoring-grafana -o jsonpath='{.data.admin-password}' | base64 -d`).
+- Grafana: `https://grafana.<WARSAW_DOMAIN>` — login `admin` / the `GRAFANA_PASSWORD` you set in `.env`.
 - Kibana: `http://<elk_public_ip>:5601` (basic auth `kibana` / `KIBANA_PASSWORD`).
+
+## Updating prod (CI/CD)
+On push to `main`, `.github/workflows/deploy.yml` runs: **test** → **build+push**
+images tagged with the commit SHA → **deploy** (gated behind the `production`
+GitHub Environment, so it waits for a manual approval before touching the cluster).
+
+One-time GitHub setup:
+- Settings → Environments → `production` with a required reviewer (the approval gate).
+- Secret `DIGITALOCEAN_ACCESS_TOKEN` (a CI-only DO token); variable `WARSAW_DOMAIN`.
+- ghcr packages public (or an imagePullSecret) so DOKS can pull.
+- The `warsaw-secrets` Secret is applied manually once — CI never touches app secrets.
+
+Manual one-off (without CI): `IMAGE_TAG=$(git rev-parse --short HEAD) make do-images do-deploy`.
+Rollback: `kubectl -n warsaw rollout undo deploy/api` or redeploy an older `IMAGE_TAG`.
 
 ## Notes
 - **Cost** (~): 2× s-2vcpu-4gb nodes ≈ $48, LoadBalancer ≈ $12, managed PG ≈ $15, ELK
