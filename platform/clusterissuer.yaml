@@ -15,3 +15,14 @@ spec:
       - http01:
           ingress:
             class: nginx
+            # The app ingress has a tls: block, so ingress-nginx enables
+            # ssl-redirect for the whole transendance.online server. Without
+            # this template the solver ingress inherits that redirect and the
+            # HTTP-01 self-check on /.well-known/acme-challenge/... gets a 308
+            # -> https (where the solver isn't served) -> times out. Forcing
+            # ssl-redirect:false on the solver ingress serves the token over
+            # plain HTTP with 200 so the self-check (and LE validation) passes.
+            ingressTemplate:
+              metadata:
+                annotations:
+                  nginx.ingress.kubernetes.io/ssl-redirect: "false"

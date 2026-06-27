@@ -12,6 +12,31 @@ spec:
     - Ingress
   # no ingress rules → all inbound denied unless another policy allows it
 ---
+# ACME HTTP-01 solver: cert-manager spins up a temporary solver pod in this
+# namespace (label acme.cert-manager.io/http01-solver=true) that the ingress
+# controller must reach on :8089 to serve the Let's Encrypt challenge token.
+# Without this allow, default-deny-ingress blocks both cert-manager's self-check
+# and LE's validation, so HTTP-01 never completes and no TLS cert is issued.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-acme-solver-ingress
+  namespace: warsaw
+spec:
+  podSelector:
+    matchLabels:
+      acme.cert-manager.io/http01-solver: "true"
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8089
+---
 # API: reachable by the ingress controller (public routes), the web pod
 # (server-side calls), and Prometheus in `monitoring` (scrapes /metrics).
 apiVersion: networking.k8s.io/v1
