@@ -172,6 +172,10 @@ do-platform:        ## Helm: ingress-nginx, cert-manager(+issuer), monitoring (f
 	helm repo update >/dev/null
 	$(KDO) helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx -n ingress-nginx --create-namespace
 	$(KDO) helm upgrade --install cert-manager jetstack/cert-manager -n cert-manager --create-namespace --set crds.enabled=true
+	# CoreDNS rewrite so cert-manager's HTTP-01 self-check reaches the ingress
+	# ClusterIP directly (DOKS+Cilium doesn't hairpin to the LB external IP).
+	@envsubst < $(ROOT_DIR)/platform/coredns-custom.yaml | $(KDO) kubectl apply -f -
+	$(KDO) kubectl -n kube-system rollout restart deployment coredns
 	# kube-prometheus-stack WITH values (Grafana pw, retention/persistence, resources,
 	# scrape configs). Release name matches the PrometheusRule `release` label so the
 	# operator picks up the shared alert rules. --wait so the PrometheusRule CRD exists.

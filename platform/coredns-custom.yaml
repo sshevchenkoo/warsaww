@@ -1,0 +1,17 @@
+# Resolve the app domains to the ingress-nginx ClusterIP *inside the cluster*.
+# DOKS+Cilium does not hairpin pod → LoadBalancer-external-IP traffic, so
+# cert-manager's HTTP-01 self-check (which fetches http://<domain>/.well-known/...)
+# times out when <domain> resolves to the public LB IP. Pointing it at the
+# ingress ClusterIP makes the self-check reach the ingress directly; external
+# Let's Encrypt validation still uses public DNS → the LB.
+#
+# DOKS loads this via `import custom/*.override` in the managed Corefile.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  hairpin.override: |
+    rewrite name ${WARSAW_DOMAIN} ingress-nginx-controller.ingress-nginx.svc.cluster.local
+    rewrite name grafana.${WARSAW_DOMAIN} ingress-nginx-controller.ingress-nginx.svc.cluster.local
