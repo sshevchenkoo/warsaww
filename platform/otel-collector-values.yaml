@@ -1,5 +1,12 @@
 mode: deployment
 
+# The chart no longer defaults the image. Use the contrib distribution — it
+# includes the `prometheus` exporter we use (the core image does not).
+image:
+  repository: otel/opentelemetry-collector-contrib
+command:
+  name: otelcol-contrib
+
 config:
   receivers:
     otlp:
@@ -37,16 +44,16 @@ config:
 
 service:
   type: ClusterIP
-  ports:
-    otlp-grpc:
-      port: 4317
-      protocol: TCP
-    otlp-http:
-      port: 4318
-      protocol: TCP
-    prometheus:
-      port: 8889
-      protocol: TCP
+
+# Ports are top-level in this chart (service.ports is rejected by the schema).
+# otlp (4317) + otlp-http (4318) are enabled by default; add the prometheus
+# exporter port (8889) so Prometheus can scrape the collector's metrics.
+ports:
+  prometheus:
+    enabled: true
+    containerPort: 8889
+    servicePort: 8889
+    protocol: TCP
 
 resources:
   requests:

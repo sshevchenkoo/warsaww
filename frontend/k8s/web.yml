@@ -30,7 +30,12 @@ spec:
         app: web
     spec:
       securityContext:
+        # nextjs user in node:22-alpine is uid 100 / gid 101. Numeric so the
+        # kubelet can verify non-root; fsGroup makes the emptyDir mounts writable.
         runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 101
+        fsGroup: 101
         seccompProfile:
           type: RuntimeDefault
       containers:
