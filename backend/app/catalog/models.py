@@ -116,6 +116,67 @@ class SavedItem(Base):
     __table_args__ = (UniqueConstraint("user_id", "item_id", name="uq_saved_user_item"),)
 
 
+class Friendship(Base):
+    """A friendship between two users, modeled as a directed request that becomes
+    mutual once accepted.
+
+    - status 'pending':  requester asked addressee; awaiting their response.
+    - status 'accepted': the two are friends (direction no longer matters).
+
+    "Are A and B friends?" = an accepted row with {requester, addressee} == {A, B}
+    in either direction. One row per ordered (requester, addressee) pair.
+    """
+
+    __tablename__ = "friendships"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    requester_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    addressee_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    status: Mapped[str] = mapped_column(Text, server_default=text("'pending'"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+
+    __table_args__ = (
+        UniqueConstraint("requester_id", "addressee_id", name="uq_friendship_pair"),
+    )
+
+
+class SharedEvent(Base):
+    """One user sharing an item (event/place) with a friend. Shows up in the
+    recipient's "shared with me" inbox."""
+
+    __tablename__ = "shared_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    from_user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    to_user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    item_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("items.id", ondelete="CASCADE"))
+    message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+
+    __table_args__ = (
+        UniqueConstraint("from_user_id", "to_user_id", "item_id", name="uq_share_once"),
+    )
+
+
 class IntentLog(Base):
     """Log of prompt parses: future fine-tuning dataset for a local model."""
 

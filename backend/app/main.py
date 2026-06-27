@@ -9,6 +9,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.api.auth import router as auth_router
 from app.api.routes import router
 from app.api.saved import router as saved_router
+from app.api.social import router as social_router
 from app.catalog import models  # noqa: F401 — registers tables in metadata
 from app.catalog.db import Base, engine
 from app.config import settings
@@ -56,6 +57,7 @@ app.add_middleware(
 app.include_router(router)
 app.include_router(auth_router)
 app.include_router(saved_router)
+app.include_router(social_router)
 
 # Prometheus /metrics (always) + OpenTelemetry traces (when OTEL endpoint set).
 setup_observability(app)

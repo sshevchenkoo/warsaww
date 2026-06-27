@@ -7,10 +7,12 @@ import { EventCard } from "@/components/EventCard";
 import { useUser } from "@/components/UserContext";
 import type { Card } from "@/lib/api";
 import { getSaved } from "@/lib/auth";
+import { dismissShared, listShared, type SharedEvent } from "@/lib/social";
 
 export default function Profile() {
   const { user, loading, savedIds } = useUser();
   const [cards, setCards] = useState<Card[]>([]);
+  const [shared, setShared] = useState<SharedEvent[]>([]);
   const [busy, setBusy] = useState(true);
 
   useEffect(() => {
@@ -19,7 +21,13 @@ export default function Profile() {
       setCards(c);
       setBusy(false);
     });
+    listShared().then(setShared);
   }, [user]);
+
+  function dismiss(shareId: string) {
+    setShared((prev) => prev.filter((s) => s.id !== shareId));
+    dismissShared(shareId).catch(() => {});
+  }
 
   if (loading) return null;
 
@@ -60,16 +68,51 @@ export default function Profile() {
             {(user.name ?? user.email ?? "?").charAt(0).toUpperCase()}
           </span>
         )}
-        <div>
-          <h1 className="text-3xl font-black tracking-tighter sm:text-4xl">
+        <div className="min-w-0">
+          <h1 className="truncate text-3xl font-black tracking-tighter sm:text-4xl">
             {user.name ?? "your saved"}
           </h1>
           {user.email && (
             <p className="font-mono text-xs tracking-wide text-muted">{user.email}</p>
           )}
         </div>
+        <Link
+          href="/people"
+          className="ml-auto shrink-0 rounded-full border border-line px-3.5 py-1.5 font-mono text-xs tracking-wide text-muted transition-colors hover:border-accent hover:text-fg"
+        >
+          people →
+        </Link>
       </header>
 
+      {shared.length > 0 && (
+        <section className="mb-10">
+          <h2 className="mb-4 font-mono text-[11px] uppercase tracking-widest text-accent">
+            shared with you
+          </h2>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+            {shared.map((s, i) => (
+              <div key={s.id}>
+                <p className="mb-1 flex items-center justify-between gap-2 font-mono text-[10px] tracking-wide text-muted">
+                  <span className="truncate">from {s.from_user.name ?? "a friend"}</span>
+                  <button
+                    type="button"
+                    onClick={() => dismiss(s.id)}
+                    className="shrink-0 transition-colors hover:text-accent"
+                    aria-label="Dismiss"
+                  >
+                    ✕
+                  </button>
+                </p>
+                <EventCard card={s.item} index={i} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <h2 className="mb-4 font-mono text-[11px] uppercase tracking-widest text-muted">
+        your saved
+      </h2>
       {busy ? (
         <p className="flex items-center gap-2 font-mono text-sm text-muted">
           <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />

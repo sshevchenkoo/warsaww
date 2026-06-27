@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import type { Card } from "@/lib/api";
+import { ShareButton } from "@/components/ShareButton";
 import { useUser } from "@/components/UserContext";
 import { categoryLabel, fallbackHue, formatPrice, formatWhen } from "@/lib/format";
 
@@ -78,21 +79,24 @@ export function EventCard({ card, index }: { card: Card; index: number }) {
 
   return (
     <div className="relative">
-      {/* Heart lives outside the <a> (a button can't nest in an anchor). */}
+      {/* Heart + share live outside the <a> (a button can't nest in an anchor). */}
       {user && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            toggleSave(card.id);
-          }}
-          aria-label={saved ? "Remove from saved" : "Save"}
-          aria-pressed={saved}
-          className="absolute right-3 top-3 z-10 grid h-9 w-9 place-items-center rounded-full border border-white/25 bg-black/40 text-lg backdrop-blur-sm transition-transform hover:scale-110 active:scale-90"
-        >
-          <span className={saved ? "text-accent" : "text-fg"}>{saved ? "♥" : "♡"}</span>
-        </button>
+        <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
+          <ShareButton itemId={card.id} compact />
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              toggleSave(card.id);
+            }}
+            aria-label={saved ? "Remove from saved" : "Save"}
+            aria-pressed={saved}
+            className="grid h-9 w-9 place-items-center rounded-full border border-white/25 bg-black/40 text-lg backdrop-blur-sm transition-transform hover:scale-110 active:scale-90"
+          >
+            <span className={saved ? "text-accent" : "text-fg"}>{saved ? "♥" : "♡"}</span>
+          </button>
+        </div>
       )}
 
       {/* The card opens our detail page; the link to the source lives there. */}
