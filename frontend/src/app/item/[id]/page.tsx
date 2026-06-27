@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { ShareButton } from "@/components/ShareButton";
 import { useUser } from "@/components/UserContext";
 import { getItem, type Card } from "@/lib/api";
 import { categoryLabel, fallbackHue, formatPrice, formatWhen } from "@/lib/format";
@@ -73,15 +74,18 @@ export default function ItemPage() {
           </span>
         </div>
         {user && (
-          <button
-            type="button"
-            onClick={() => toggleSave(item.id)}
-            aria-label={saved ? "Remove from saved" : "Save"}
-            aria-pressed={saved}
-            className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full border border-white/25 bg-black/40 text-xl backdrop-blur-sm transition-transform hover:scale-110 active:scale-90"
-          >
-            <span className={saved ? "text-accent" : "text-fg"}>{saved ? "♥" : "♡"}</span>
-          </button>
+          <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
+            <ShareButton itemId={item.id} compact />
+            <button
+              type="button"
+              onClick={() => toggleSave(item.id)}
+              aria-label={saved ? "Remove from saved" : "Save"}
+              aria-pressed={saved}
+              className="grid h-10 w-10 place-items-center rounded-full border border-white/25 bg-black/40 text-xl backdrop-blur-sm transition-transform hover:scale-110 active:scale-90"
+            >
+              <span className={saved ? "text-accent" : "text-fg"}>{saved ? "♥" : "♡"}</span>
+            </button>
+          </div>
         )}
       </div>
 

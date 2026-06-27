@@ -17,6 +17,12 @@ export function Header() {
         {loading ? null : user ? (
           <>
             <Link
+              href="/people"
+              className="text-muted transition-colors hover:text-fg"
+            >
+              people
+            </Link>
+            <Link
               href="/profile"
               className="flex items-center gap-2 text-muted transition-colors hover:text-fg"
             >
