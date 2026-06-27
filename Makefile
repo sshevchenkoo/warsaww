@@ -148,15 +148,17 @@ do-kubeconfig:      ## Save the DOKS kubeconfig to .kube/config-do
 	@echo "$(GREEN)kubeconfig → $(KUBECONFIG_DO)$(NC)"
 
 do-db-init:         ## Enable pgvector on the managed DB (run once, needs psql)
-	@URL=$$(cd $(DO_TF_DIR) && terraform output -raw database_url | sed 's/+psycopg//'); \
+	# Uses the PUBLIC admin URI (reachable from your admin IP) pointed at the
+	# `events` DB — the private database_url only resolves inside the VPC.
+	@URL=$$(cd $(DO_TF_DIR) && terraform output -raw database_admin_uri | sed 's#/defaultdb#/events#'); \
 	 psql "$$URL" -c 'CREATE EXTENSION IF NOT EXISTS vector;' && echo "$(GREEN)pgvector enabled$(NC)"
 
-do-images:          ## Build + push warsaw-events / warsaw-web images to ghcr.io
+do-images:          ## Build (linux/amd64) + push warsaw-events / warsaw-web to ghcr.io
+	# DOKS nodes are amd64 — build for that platform explicitly so images built on
+	# an Apple-Silicon (arm64) Mac don't "exec format error" in the cluster.
 	echo "$(GITHUB_TOKEN)" | docker login ghcr.io -u $(GITHUB_USER) --password-stdin
-	docker build -t $(WARSAW_API_IMAGE):$(IMAGE_TAG) $(BACKEND_DIR)
-	docker push $(WARSAW_API_IMAGE):$(IMAGE_TAG)
-	docker build -t $(WARSAW_WEB_IMAGE):$(IMAGE_TAG) $(FRONTEND_DIR)
-	docker push $(WARSAW_WEB_IMAGE):$(IMAGE_TAG)
+	docker buildx build --platform linux/amd64 -t $(WARSAW_API_IMAGE):$(IMAGE_TAG) --push $(BACKEND_DIR)
+	docker buildx build --platform linux/amd64 -t $(WARSAW_WEB_IMAGE):$(IMAGE_TAG) --push $(FRONTEND_DIR)
 
 do-platform:        ## Helm: ingress-nginx, cert-manager(+issuer), monitoring (full parity), fluent-bit
 	@[ -n "$(GRAFANA_PASSWORD)" ] || (echo "$(RED)GRAFANA_PASSWORD not set in .env$(NC)" && exit 1)

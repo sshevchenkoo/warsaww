@@ -30,6 +30,7 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
+        fsGroup: 10001   # make the writable /tmp emptyDir owned by the app user
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -57,6 +58,10 @@ spec:
               value: "https://${WARSAW_DOMAIN}"
             - name: SESSION_HTTPS_ONLY
               value: "true"
+            # Same-origin in prod (ingress serves app + API), but the prod config
+            # validator rejects the "*" default — pin it to the app origin.
+            - name: CORS_ORIGINS
+              value: '["https://${WARSAW_DOMAIN}"]'
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
