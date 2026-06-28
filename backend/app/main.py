@@ -75,7 +75,11 @@ def _create_schema(retries: int = 30, delay: float = 2.0) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    _create_schema()
+    # Only bootstrap the schema when allowed (audit #4): in prod the runtime role
+    # is least-privilege DML-only and can't run DDL — schema is managed by the
+    # admin-run `make do-db-migrate` step. Local dev keeps db_bootstrap=True.
+    if settings.db_bootstrap:
+        _create_schema()
     yield
 
 
