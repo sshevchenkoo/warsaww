@@ -1,11 +1,26 @@
 from datetime import datetime
 
-from sqlalchemy import ColumnElement, Select, func, or_, select, union_all
+from sqlalchemy import ColumnElement, Select, func, or_, select, text, union_all
 from sqlalchemy.orm import Session
 
 from app.catalog.models import Item
 from app.config import settings
 from app.llm.schemas import Intent
+
+# pgvector >= 0.8 iterative-scan modes (others rejected to keep the SET LOCAL
+# below free of injected values — it can't be parameterised).
+_ITERATIVE_SCAN_MODES = {"off", "strict_order", "relaxed_order"}
+
+
+def _tune_hnsw(session: Session) -> None:
+    """Widen HNSW search + enable iterative scan for the current transaction so
+    filtered vector search keeps recall (audit #3). SET LOCAL is scoped to the
+    transaction the following vector query runs in."""
+    mode = settings.hnsw_iterative_scan
+    if mode not in _ITERATIVE_SCAN_MODES:
+        mode = "off"
+    session.execute(text(f"SET LOCAL hnsw.ef_search = {int(settings.hnsw_ef_search)}"))
+    session.execute(text(f"SET LOCAL hnsw.iterative_scan = {mode}"))
 
 # Reciprocal Rank Fusion: each leg contributes 1/(RRF_K + rank). The constant
 # damps the weight of top ranks so no single leg dominates; 60 is the value from
@@ -141,6 +156,8 @@ def search_items(
     Hybrid (default): fuse semantic (pgvector) and lexical (pg_trgm) retrieval
     via RRF — see `_hybrid_search`. Falls back to pure semantic search when
     hybrid is disabled or no query text is available."""
+    if query_embedding is not None:
+        _tune_hnsw(session)  # recall tuning for the filtered vector leg (audit #3)
     if settings.hybrid_search and text_query:
         return _hybrid_search(session, intent, query_embedding, text_query, limit)
     return _semantic_search(session, intent, query_embedding, limit)

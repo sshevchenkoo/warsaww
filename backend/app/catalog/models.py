@@ -106,6 +106,17 @@ class User(Base):
         DateTime(timezone=True), server_default=text("now()")
     )
 
+    __table_args__ = (
+        # Trigram index so /users/search's `name ILIKE '%term%'` (leading
+        # wildcard → can't use a btree) is index-accelerated. Needs pg_trgm.
+        Index(
+            "ix_users_name_trgm",
+            "name",
+            postgresql_using="gin",
+            postgresql_ops={"name": "gin_trgm_ops"},
+        ),
+    )
+
 
 class SavedItem(Base):
     """A user's saved/favorite item (event or place)."""
@@ -118,7 +129,11 @@ class SavedItem(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
-    item_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("items.id", ondelete="CASCADE"))
+    # Indexed: Postgres doesn't index FK columns automatically; without it the
+    # ON DELETE CASCADE from items (and any item_id lookup) is a seq scan.
+    item_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("items.id", ondelete="CASCADE"), index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
     )
@@ -176,7 +191,10 @@ class SharedEvent(Base):
     to_user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
-    item_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("items.id", ondelete="CASCADE"))
+    # Indexed FK (see SavedItem.item_id) — speeds the ON DELETE CASCADE from items.
+    item_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("items.id", ondelete="CASCADE"), index=True
+    )
     message: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")

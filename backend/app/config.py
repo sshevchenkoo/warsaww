@@ -56,6 +56,15 @@ class Settings(BaseSettings):
     # is never dropped. Flip off to fall back to pure semantic + filters (useful
     # for A/B against the previous behaviour).
     hybrid_search: bool = True
+    # HNSW recall tuning for filtered vector search. With WHERE filters
+    # (date/category/budget) pgvector post-filters the ef_search candidates, so
+    # a selective filter can starve results. pgvector >= 0.8 fixes this with
+    # iterative scan (re-probes beyond ef_search until `limit` rows pass the
+    # filter); relaxed_order trades exact ordering for recall — fine here since
+    # the LLM re-ranker reorders anyway. ef_search default is 40; 100 widens the
+    # candidate pool. Applied per-query via SET LOCAL in retrieval.search.
+    hnsw_ef_search: int = 100
+    hnsw_iterative_scan: str = "relaxed_order"  # off | strict_order | relaxed_order
 
     # Auth: Google OAuth + signed-cookie sessions (no server-side state, so the
     # API stays stateless across replicas — every replica validates with the
