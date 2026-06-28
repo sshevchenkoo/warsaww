@@ -62,6 +62,10 @@ spec:
             # validator rejects the "*" default — pin it to the app origin.
             - name: CORS_ORIGINS
               value: '["https://${WARSAW_DOMAIN}"]'
+            # Runtime role is least-privilege DML-only (audit #4) — no DDL on
+            # startup; schema is managed by `make do-db-migrate`.
+            - name: DB_BOOTSTRAP
+              value: "false"
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:

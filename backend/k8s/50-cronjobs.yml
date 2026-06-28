@@ -34,6 +34,9 @@ spec:
                   drop: ["ALL"]
               command: ["python", "-m", "app.ingestion.runner", "--source=places"]
               env:
+                # DML-only runtime role (audit #4) — no create_all on ingest.
+                - name: DB_BOOTSTRAP
+                  value: "false"
                 - name: DATABASE_URL
                   valueFrom:
                     secretKeyRef:
@@ -97,6 +100,9 @@ spec:
                   drop: ["ALL"]
               command: ["python", "-m", "app.ingestion.runner", "--source=facebook_events"]
               env:
+                # DML-only runtime role (audit #4) — no create_all on ingest.
+                - name: DB_BOOTSTRAP
+                  value: "false"
                 - name: DATABASE_URL
                   valueFrom:
                     secretKeyRef:
@@ -165,6 +171,9 @@ spec:
                   drop: ["ALL"]
               command: ["python", "-m", "app.ingestion.runner", "--source=ticketmaster"]
               env:
+                # DML-only runtime role (audit #4) — no create_all on ingest.
+                - name: DB_BOOTSTRAP
+                  value: "false"
                 - name: DATABASE_URL
                   valueFrom:
                     secretKeyRef:

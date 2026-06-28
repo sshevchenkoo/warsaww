@@ -159,6 +159,24 @@ do-db-init:         ## Enable pgvector + pg_trgm on the managed DB (run once, ne
 	@URL=$$(cd $(DO_TF_DIR) && terraform output -raw database_admin_uri | sed 's#/defaultdb#/events#'); \
 	 psql "$$URL" -c 'CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS pg_trgm;' && echo "$(GREEN)pgvector + pg_trgm enabled$(NC)"
 
+do-db-role:         ## Create/rotate the least-privilege app DB role (admin, idempotent)
+	# Least-privilege DML-only role so the app no longer runs as `doadmin`
+	# (audit #4). Run AFTER do-db-init and BEFORE do-db-migrate. Then set
+	# DATABASE_URL in backend/k8s/secret.yml to this role and redeploy.
+	@[ -n "$(WARSAW_APP_DB_PASSWORD)" ] || (echo "$(RED)WARSAW_APP_DB_PASSWORD not set in .env$(NC)" && exit 1)
+	@URL=$$(cd $(DO_TF_DIR) && terraform output -raw database_admin_uri | sed 's#/defaultdb#/events#'); \
+	 psql "$$URL" -v ON_ERROR_STOP=1 -v pw="$(WARSAW_APP_DB_PASSWORD)" -f $(BACKEND_DIR)/db/app-role.sql \
+	 && echo "$(GREEN)warsaw_app role ready (DML-only)$(NC)"
+
+do-db-migrate:      ## Create/upgrade the schema as admin (run before deploy when schema changed)
+	# Schema bootstrap (extensions + create_all + indexes) as `doadmin`, since
+	# the runtime role is DML-only (DB_BOOTSTRAP=false in the manifests). Uses the
+	# deployed image so the models match exactly. Needs do-images to have run.
+	@URL=$$(cd $(DO_TF_DIR) && terraform output -raw database_admin_uri | sed 's#/defaultdb#/events#'); \
+	 docker run --rm --platform linux/amd64 -e DATABASE_URL="$$URL" \
+	   $(WARSAW_API_IMAGE):$(IMAGE_TAG) python -c "from app.main import _create_schema; _create_schema()" \
+	 && echo "$(GREEN)schema migrated (admin)$(NC)"
+
 do-images:          ## Build (linux/amd64) + push warsaw-events / warsaw-web to ghcr.io
 	# DOKS nodes are amd64 — build for that platform explicitly so images built on
 	# an Apple-Silicon (arm64) Mac don't "exec format error" in the cluster.

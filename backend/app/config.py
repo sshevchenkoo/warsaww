@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     db_max_overflow: int = 5     # 2 replicas * (5+5) = 20 < max_connections (25)
     db_pool_recycle: int = 1800  # seconds; recycle connections older than 30 min
     db_pool_pre_ping: bool = True
+    # Whether the app may run DDL (extensions, create_all, indexes) on startup
+    # and before ingestion. True for local dev (the local role owns the schema).
+    # In prod set DB_BOOTSTRAP=false so the runtime role can be a least-privilege
+    # DML-only role (audit #4); schema is then managed by the admin-run
+    # `make do-db-migrate` step instead.
+    db_bootstrap: bool = True
     # Backstop against a runaway/hung query holding a pooled connection (see
     # lock-short-transactions). Generous enough for normal OLTP + ingestion;
     # raise via env on the ingestion CronJobs if a future bulk op needs longer.

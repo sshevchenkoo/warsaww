@@ -131,7 +131,11 @@ def run(source: str) -> None:
         return
     items = normalize_all(raw_items)
 
-    Base.metadata.create_all(engine)
+    # Ensure the schema exists only when allowed to run DDL (audit #4). In prod
+    # the ingest role is least-privilege DML-only; the schema is created by the
+    # admin-run `make do-db-migrate` step before deploy.
+    if settings.db_bootstrap:
+        Base.metadata.create_all(engine)
 
     # Drop duplicates against the existing catalog and within this batch;
     # a duplicate's source ref is folded into the canonical card instead.
