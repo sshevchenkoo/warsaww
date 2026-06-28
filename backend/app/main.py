@@ -58,6 +58,26 @@ def _ensure_indexes() -> None:
             conn.execute(text(stmt))
 
 
+def _ensure_constraints() -> None:
+    """create_all won't add a constraint to an already-existing table, so the
+    CHECK constraints (audit #9) are added idempotently. Existing prod data
+    already conforms (items.kind in event/place; friendships empty)."""
+    checks = (
+        ("ck_items_kind", "items", "kind IN ('event', 'place')"),
+        ("ck_friendship_status", "friendships", "status IN ('pending', 'accepted')"),
+    )
+    with engine.begin() as conn:
+        for name, table, expr in checks:
+            conn.execute(
+                text(
+                    f"DO $$ BEGIN "
+                    f"IF NOT EXISTS (SELECT FROM pg_constraint WHERE conname = '{name}') THEN "
+                    f"ALTER TABLE {table} ADD CONSTRAINT {name} CHECK ({expr}); "
+                    f"END IF; END $$;"
+                )
+            )
+
+
 def _create_schema(retries: int = 30, delay: float = 2.0) -> None:
     """Create tables on startup, waiting for Postgres to accept connections
     (it may still be booting in compose / k8s)."""
@@ -66,6 +86,7 @@ def _create_schema(retries: int = 30, delay: float = 2.0) -> None:
             _ensure_extensions()
             Base.metadata.create_all(engine)
             _ensure_indexes()
+            _ensure_constraints()
             return
         except OperationalError:
             if attempt == retries - 1:

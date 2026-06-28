@@ -4,6 +4,7 @@ from datetime import datetime
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     Float,
     ForeignKey,
@@ -62,6 +63,8 @@ class Item(Base):
     )
 
     __table_args__ = (
+        # Bound the free-text discriminator so a typo can't write a junk kind.
+        CheckConstraint("kind IN ('event', 'place')", name="ck_items_kind"),
         # Upsert key for ingestion: re-running a source updates, not duplicates.
         UniqueConstraint("source", "source_url", name="uq_items_source_url"),
         Index(
@@ -173,6 +176,7 @@ class Friendship(Base):
 
     __table_args__ = (
         UniqueConstraint("requester_id", "addressee_id", name="uq_friendship_pair"),
+        CheckConstraint("status IN ('pending', 'accepted')", name="ck_friendship_status"),
     )
 
 
