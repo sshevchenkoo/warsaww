@@ -25,7 +25,12 @@ WARSAW_API_IMAGE := ghcr.io/$(GITHUB_USER)/warsaw-events
 WARSAW_WEB_IMAGE := ghcr.io/$(GITHUB_USER)/warsaw-web
 
 # ─── Image tag (used by the do-* image build/deploy) ──────────────────────────
-IMAGE_TAG ?= latest
+# Default to the short git SHA so images are immutable and traceable to a commit.
+# This is what makes `do-deploy` self-roll: the tag in the rendered manifest
+# changes per commit, so `kubectl apply` sees a new pod spec and rolls out — no
+# manual `kubectl rollout restart` (which `:latest` needed, since an unchanged
+# manifest is a no-op). Override for one-offs: `IMAGE_TAG=latest make do-deploy`.
+IMAGE_TAG ?= $(shell git rev-parse --short HEAD)
 
 # ─── Colors ───────────────────────────────────────────────────────────────────
 GREEN  := \033[0;32m
@@ -157,9 +162,11 @@ do-db-init:         ## Enable pgvector + pg_trgm on the managed DB (run once, ne
 do-images:          ## Build (linux/amd64) + push warsaw-events / warsaw-web to ghcr.io
 	# DOKS nodes are amd64 — build for that platform explicitly so images built on
 	# an Apple-Silicon (arm64) Mac don't "exec format error" in the cluster.
+	# Tag each image with the immutable SHA (what the manifests deploy) and also
+	# `:latest` (convenience for ad-hoc `docker pull`); deploy strictly by SHA.
 	echo "$(GITHUB_TOKEN)" | docker login ghcr.io -u $(GITHUB_USER) --password-stdin
-	docker buildx build --platform linux/amd64 -t $(WARSAW_API_IMAGE):$(IMAGE_TAG) --push $(BACKEND_DIR)
-	docker buildx build --platform linux/amd64 -t $(WARSAW_WEB_IMAGE):$(IMAGE_TAG) --push $(FRONTEND_DIR)
+	docker buildx build --platform linux/amd64 -t $(WARSAW_API_IMAGE):$(IMAGE_TAG) -t $(WARSAW_API_IMAGE):latest --push $(BACKEND_DIR)
+	docker buildx build --platform linux/amd64 -t $(WARSAW_WEB_IMAGE):$(IMAGE_TAG) -t $(WARSAW_WEB_IMAGE):latest --push $(FRONTEND_DIR)
 
 do-platform:        ## Helm: ingress-nginx, cert-manager(+issuer), monitoring (full parity), fluent-bit
 	@[ -n "$(GRAFANA_PASSWORD)" ] || (echo "$(RED)GRAFANA_PASSWORD not set in .env$(NC)" && exit 1)
