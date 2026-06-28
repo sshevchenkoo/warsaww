@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.catalog.db import get_session
+from app.catalog.db import SessionLocal, get_session
 from app.catalog.models import Item, IntentLog
 from app.config import settings
 from app.llm.embeddings import embed_query
@@ -88,11 +88,15 @@ def get_item(item_id: uuid.UUID, session: Session = Depends(get_session)) -> Ite
 
 
 @router.post("/search")
-def search(
-    req: SearchRequest, request: Request, session: Session = Depends(get_session)
-) -> StreamingResponse:
+def search(req: SearchRequest, request: Request) -> StreamingResponse:
     """Server-Sent Events: an `intent` event, then a `card` event per ranked
-    result, then `done`. The DB/LLM prep runs before streaming starts."""
+    result, then `done`.
+
+    Connection lifecycle: the intent parse and prompt embedding are external
+    HTTP calls and the re-rank is a seconds-long LLM stream — none need the DB.
+    So a pooled connection is held only for the short window that logs the parse
+    and runs retrieval, then released BEFORE streaming. Holding it across the
+    stream throttled concurrency hard (managed max_connections=25)."""
     # Per-session daily quota (the only costly endpoint). Anonymous visitors get
     # a session id so the limit follows them too.
     sid = request.session.get("sid")
@@ -107,37 +111,36 @@ def search(
             "Try again tomorrow.",
         )
 
+    # External calls first — no DB connection held during them.
     extractor = ClaudeIntentExtractor()
-
     started = time.monotonic()
     intent = extractor.extract(req.prompt)
     latency_ms = int((time.monotonic() - started) * 1000)
-
-    session.add(
-        IntentLog(
-            user_prompt=req.prompt,
-            intent=intent.model_dump(),
-            model=settings.intent_model,
-            latency_ms=latency_ms,
-        )
+    # The raw prompt (not the intent) is embedded — it keeps nuances the intent
+    # schema drops ("romantic", "with a view"...) and feeds the lexical trigram
+    # leg of hybrid search. Skipped for off-topic prompts.
+    query_embedding = (
+        embed_query(req.prompt) if intent.on_topic and settings.voyage_api_key else None
     )
-    session.commit()
 
-    # Gibberish / off-topic prompt: skip the costly embedding + vector search +
-    # re-rank and return an empty result fast (the frontend shows "nothing matched").
-    if not intent.on_topic:
-        def empty_stream() -> Iterator[str]:
-            yield _sse("intent", intent.model_dump())
-            yield _sse("done", {})
-
-        return StreamingResponse(empty_stream(), media_type="text/event-stream")
-
-    # The raw prompt (not the intent) is embedded — it keeps nuances the
-    # intent schema drops ("romantic", "with a view"...).
-    query_embedding = embed_query(req.prompt) if settings.voyage_api_key else None
-    # Pass the raw prompt for the lexical (trigram) leg of hybrid search; it
-    # carries exact proper nouns the embedding may underweight.
-    items = search_items(session, intent, query_embedding, text_query=req.prompt)
+    # Short-lived DB work, then the connection returns to the pool before the stream.
+    with SessionLocal() as session:
+        session.add(
+            IntentLog(
+                user_prompt=req.prompt,
+                intent=intent.model_dump(),
+                model=settings.intent_model,
+                latency_ms=latency_ms,
+            )
+        )
+        session.commit()  # commit BEFORE loading items so they aren't expired on detach
+        # Off-topic (gibberish/spam): skip retrieval + re-rank, return empty fast.
+        items = (
+            search_items(session, intent, query_embedding, text_query=req.prompt)
+            if intent.on_topic
+            else []
+        )
+        session.expunge_all()  # detach so cards stay usable after the connection is freed
 
     def event_stream() -> Iterator[str]:
         yield _sse("intent", intent.model_dump())
@@ -145,7 +148,7 @@ def search(
             for item, blurb in rerank_stream(req.prompt, items):
                 yield _sse("card", _card(item, blurb))
         else:
-            # No re-ranker available — emit raw vector-search order.
+            # No re-ranker available (or off-topic) — emit raw retrieval order.
             for item in items:
                 yield _sse("card", _card(item, None))
         yield _sse("done", {})

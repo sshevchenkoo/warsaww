@@ -14,10 +14,22 @@ class Settings(BaseSettings):
     # error; pool_recycle proactively retires connections before the server's
     # idle timeout. Size is modest — the API holds a connection per in-flight
     # request (and streaming /search holds one for the whole LLM stream).
+    # Managed Postgres caps connections low (DO basic tier = 25). With 2 API
+    # replicas the worst case is 2*(pool_size+max_overflow); keep it under the
+    # cap with headroom for cronjobs + DO's own monitoring roles. /search now
+    # releases its connection before the LLM stream (app.api.routes.search), so
+    # connections are short-lived and this modest pool rarely saturates. For
+    # heavier load put DigitalOcean's PgBouncer (transaction mode) in front and
+    # set psycopg's prepare_threshold=None (transaction pooling breaks named
+    # prepared statements).
     db_pool_size: int = 5
-    db_max_overflow: int = 10
+    db_max_overflow: int = 5     # 2 replicas * (5+5) = 20 < max_connections (25)
     db_pool_recycle: int = 1800  # seconds; recycle connections older than 30 min
     db_pool_pre_ping: bool = True
+    # Backstop against a runaway/hung query holding a pooled connection (see
+    # lock-short-transactions). Generous enough for normal OLTP + ingestion;
+    # raise via env on the ingestion CronJobs if a future bulk op needs longer.
+    db_statement_timeout_ms: int = 30000
     anthropic_api_key: str | None = None  # None → SDK falls back to ANTHROPIC_API_KEY env var
     intent_model: str = "claude-haiku-4-5"
     rerank_model: str = "claude-sonnet-4-6"  # cheaper than Opus ($3/$15 vs $5/$25)
