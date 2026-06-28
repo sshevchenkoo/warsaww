@@ -127,6 +127,7 @@ def get_user_saved(
     user_id: uuid.UUID,
     user: User = Depends(current_user),
     session: Session = Depends(get_session),
+    limit: int = Query(50, ge=1, le=200),
 ) -> list[ItemOut]:
     """Another user's saved items — visible to the user themselves and to friends."""
     if user_id != user.id and not _are_friends(session, user.id, user_id):
@@ -136,6 +137,7 @@ def get_user_saved(
         .join(SavedItem, SavedItem.item_id == Item.id)
         .filter(SavedItem.user_id == user_id)
         .order_by(SavedItem.created_at.desc())
+        .limit(limit)
         .all()
     )
     return [ItemOut.model_validate(item) for item in items]
@@ -229,14 +231,16 @@ def remove_friend(
 
 @router.get("/friends")
 def list_friends(
-    user: User = Depends(current_user), session: Session = Depends(get_session)
+    user: User = Depends(current_user),
+    session: Session = Depends(get_session),
+    limit: int = Query(200, ge=1, le=500),
 ) -> list[PublicUser]:
-    """My accepted friends."""
+    """My accepted friends (bounded — audit #8)."""
     rows = session.execute(
         select(Friendship).where(
             Friendship.status == "accepted",
             or_(Friendship.requester_id == user.id, Friendship.addressee_id == user.id),
-        )
+        ).limit(limit)
     ).scalars().all()
     other_ids = [
         r.addressee_id if r.requester_id == user.id else r.requester_id for r in rows
@@ -249,13 +253,15 @@ def list_friends(
 
 @router.get("/friends/requests")
 def list_requests(
-    user: User = Depends(current_user), session: Session = Depends(get_session)
+    user: User = Depends(current_user),
+    session: Session = Depends(get_session),
+    limit: int = Query(200, ge=1, le=500),
 ) -> list[PublicUser]:
-    """Incoming pending requests (people who asked to be my friend)."""
+    """Incoming pending requests (people who asked to be my friend; bounded #8)."""
     rows = session.execute(
         select(Friendship).where(
             Friendship.addressee_id == user.id, Friendship.status == "pending"
-        )
+        ).limit(limit)
     ).scalars().all()
     requester_ids = [r.requester_id for r in rows]
     if not requester_ids:
@@ -293,15 +299,18 @@ def share_event(
 
 @router.get("/me/shared")
 def list_shared_with_me(
-    user: User = Depends(current_user), session: Session = Depends(get_session)
+    user: User = Depends(current_user),
+    session: Session = Depends(get_session),
+    limit: int = Query(50, ge=1, le=200),
 ) -> list[SharedEventOut]:
-    """Items friends shared with me, newest first."""
+    """Items friends shared with me, newest first (bounded — audit #8)."""
     rows = (
         session.query(SharedEvent, Item, User)
         .join(Item, Item.id == SharedEvent.item_id)
         .join(User, User.id == SharedEvent.from_user_id)
         .filter(SharedEvent.to_user_id == user.id)
         .order_by(SharedEvent.created_at.desc())
+        .limit(limit)
         .all()
     )
     return [

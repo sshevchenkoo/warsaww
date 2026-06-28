@@ -2,7 +2,7 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
@@ -17,14 +17,17 @@ router = APIRouter()
 
 @router.get("/me/saved")
 def list_saved(
-    user: User = Depends(current_user), session: Session = Depends(get_session)
+    user: User = Depends(current_user),
+    session: Session = Depends(get_session),
+    limit: int = Query(50, ge=1, le=200),
 ) -> list[ItemOut]:
-    """The user's saved items, newest first."""
+    """The user's saved items, newest first (bounded — audit #8)."""
     items = (
         session.query(Item)
         .join(SavedItem, SavedItem.item_id == Item.id)
         .filter(SavedItem.user_id == user.id)
         .order_by(SavedItem.created_at.desc())
+        .limit(limit)
         .all()
     )
     return [ItemOut.model_validate(item) for item in items]
