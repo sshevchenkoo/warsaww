@@ -41,15 +41,21 @@ def _ensure_extensions() -> None:
 
 
 def _ensure_indexes() -> None:
-    """create_all does not add new indexes to the already-existing items table,
-    so the pg_trgm index for hybrid search is ensured explicitly (idempotent)."""
+    """create_all does not add new indexes to already-existing tables, so the
+    indexes added after those tables first shipped are ensured explicitly
+    (idempotent). Covers hybrid-search trigram indexes (audit #7) and the FK
+    indexes Postgres doesn't create automatically (audit #6)."""
+    stmts = (
+        # Trigram (pg_trgm) indexes for lexical / ILIKE search.
+        "CREATE INDEX IF NOT EXISTS ix_items_name_trgm ON items USING gin (name gin_trgm_ops)",
+        "CREATE INDEX IF NOT EXISTS ix_users_name_trgm ON users USING gin (name gin_trgm_ops)",
+        # Foreign-key indexes (speed ON DELETE CASCADE from items + item_id lookups).
+        "CREATE INDEX IF NOT EXISTS ix_saved_items_item_id ON saved_items (item_id)",
+        "CREATE INDEX IF NOT EXISTS ix_shared_events_item_id ON shared_events (item_id)",
+    )
     with engine.begin() as conn:
-        conn.execute(
-            text(
-                "CREATE INDEX IF NOT EXISTS ix_items_name_trgm "
-                "ON items USING gin (name gin_trgm_ops)"
-            )
-        )
+        for stmt in stmts:
+            conn.execute(text(stmt))
 
 
 def _create_schema(retries: int = 30, delay: float = 2.0) -> None:
