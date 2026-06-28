@@ -172,7 +172,10 @@ do-db-migrate:      ## Create/upgrade the schema as admin (run before deploy whe
 	# Schema bootstrap (extensions + create_all + indexes) as `doadmin`, since
 	# the runtime role is DML-only (DB_BOOTSTRAP=false in the manifests). Uses the
 	# deployed image so the models match exactly. Needs do-images to have run.
-	@URL=$$(cd $(DO_TF_DIR) && terraform output -raw database_admin_uri | sed 's#/defaultdb#/events#'); \
+	# Point at the `events` DB and force the psycopg (v3) driver — the raw admin
+	# URI is `postgresql://`, which SQLAlchemy maps to psycopg2 (not in the image).
+	@URL=$$(cd $(DO_TF_DIR) && terraform output -raw database_admin_uri \
+	    | sed -E 's#/defaultdb#/events#; s#^postgresql(\+[a-z0-9]+)?://#postgresql+psycopg://#'); \
 	 docker run --rm --platform linux/amd64 -e DATABASE_URL="$$URL" \
 	   $(WARSAW_API_IMAGE):$(IMAGE_TAG) python -c "from app.main import _create_schema; _create_schema()" \
 	 && echo "$(GREEN)schema migrated (admin)$(NC)"
