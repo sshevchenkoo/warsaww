@@ -72,6 +72,16 @@ class Item(Base):
         ),
         Index("ix_items_starts_at", "starts_at"),
         Index("ix_items_category", "category"),
+        # Trigram index (pg_trgm) backing the lexical leg of hybrid search —
+        # accelerates word_similarity / `<%` matches on the card name. Requires
+        # the pg_trgm extension; it is ensured (along with this index, for the
+        # already-existing items table) in app.main._create_schema.
+        Index(
+            "ix_items_name_trgm",
+            "name",
+            postgresql_using="gin",
+            postgresql_ops={"name": "gin_trgm_ops"},
+        ),
     )
 
 

@@ -1,9 +1,11 @@
+import logging
 import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.exc import OperationalError
+from sqlalchemy import text
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.auth import router as auth_router
@@ -15,13 +17,49 @@ from app.catalog.db import Base, engine
 from app.config import settings
 from app.observability import setup_observability
 
+log = logging.getLogger(__name__)
+
+
+def _ensure_extensions() -> None:
+    """Enable the extensions search relies on — `vector` (semantic) and
+    `pg_trgm` (lexical/hybrid) — before create_all builds their indexes.
+
+    On managed Postgres the app role often lacks CREATE EXTENSION; there they
+    are created out-of-band (`make do-db-init` / db/init.sql), so a permission
+    failure here is downgraded to a warning rather than blocking startup."""
+    for ext in ("vector", "pg_trgm"):
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(f"CREATE EXTENSION IF NOT EXISTS {ext}"))
+        except OperationalError:
+            raise  # DB not accepting connections yet — let the retry loop wait
+        except SQLAlchemyError:
+            log.warning(
+                "could not ensure extension %r (assuming it is created "
+                "out-of-band); continuing", ext, exc_info=True,
+            )
+
+
+def _ensure_indexes() -> None:
+    """create_all does not add new indexes to the already-existing items table,
+    so the pg_trgm index for hybrid search is ensured explicitly (idempotent)."""
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_items_name_trgm "
+                "ON items USING gin (name gin_trgm_ops)"
+            )
+        )
+
 
 def _create_schema(retries: int = 30, delay: float = 2.0) -> None:
     """Create tables on startup, waiting for Postgres to accept connections
     (it may still be booting in compose / k8s)."""
     for attempt in range(retries):
         try:
+            _ensure_extensions()
             Base.metadata.create_all(engine)
+            _ensure_indexes()
             return
         except OperationalError:
             if attempt == retries - 1:

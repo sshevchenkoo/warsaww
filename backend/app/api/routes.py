@@ -135,7 +135,9 @@ def search(
     # The raw prompt (not the intent) is embedded — it keeps nuances the
     # intent schema drops ("romantic", "with a view"...).
     query_embedding = embed_query(req.prompt) if settings.voyage_api_key else None
-    items = search_items(session, intent, query_embedding)
+    # Pass the raw prompt for the lexical (trigram) leg of hybrid search; it
+    # carries exact proper nouns the embedding may underweight.
+    items = search_items(session, intent, query_embedding, text_query=req.prompt)
 
     def event_stream() -> Iterator[str]:
         yield _sse("intent", intent.model_dump())
