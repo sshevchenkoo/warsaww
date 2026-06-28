@@ -1,0 +1,112 @@
+name: CI/CD (DigitalOcean)
+
+# Push to main → test → build+push images (tagged with the commit SHA) → deploy.
+# The deploy job targets the `production` Environment, so it PAUSES for a manual
+# approval (configure required reviewers in repo Settings → Environments).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cd-main
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  API_IMAGE: ghcr.io/${{ github.repository_owner }}/warsaw-events
+  WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/warsaw-web
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Backend lint + tests
+        working-directory: backend
+        run: |
+          pip install -e '.[dev]'
+          ruff check app
+          pytest -q
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Frontend build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+  build-push:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write   # push to ghcr with the built-in GITHUB_TOKEN
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build + push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ env.API_IMAGE }}:${{ github.sha }}
+            ${{ env.API_IMAGE }}:latest
+      - name: Build + push web image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ env.WEB_IMAGE }}:${{ github.sha }}
+            ${{ env.WEB_IMAGE }}:latest
+
+  deploy:
+    needs: build-push
+    runs-on: ubuntu-latest
+    # ↓ this is the manual gate: GitHub waits for a reviewer to approve.
+    environment: production
+    env:
+      CLUSTER_NAME: ${{ vars.DOKS_CLUSTER || 'warsaw-cluster' }}
+      IMAGE_TAG: ${{ github.sha }}
+      GITHUB_USER: ${{ github.repository_owner }}
+      WARSAW_DOMAIN: ${{ vars.WARSAW_DOMAIN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+      - name: Fetch kubeconfig
+        run: doctl kubernetes cluster kubeconfig save "$CLUSTER_NAME"
+      - name: Apply manifests (rolling update to the new image)
+        # The warsaw-secrets Secret is NOT applied here — it is managed manually
+        # (kubectl apply -f backend/k8s/secret.yml), so app secrets never enter CI.
+        # Restrict envsubst to our three vars so no other `$...` is touched.
+        run: |
+          SUBST='$GITHUB_USER $IMAGE_TAG $WARSAW_DOMAIN'
+          kubectl apply -f backend/k8s/00-namespace.yml
+          kubectl apply -f backend/k8s/45-networkpolicies.yml
+          kubectl apply -f backend/k8s/20-redis.yml
+          envsubst "$SUBST" < backend/k8s/30-api.yml      | kubectl apply -f -
+          kubectl apply -f backend/k8s/35-pdb.yml
+          envsubst "$SUBST" < backend/k8s/50-cronjobs.yml | kubectl apply -f -
+          envsubst "$SUBST" < frontend/k8s/web.yml        | kubectl apply -f -
+          envsubst "$SUBST" < backend/k8s/40-ingress.yml  | kubectl apply -f -
+      - name: Wait for rollout
+        run: |
+          kubectl -n warsaw rollout status deploy/api --timeout=180s
+          kubectl -n warsaw rollout status deploy/web --timeout=180s
