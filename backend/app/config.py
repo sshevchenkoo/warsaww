@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     # instead of re-ranking junk. Relevant hits measure ~0.4–0.56, clearly
     # unrelated ones ~0.62+. Tune if real queries get wrongly dropped.
     search_max_distance: float = 0.62
+    # Hybrid retrieval: fuse the semantic (pgvector) leg with a lexical
+    # trigram (pg_trgm) leg via Reciprocal Rank Fusion. The lexical leg catches
+    # exact proper nouns (artist/venue names) and typos that dense embeddings
+    # miss — and isn't subject to `search_max_distance`, so a perfect name match
+    # is never dropped. Flip off to fall back to pure semantic + filters (useful
+    # for A/B against the previous behaviour).
+    hybrid_search: bool = True
 
     # Auth: Google OAuth + signed-cookie sessions (no server-side state, so the
     # API stays stateless across replicas — every replica validates with the

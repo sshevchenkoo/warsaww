@@ -1,5 +1,6 @@
 # Postgres + pgvector as a StatefulSet with a persistent volume.
-# The init script only enables the `vector` extension; the app creates tables.
+# The init script enables the `vector` and `pg_trgm` extensions; the app
+# creates tables.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -8,6 +9,7 @@ metadata:
 data:
   init.sql: |
     CREATE EXTENSION IF NOT EXISTS vector;
+    CREATE EXTENSION IF NOT EXISTS pg_trgm;
 ---
 apiVersion: v1
 kind: Service

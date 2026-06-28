@@ -147,11 +147,12 @@ do-kubeconfig:      ## Save the DOKS kubeconfig to .kube/config-do
 	@chmod 600 $(KUBECONFIG_DO)
 	@echo "$(GREEN)kubeconfig → $(KUBECONFIG_DO)$(NC)"
 
-do-db-init:         ## Enable pgvector on the managed DB (run once, needs psql)
+do-db-init:         ## Enable pgvector + pg_trgm on the managed DB (run once, needs psql)
 	# Uses the PUBLIC admin URI (reachable from your admin IP) pointed at the
 	# `events` DB — the private database_url only resolves inside the VPC.
+	# vector → semantic search; pg_trgm → lexical leg of hybrid search.
 	@URL=$$(cd $(DO_TF_DIR) && terraform output -raw database_admin_uri | sed 's#/defaultdb#/events#'); \
-	 psql "$$URL" -c 'CREATE EXTENSION IF NOT EXISTS vector;' && echo "$(GREEN)pgvector enabled$(NC)"
+	 psql "$$URL" -c 'CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS pg_trgm;' && echo "$(GREEN)pgvector + pg_trgm enabled$(NC)"
 
 do-images:          ## Build (linux/amd64) + push warsaw-events / warsaw-web to ghcr.io
 	# DOKS nodes are amd64 — build for that platform explicitly so images built on
