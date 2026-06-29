@@ -14,10 +14,6 @@ language.
 Free-form prompt → structured intent (LLM) → hybrid SQL + vector search →
 LLM re-ranking with per-card blurbs, streamed to the browser card-by-card.
 
-> This repository began as the **ft_transcendence** DevOps module and evolved
-> into the Warsaw-events application: it runs locally via docker-compose and in
-> production on DigitalOcean (DOKS + managed Postgres + ELK).
-
 ---
 
 ## How it works
@@ -34,8 +30,9 @@ Core API (FastAPI, modular monolith)
         ▲
         │  normalize → dedup → embed → upsert
    Ingestion (one adapter per source, k8s CronJobs)
-        ├─ places           OpenStreetMap (Overpass) + Wikidata enrichment
-        └─ facebook_events   Apify actor
+        ├─ places            OpenStreetMap (Overpass) + Wikidata enrichment
+        ├─ facebook_events   Apify actor
+        └─ ticketmaster      Ticketmaster Discovery API
 
 Embeddings: Voyage voyage-3.5 (same model for cards and queries)
 Platform:   DigitalOcean DOKS · managed Postgres · ELK logs · Prometheus/Grafana · cert-manager TLS
