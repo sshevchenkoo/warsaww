@@ -78,6 +78,57 @@ def _ensure_constraints() -> None:
             )
 
 
+def _ensure_rls() -> None:
+    """Row-Level Security (audit #5): a DB-enforced backstop under the app-layer
+    authz, scoping every user-owned row to the requester via `app.user_id` (set
+    per request in auth.deps.current_user).
+
+    Idempotent (drop+recreate policies). RLS only bites a non-owner role, so it
+    enforces against the runtime role `warsaw_app` while the owner (doadmin,
+    which runs this migrate) and any superuser bypass it — admin/migrate work is
+    unaffected. NOT forced, so local dev (which connects as the table owner)
+    also bypasses it. `users`/`items`/`intent_logs` are public/non-tenant and
+    keep no RLS. The current_setting is wrapped in a (select ...) so the planner
+    evaluates it once per statement (security-rls-performance)."""
+    me = "(select nullif(current_setting('app.user_id', true), ''))::uuid"
+    stmts = [
+        # friendships: only the two parties can see or change the row.
+        "ALTER TABLE friendships ENABLE ROW LEVEL SECURITY",
+        "DROP POLICY IF EXISTS p_friendships ON friendships",
+        f"CREATE POLICY p_friendships ON friendships "
+        f"USING (requester_id = {me} OR addressee_id = {me}) "
+        f"WITH CHECK (requester_id = {me} OR addressee_id = {me})",
+        # shared_events: sender + recipient read; only the sender inserts; only
+        # the recipient deletes (dismiss from inbox).
+        "ALTER TABLE shared_events ENABLE ROW LEVEL SECURITY",
+        "DROP POLICY IF EXISTS p_shared_select ON shared_events",
+        f"CREATE POLICY p_shared_select ON shared_events FOR SELECT "
+        f"USING (to_user_id = {me} OR from_user_id = {me})",
+        "DROP POLICY IF EXISTS p_shared_insert ON shared_events",
+        f"CREATE POLICY p_shared_insert ON shared_events FOR INSERT "
+        f"WITH CHECK (from_user_id = {me})",
+        "DROP POLICY IF EXISTS p_shared_delete ON shared_events",
+        f"CREATE POLICY p_shared_delete ON shared_events FOR DELETE "
+        f"USING (to_user_id = {me})",
+        # saved_items: write only your own; read your own OR an accepted friend's
+        # (the friend check reads friendships, itself RLS-scoped to my rows).
+        "ALTER TABLE saved_items ENABLE ROW LEVEL SECURITY",
+        "DROP POLICY IF EXISTS p_saved_select ON saved_items",
+        f"CREATE POLICY p_saved_select ON saved_items FOR SELECT USING ("
+        f"user_id = {me} OR EXISTS (SELECT 1 FROM friendships f "
+        f"WHERE f.status = 'accepted' AND ("
+        f"(f.requester_id = {me} AND f.addressee_id = saved_items.user_id) OR "
+        f"(f.addressee_id = {me} AND f.requester_id = saved_items.user_id))))",
+        "DROP POLICY IF EXISTS p_saved_insert ON saved_items",
+        f"CREATE POLICY p_saved_insert ON saved_items FOR INSERT WITH CHECK (user_id = {me})",
+        "DROP POLICY IF EXISTS p_saved_delete ON saved_items",
+        f"CREATE POLICY p_saved_delete ON saved_items FOR DELETE USING (user_id = {me})",
+    ]
+    with engine.begin() as conn:
+        for stmt in stmts:
+            conn.execute(text(stmt))
+
+
 def _create_schema(retries: int = 30, delay: float = 2.0) -> None:
     """Create tables on startup, waiting for Postgres to accept connections
     (it may still be booting in compose / k8s)."""
@@ -87,6 +138,7 @@ def _create_schema(retries: int = 30, delay: float = 2.0) -> None:
             Base.metadata.create_all(engine)
             _ensure_indexes()
             _ensure_constraints()
+            _ensure_rls()
             return
         except OperationalError:
             if attempt == retries - 1:
