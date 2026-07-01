@@ -10,6 +10,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     Numeric,
     Text,
     UniqueConstraint,
@@ -206,6 +207,31 @@ class SharedEvent(Base):
 
     __table_args__ = (
         UniqueConstraint("from_user_id", "to_user_id", "item_id", name="uq_share_once"),
+    )
+
+
+class UserAvatar(Base):
+    """A user's uploaded avatar image, kept in its own table (not a column on
+    `users`) so the blob never rides along on the many `SELECT ... FROM users`
+    queries in the social layer. One row per user; the bytes are a small
+    server-resized thumbnail, and a CHECK caps the size as a DB-level backstop."""
+
+    __tablename__ = "user_avatars"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    content_type: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+
+    __table_args__ = (
+        # Hard ceiling on stored size — the app resizes well below this, but the
+        # constraint guarantees a row can never bloat the table (audit-style
+        # backstop). Keep in sync with settings.avatar_max_stored_bytes.
+        CheckConstraint("octet_length(data) <= 524288", name="ck_user_avatars_size"),
     )
 
 

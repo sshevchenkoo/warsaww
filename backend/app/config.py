@@ -50,6 +50,15 @@ class Settings(BaseSettings):
     # host is `redis`, not localhost.
     redis_url: str = "redis://localhost:6379/0"
     search_daily_limit: int = 10  # searches allowed per session per day
+
+    # Avatar upload. Reject anything larger than max_upload before processing so
+    # a huge file can't exhaust memory; the image is then re-encoded to a small
+    # square thumbnail, so what actually lands in the DB is tiny regardless of
+    # the input. avatar_max_stored_bytes is the hard DB backstop (CHECK).
+    avatar_max_upload_bytes: int = 5 * 1024 * 1024  # 5 MB accepted at the door
+    avatar_size_px: int = 256                        # output is avatar_size_px square
+    avatar_jpeg_quality: int = 82
+    avatar_max_stored_bytes: int = 512 * 1024        # DB CHECK ceiling (~15-25KB typical)
     # Max cosine distance (voyage-3.5) for a card to count as a match. Candidates
     # farther than this are dropped, so an off-base query returns empty fast
     # instead of re-ranking junk. Relevant hits measure ~0.4–0.56, clearly

@@ -17,6 +17,7 @@ const nextConfig: NextConfig = {
       { source: "/search", destination: `${BACKEND}/search` },
       { source: "/upcoming", destination: `${BACKEND}/upcoming` },
       { source: "/items/:path*", destination: `${BACKEND}/items/:path*` },
+      { source: "/avatars/:path*", destination: `${BACKEND}/avatars/:path*` },
     ];
   },
 };
