@@ -71,3 +71,26 @@ export function unsaveItem(id: string) {
 export function logout() {
   return req("/auth/logout", { method: "POST" });
 }
+
+// Upload a new avatar (multipart). Returns the new cache-busted avatar_url, or
+// throws with the API's error message (e.g. too large / not an image).
+export async function uploadAvatar(file: File): Promise<string> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await req("/me/avatar", { method: "POST", body: form });
+  if (!res.ok) {
+    let msg = "Upload failed. Try a smaller image.";
+    try {
+      const data = await res.json();
+      if (typeof data.detail === "string") msg = data.detail;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new Error(msg);
+  }
+  return (await res.json()).avatar_url as string;
+}
+
+export function deleteAvatar() {
+  return req("/me/avatar", { method: "DELETE" });
+}

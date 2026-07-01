@@ -29,6 +29,7 @@ type UserState = {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name?: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateUser: (patch: Partial<User>) => void;
   loginUrl: string;
 };
 
@@ -91,6 +92,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setSavedIds(new Set());
   }, []);
 
+  // Merge a partial update into the current user (e.g. a new avatar_url after
+  // upload) so the header + profile reflect it without a full reload.
+  const updateUser = useCallback((patch: Partial<User>) => {
+    setUser((prev) => (prev ? { ...prev, ...patch } : prev));
+  }, []);
+
   return (
     <UserCtx.Provider
       value={{
@@ -101,6 +108,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         login,
         register,
         logout,
+        updateUser,
         loginUrl: LOGIN_URL,
       }}
     >
