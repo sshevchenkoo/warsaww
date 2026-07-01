@@ -18,6 +18,12 @@ const nextConfig: NextConfig = {
       { source: "/upcoming", destination: `${BACKEND}/upcoming` },
       { source: "/items/:path*", destination: `${BACKEND}/items/:path*` },
       { source: "/avatars/:path*", destination: `${BACKEND}/avatars/:path*` },
+      // Social endpoints (people search, friends, sharing). The frontend UI
+      // lives at /people and /u/[id]; these API paths don't collide with it.
+      { source: "/users/:path*", destination: `${BACKEND}/users/:path*` },
+      { source: "/friends/:path*", destination: `${BACKEND}/friends/:path*` },
+      { source: "/friends", destination: `${BACKEND}/friends` },
+      { source: "/share", destination: `${BACKEND}/share` },
     ];
   },
 };
