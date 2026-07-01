@@ -1,5 +1,5 @@
 # Single domain for the whole app: the frontend at /, and the API at its known
-# paths (/search, /health, /auth, /me, /upcoming, /items, /avatars). Same origin, so the browser uses relative
+# paths (/search, /health, /auth, /me, /upcoming, /items, /avatars, /users, /friends, /share). Same origin, so the browser uses relative
 # API calls (and the session cookie is first-party) with no CORS in production.
 # nginx matches the most specific prefix, so these paths go to the API and
 # everything else to the web frontend.
@@ -68,6 +68,27 @@ spec:
                 port:
                   number: 8000
           - path: /avatars
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  number: 8000
+          - path: /users
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  number: 8000
+          - path: /friends
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  number: 8000
+          - path: /share
             pathType: Prefix
             backend:
               service:
