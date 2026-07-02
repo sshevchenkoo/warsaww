@@ -39,6 +39,16 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None  # None → SDK falls back to ANTHROPIC_API_KEY env var
     intent_model: str = "claude-haiku-4-5"
     rerank_model: str = "claude-sonnet-4-6"  # cheaper than Opus ($3/$15 vs $5/$25)
+    # Explicit timeouts (seconds) for the two Anthropic calls on /search. The SDK
+    # default is 10 minutes, so a hung intent parse or a stalled rerank stream
+    # would otherwise pin a request — and its per-session rate-limit slot and the
+    # browser's SSE connection — for that whole window. Intent is a short
+    # non-streaming Haiku call; rerank is a seconds-long Sonnet stream, so it gets
+    # more headroom. On timeout the call fails cleanly and /search degrades
+    # (raw-text retrieval / raw-order cards) instead of hanging (app.llm.intent,
+    # app.api.routes.search).
+    intent_timeout_s: float = 15.0
+    rerank_timeout_s: float = 120.0
     apify_token: str | None = None  # for the facebook_events adapter
     ticketmaster_api_key: str | None = None  # Consumer Key for the Ticketmaster adapter
     voyage_api_key: str | None = None
