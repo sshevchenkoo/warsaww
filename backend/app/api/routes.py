@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 import uuid
 from collections.abc import Iterator
@@ -20,6 +21,8 @@ from app.ratelimit import check_search_quota
 from app.retrieval.search import search_items
 
 router = APIRouter()
+
+log = logging.getLogger(__name__)
 
 
 class SearchRequest(BaseModel):
@@ -118,10 +121,15 @@ def search(req: SearchRequest, request: Request) -> StreamingResponse:
     latency_ms = int((time.monotonic() - started) * 1000)
     # The raw prompt (not the intent) is embedded — it keeps nuances the intent
     # schema drops ("romantic", "with a view"...) and feeds the lexical trigram
-    # leg of hybrid search. Skipped for off-topic prompts.
-    query_embedding = (
-        embed_query(req.prompt) if intent.on_topic and settings.voyage_api_key else None
-    )
+    # leg of hybrid search. Skipped for off-topic prompts. A Voyage failure
+    # (timeout, rate limit, outage) degrades to the lexical-only leg rather than
+    # 500-ing the search — search_items handles query_embedding=None.
+    query_embedding = None
+    if intent.on_topic and settings.voyage_api_key:
+        try:
+            query_embedding = embed_query(req.prompt)
+        except Exception:
+            log.warning("query embedding failed; using lexical retrieval only", exc_info=True)
 
     # Short-lived DB work, then the connection returns to the pool before the stream.
     with SessionLocal() as session:
@@ -145,8 +153,25 @@ def search(req: SearchRequest, request: Request) -> StreamingResponse:
     def event_stream() -> Iterator[str]:
         yield _sse("intent", intent.model_dump())
         if settings.anthropic_api_key and items:
-            for item, blurb in rerank_stream(req.prompt, items):
-                yield _sse("card", _card(item, blurb))
+            emitted: set[uuid.UUID] = set()
+            try:
+                for item, blurb in rerank_stream(req.prompt, items):
+                    emitted.add(item.id)
+                    yield _sse("card", _card(item, blurb))
+            except Exception:
+                # A rerank failure mid-stream (timeout, API/network error, broken
+                # output) would otherwise truncate the SSE with no `done`, leaving
+                # the client hanging. Emit the candidates the re-ranker hadn't yet
+                # returned in raw retrieval order, then close cleanly. On success
+                # this except never runs, so the re-ranker's filtering/ordering is
+                # preserved and un-picked candidates are NOT dumped.
+                log.warning(
+                    "rerank stream failed; emitting remaining cards in retrieval order",
+                    exc_info=True,
+                )
+                for item in items:
+                    if item.id not in emitted:
+                        yield _sse("card", _card(item, None))
         else:
             # No re-ranker available (or off-topic) — emit raw retrieval order.
             for item in items:
