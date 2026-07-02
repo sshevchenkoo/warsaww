@@ -21,5 +21,12 @@ def get_anthropic_client() -> anthropic.Anthropic:
     var (see app.config)."""
     global _client
     if _client is None:
-        _client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        # Explicit default timeout so no call inherits the SDK's 10-minute
+        # default. The rerank stream is the longer of the two callers, so the
+        # client default is sized for it; the intent extractor tightens this
+        # per-call with with_options(timeout=intent_timeout_s).
+        _client = anthropic.Anthropic(
+            api_key=settings.anthropic_api_key,
+            timeout=settings.rerank_timeout_s,
+        )
     return _client
