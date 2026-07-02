@@ -1,0 +1,45 @@
+# Helm values for prometheus-community/prometheus-postgres-exporter, run against
+# the DigitalOcean managed Postgres (there is no in-cluster PG to co-locate an
+# exporter with). This is what makes pg_up / pg_stat_database_numbackends /
+# pg_settings_max_connections exist — the metrics behind the PostgreSQL dashboard
+# panels and the PostgresDown / PostgresTooManyConnections alerts.
+#
+# Install (folded into `make do-platform`):
+#   helm upgrade --install prometheus-postgres-exporter \
+#     prometheus-community/prometheus-postgres-exporter -n monitoring \
+#     -f platform/postgres-exporter-values.yaml
+#
+# Prometheus scrapes it via additionalScrapeConfigs (job_name: postgres) in
+# kube-prometheus-stack-values.yaml — consistent with how warsaw-api and the
+# otel-collector are scraped, so no ServiceMonitor is needed.
+
+# The connection string is supplied out-of-band via a manually-created secret
+# (kept out of git, like backend/k8s/secret.yml). The secret must hold a libpq
+# DSN under key DATA_SOURCE_NAME, e.g.
+#   postgresql://warsaw_monitor:<PG_MONITOR_PASSWORD>@<host>:<port>/events?sslmode=require
+# Create it with (see the runbook):
+#   kubectl -n monitoring create secret generic postgres-exporter-dsn \
+#     --from-literal=DATA_SOURCE_NAME='postgresql://warsaw_monitor:...@host:port/events?sslmode=require'
+config:
+  datasourceSecret:
+    name: postgres-exporter-dsn
+    key: DATA_SOURCE_NAME
+
+# Pin the service port so the scrape target `:9187` is stable regardless of the
+# chart's default.
+service:
+  port: 9187
+  targetPort: 9187
+
+# We scrape via additionalScrapeConfigs, not the operator's ServiceMonitor.
+serviceMonitor:
+  enabled: false
+
+# Tiny — it just runs a handful of stat queries on an interval.
+resources:
+  requests:
+    cpu: 25m
+    memory: 32Mi
+  limits:
+    cpu: 100m
+    memory: 64Mi
