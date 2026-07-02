@@ -72,9 +72,16 @@ prometheus:
       - job_name: otel-collector
         static_configs:
           - targets: ["otel-collector-opentelemetry-collector.monitoring:8889"]
-      # NOTE: DigitalOcean Postgres is a managed service (no in-cluster
-      # postgres_exporter), so the PostgresDown / PostgresTooManyConnections
-      # alerts have no target here — managed-DB metrics come from DO's panel.
+
+      # prometheus-postgres-exporter against the DO managed Postgres. DO Postgres
+      # is a managed service (no in-cluster instance to co-locate an exporter
+      # with), so the exporter connects out to it as the read-only warsaw_monitor
+      # role. Backs pg_up / pg_stat_database_numbackends / pg_settings_max_connections
+      # → the PostgreSQL panels and PostgresDown / PostgresTooManyConnections
+      # alerts. Deployed by `make do-platform` (platform/postgres-exporter-values.yaml).
+      - job_name: postgres
+        static_configs:
+          - targets: ["prometheus-postgres-exporter.monitoring.svc.cluster.local:9187"]
 
 alertmanager:
   enabled: true
