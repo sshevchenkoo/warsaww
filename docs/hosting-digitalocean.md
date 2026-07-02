@@ -23,6 +23,7 @@ api ──► (VPC) ──► DO Managed Postgres 16 (pgvector)
 - `.env` (repo root) — all Terraform/DO config lives here, no `terraform.tfvars`:
   - `DIGITALOCEAN_TOKEN` (the provider reads this), `TF_VAR_ssh_public_key` (`cat .ssh/id_ed25519.pub`), `TF_VAR_admin_ip` (`curl ifconfig.me` + `/32`)
   - `GITHUB_USER`, `GITHUB_TOKEN`, `ACME_EMAIL`, `WARSAW_DOMAIN`, `GRAFANA_PASSWORD`, `KIBANA_PASSWORD`
+  - `PG_MONITOR_PASSWORD` (for the read-only DB monitoring role — see *Postgres metrics* under Notes)
 
 ## Steps (all via the Makefile)
 
@@ -85,5 +86,22 @@ Rollback: `kubectl -n warsaw rollout undo deploy/api` or redeploy an older `IMAG
   packages public, or add an imagePullSecret to the `warsaw` namespace.
 - **TLS**: `40-ingress.yml` already carries `cert-manager.io/cluster-issuer: letsencrypt-prod`
   and SSE-safe annotations (proxy-buffering off, long timeouts).
+- **Postgres metrics**: DO Postgres is managed (no in-cluster instance), so a
+  `prometheus-postgres-exporter` connects out to it and backs the Grafana
+  PostgreSQL panels + `PostgresDown` / `PostgresTooManyConnections` alerts.
+  `make do-platform` installs the exporter; two one-time admin steps light it up
+  (both idempotent, run from a host whose IP the DB firewall trusts):
+  ```bash
+  # a) read-only monitoring role (pg_monitor); set PG_MONITOR_PASSWORD in .env first
+  make do-db-monitor-role
+  # b) the DSN secret the exporter reads. Derive host/port from the app's working
+  #    DATABASE_URL (strip the +psycopg dialect, swap in the monitor creds):
+  KUBECONFIG=.kube/config-do kubectl -n monitoring create secret generic postgres-exporter-dsn \
+    --from-literal=DATA_SOURCE_NAME='postgresql://warsaw_monitor:<PG_MONITOR_PASSWORD>@<host>:<port>/events?sslmode=require'
+  KUBECONFIG=.kube/config-do kubectl -n monitoring rollout restart deploy/prometheus-postgres-exporter
+  ```
+  Until both exist the exporter simply reports `pg_up=0` (harmless). Verify:
+  `kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090` →
+  Status → Targets → the `postgres` job is UP.
 - **Teardown** (stop the bill): `make do-infra-down` (destroys cluster, DB, droplet, VPC).
 ```
