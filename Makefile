@@ -168,6 +168,15 @@ do-db-role:         ## Create/rotate the least-privilege app DB role (admin, ide
 	 psql "$$URL" -v ON_ERROR_STOP=1 -v pw="$(WARSAW_APP_DB_PASSWORD)" -f $(BACKEND_DIR)/db/app-role.sql \
 	 && echo "$(GREEN)warsaw_app role ready (DML-only)$(NC)"
 
+do-db-monitor-role: ## Create/rotate the read-only monitoring DB role (admin, idempotent)
+	# Read-only role (pg_monitor) for prometheus-postgres-exporter, so metrics
+	# collection never runs as doadmin. Run once (re-run to rotate the password).
+	# Then create the `postgres-exporter-dsn` secret in `monitoring` (see runbook).
+	@[ -n "$(PG_MONITOR_PASSWORD)" ] || (echo "$(RED)PG_MONITOR_PASSWORD not set in .env$(NC)" && exit 1)
+	@URL=$$(cd $(DO_TF_DIR) && terraform output -raw database_admin_uri | sed 's#/defaultdb#/events#'); \
+	 psql "$$URL" -v ON_ERROR_STOP=1 -v pw="$(PG_MONITOR_PASSWORD)" -f $(BACKEND_DIR)/db/monitor-role.sql \
+	 && echo "$(GREEN)warsaw_monitor role ready (read-only)$(NC)"
+
 do-db-migrate:      ## Create/upgrade the schema as admin (run before deploy when schema changed)
 	# Schema bootstrap (extensions + create_all + indexes) as `doadmin`, since
 	# the runtime role is DML-only (DB_BOOTSTRAP=false in the manifests). Uses the
@@ -214,6 +223,11 @@ do-platform:        ## Helm: ingress-nginx, cert-manager(+issuer), monitoring (f
 	# Tracing backend + collector.
 	$(KDO) helm upgrade --install tempo grafana/tempo -n monitoring -f $(ROOT_DIR)/platform/tempo-values.yaml
 	$(KDO) helm upgrade --install otel-collector open-telemetry/opentelemetry-collector -n monitoring -f $(ROOT_DIR)/platform/otel-collector-values.yaml
+	# postgres_exporter against the managed DB so the pg_* panels/alerts have
+	# data. Needs the `warsaw_monitor` role (make do-db-monitor-role) and the
+	# postgres-exporter-dsn secret in `monitoring` (see the runbook); harmless to
+	# install first — it just reports pg_up=0 until the secret/role exist.
+	$(KDO) helm upgrade --install prometheus-postgres-exporter prometheus-community/prometheus-postgres-exporter -n monitoring -f $(ROOT_DIR)/platform/postgres-exporter-values.yaml
 	# Alert rules + custom dashboard + Tempo datasource.
 	$(KDO) kubectl apply -f $(ROOT_DIR)/platform/alerting-rules.yaml
 	$(KDO) kubectl apply -f $(ROOT_DIR)/platform/grafana-dashboard.yaml

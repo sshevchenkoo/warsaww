@@ -141,8 +141,12 @@ spec:
             summary: "PostgreSQL is down"
 
         - alert: PostgresTooManyConnections
+          # numbackends is per-database (has a `datname` label); max_connections
+          # has none. Aggregate both to bare scalars so the division matches
+          # labels (mirrors the dashboard panel's sum()) — the un-aggregated form
+          # returns empty and never fires.
           expr: |
-            pg_stat_database_numbackends / pg_settings_max_connections * 100 > 80
+            sum(pg_stat_database_numbackends) / max(pg_settings_max_connections) * 100 > 80
           for: 5m
           labels:
             severity: warning
