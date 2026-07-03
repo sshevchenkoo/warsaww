@@ -36,9 +36,16 @@ services:
     image: docker.elastic.co/kibana/kibana:{{ elk_version }}
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-      - SERVER_HOST=127.0.0.1
+      # Bind INSIDE the container to all interfaces (0.0.0.0), NOT container
+      # loopback. With SERVER_HOST=127.0.0.1 Kibana listened only on the
+      # container's loopback, so Docker's published port could never reach it
+      # (docker-proxy forwards to the container bridge IP) → every request 502'd
+      # at nginx. The security boundary is the host-side bind + nginx basic auth
+      # below, not this in-container host.
+      - SERVER_HOST=0.0.0.0
     ports:
-      # Bind to localhost only — nginx reverse proxy handles public access with basic auth
+      # Publish only on the droplet's localhost — nginx reverse proxy handles
+      # public access with basic auth (Kibana is never directly exposed).
       - "127.0.0.1:15601:5601"
     depends_on:
       elasticsearch:
