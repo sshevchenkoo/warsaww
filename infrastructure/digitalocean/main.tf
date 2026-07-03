@@ -95,11 +95,16 @@ resource "digitalocean_firewall" "elk" {
     port_range       = "5601"
     source_addresses = [var.admin_ip]
   }
-  # Logstash TCP json_lines input only from inside the VPC (the cluster's Fluent Bit).
+  # Logstash TCP json_lines input from the cluster's Fluent Bit. Must allow the
+  # DOKS cluster (pod) subnet, not just the VPC CIDR: Fluent Bit runs as pods
+  # whose source IPs come from cluster_subnet (e.g. 10.114.0.0/16), and DOKS does
+  # NOT SNAT pod traffic to the node's VPC IP — so a vpc_cidr-only rule silently
+  # drops every log packet ("no upstream connections" in Fluent Bit) and nothing
+  # ever reaches Elasticsearch.
   inbound_rule {
     protocol         = "tcp"
     port_range       = "5000"
-    source_addresses = [var.vpc_cidr]
+    source_addresses = [var.vpc_cidr, digitalocean_kubernetes_cluster.main.cluster_subnet]
   }
 
   outbound_rule {
