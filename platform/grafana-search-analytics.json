@@ -1,0 +1,133 @@
+{
+  "title": "Warsaw — Search Analytics",
+  "uid": "warsaw-search-analytics",
+  "schemaVersion": 39,
+  "editable": true,
+  "tags": ["warsaw", "search"],
+  "time": { "from": "now-7d", "to": "now" },
+  "refresh": "1m",
+  "templating": {
+    "list": [
+      {
+        "name": "DS",
+        "label": "Postgres datasource",
+        "type": "datasource",
+        "query": "postgres",
+        "hide": 0,
+        "refresh": 1,
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Total searches",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "postgres", "uid": "${DS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "${DS}" },
+          "format": "table",
+          "rawSql": "SELECT count(*) AS \"total\" FROM intent_logs WHERE $__timeFilter(created_at);"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "gauge",
+      "title": "Off-topic %",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "postgres", "uid": "${DS}" },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "${DS}" },
+          "format": "table",
+          "rawSql": "SELECT round(100.0 * count(*) FILTER (WHERE (intent->>'on_topic')::boolean IS FALSE) / NULLIF(count(*), 0), 1) AS \"offtopic_pct\" FROM intent_logs WHERE $__timeFilter(created_at);"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Intent parse p95",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "postgres", "uid": "${DS}" },
+      "fieldConfig": { "defaults": { "unit": "ms" } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "${DS}" },
+          "format": "table",
+          "rawSql": "SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms) AS \"p95_ms\" FROM intent_logs WHERE $__timeFilter(created_at);"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Distinct prompts",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "postgres", "uid": "${DS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "${DS}" },
+          "format": "table",
+          "rawSql": "SELECT count(DISTINCT lower(user_prompt)) AS \"distinct\" FROM intent_logs WHERE $__timeFilter(created_at);"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Searches over time",
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 4 },
+      "datasource": { "type": "postgres", "uid": "${DS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "${DS}" },
+          "format": "time_series",
+          "rawSql": "SELECT $__timeGroup(created_at, '1h') AS \"time\", count(*) AS \"searches\" FROM intent_logs WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1;"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Popular searches",
+      "gridPos": { "h": 11, "w": 12, "x": 0, "y": 11 },
+      "datasource": { "type": "postgres", "uid": "${DS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "${DS}" },
+          "format": "table",
+          "rawSql": "SELECT lower(user_prompt) AS query, count(*) AS n FROM intent_logs WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY n DESC LIMIT 25;"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Recent searches",
+      "gridPos": { "h": 11, "w": 12, "x": 12, "y": 11 },
+      "datasource": { "type": "postgres", "uid": "${DS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "postgres", "uid": "${DS}" },
+          "format": "table",
+          "rawSql": "SELECT created_at, user_prompt, latency_ms, intent->>'on_topic' AS on_topic FROM intent_logs WHERE $__timeFilter(created_at) ORDER BY created_at DESC LIMIT 50;"
+        }
+      ]
+    }
+  ]
+}
