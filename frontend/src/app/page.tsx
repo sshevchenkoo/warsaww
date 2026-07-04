@@ -23,6 +23,11 @@ export default function Home() {
   const [placeholder, setPlaceholder] = useState(EXAMPLES[0]);
   const [upcoming, setUpcoming] = useState<Card[]>([]);
   const [limitMsg, setLimitMsg] = useState("");
+  // The text of the last query we actually searched. Used to make a repeated
+  // Enter on the same, unchanged prompt a no-op instead of firing a fresh
+  // /search each time (every submit is a real request against the rate limit
+  // and the LLM). Cleared on error so a failed search can still be retried.
+  const [lastQuery, setLastQuery] = useState("");
   const abortRef = useRef<AbortController | null>(null);
 
   // Load the default "upcoming" feed once on mount.
@@ -48,6 +53,7 @@ export default function Home() {
     const ctrl = new AbortController();
     abortRef.current = ctrl;
 
+    setLastQuery(text);
     setQuery(text);
     setCards([]);
     setIntent(null);
@@ -66,6 +72,9 @@ export default function Home() {
     } catch (err) {
       const e = err as Error;
       if (e.name === "AbortError") return;
+      // Let the user retry the same prompt after a failure by pressing Enter
+      // again (the dedupe guard below would otherwise treat it as unchanged).
+      setLastQuery("");
       if (e.name === "RateLimitError") {
         setLimitMsg(e.message);
         setStatus("limited");
@@ -97,6 +106,11 @@ export default function Home() {
       <form
         onSubmit={(e) => {
           e.preventDefault();
+          // Enter submits the form even when the button is disabled, so gate here:
+          // ignore while a search is in flight, and skip an unchanged prompt so
+          // repeated Enter presses don't fire duplicate searches.
+          if (busy) return;
+          if (query.trim() === lastQuery) return;
           run(query);
         }}
         className="relative"
