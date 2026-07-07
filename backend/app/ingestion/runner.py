@@ -14,6 +14,9 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
+    # httpx logs every request line (incl. the full URL) at INFO — defense in
+    # depth against leaking secrets that ride in a URL (see facebook_events).
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     parser = argparse.ArgumentParser(description="Parse a source into the DB")
     parser.add_argument("--source", required=True, choices=sorted(ADAPTERS))
     args = parser.parse_args()

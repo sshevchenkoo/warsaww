@@ -60,6 +60,10 @@ class Settings(BaseSettings):
     # host is `redis`, not localhost.
     redis_url: str = "redis://localhost:6379/0"
     search_daily_limit: int = 10  # searches allowed per session per day
+    # Brute-force guard on the auth endpoints (login/register): max attempts per
+    # client IP per minute, backed by the same Redis. Fail-open (cost/abuse
+    # control, not a hard security boundary — see app.ratelimit).
+    auth_attempts_per_minute: int = 10
 
     # Avatar upload. Reject anything larger than max_upload before processing so
     # a huge file can't exhaust memory; the image is then re-encoded to a small

@@ -23,17 +23,30 @@ from app.config import settings
 
 router = APIRouter()
 
+# Decompression-bomb guard: a few-MB file (esp. PNG of uniform data) can encode
+# enormous dimensions that blow up RAM when decoded — the 5 MB input cap does
+# NOT bound the decoded pixel array. Reject oversized images by dimensions
+# *before* the full decode, with Pillow's own limit as a backstop.
+MAX_AVATAR_PIXELS = 50_000_000  # ~50 MP (e.g. 7000×7000) — ample for a source photo
+Image.MAX_IMAGE_PIXELS = MAX_AVATAR_PIXELS
+
 
 def _process_image(raw: bytes) -> bytes:
     """Validate `raw` is a real image and re-encode it to a small JPEG square.
 
     Center-crops to a square, resizes to avatar_size_px, flattens any alpha onto
     white, and strips metadata (EXIF) by re-saving. Raises HTTPException(400) if
-    the bytes aren't a decodable image."""
+    the bytes aren't a decodable image or exceed the pixel cap."""
     try:
-        img = Image.open(io.BytesIO(raw))
-        img.load()  # force decode now so a truncated/invalid image fails here
+        img = Image.open(io.BytesIO(raw))  # lazy — reads the header/dimensions
     except (UnidentifiedImageError, OSError, ValueError):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not a valid image") from None
+    # Reject by dimensions before img.load() allocates the full bitmap.
+    if (img.width or 0) * (img.height or 0) > MAX_AVATAR_PIXELS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Image dimensions too large")
+    try:
+        img.load()  # force decode now so a truncated/bomb image fails here
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Not a valid image") from None
 
     img = img.convert("RGB")  # drop alpha/palette; JPEG needs RGB
