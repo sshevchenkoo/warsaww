@@ -21,10 +21,29 @@ from app.auth.passwords import MAX_PASSWORD_BYTES, hash_password, verify_passwor
 from app.catalog.db import get_session
 from app.catalog.models import User
 from app.config import settings
+from app.ratelimit import check_auth_rate
 
 log = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _client_ip(request: Request) -> str:
+    """Best-effort client IP for the auth rate limit. Behind the ingress the real
+    client is the first hop in X-Forwarded-For; fall back to the socket peer."""
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _rate_limit_auth(request: Request) -> None:
+    """Throttle auth attempts per client IP; raise 429 when the minute cap is hit."""
+    if not check_auth_rate(_client_ip(request)):
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Too many attempts. Try again in a minute.",
+        )
 
 
 def _user_payload(user: User) -> dict:
@@ -96,6 +115,7 @@ async def auth_callback(
 def register(
     req: RegisterRequest, request: Request, session: Session = Depends(get_session)
 ) -> dict:
+    _rate_limit_auth(request)
     if session.query(User).filter_by(email=req.email).one_or_none() is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Email already registered")
     user = User(
@@ -113,6 +133,7 @@ def register(
 def login(
     req: LoginRequest, request: Request, session: Session = Depends(get_session)
 ) -> dict:
+    _rate_limit_auth(request)
     user = session.query(User).filter_by(email=req.email).one_or_none()
     if user is None or not user.password_hash or not verify_password(
         req.password, user.password_hash

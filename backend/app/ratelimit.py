@@ -33,3 +33,20 @@ def check_search_quota(sid: str) -> tuple[bool, int]:
         return True, settings.search_daily_limit  # fail-open
     remaining = max(0, settings.search_daily_limit - used)
     return used <= settings.search_daily_limit, remaining
+
+
+def check_auth_rate(client_ip: str) -> bool:
+    """Per-IP, per-minute cap on auth attempts (login/register brute-force guard).
+
+    Returns True if the attempt is allowed. Fail-open on Redis errors — this is
+    abuse mitigation, not an authorization boundary. Keyed per-minute bucket so a
+    burst is throttled but the limit resets quickly for legitimate users."""
+    now = datetime.now(_TZ)
+    key = f"ratelimit:auth:{client_ip}:{now:%Y-%m-%d-%H-%M}"
+    try:
+        used = _redis.incr(key)
+        if used == 1:  # first hit in this minute — expire the bucket
+            _redis.expire(key, 60)
+    except redis.RedisError:
+        return True  # fail-open
+    return used <= settings.auth_attempts_per_minute

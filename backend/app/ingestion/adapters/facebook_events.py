@@ -42,9 +42,12 @@ class FacebookEventsAdapter(SourceAdapter):
         if not settings.apify_token:
             raise RuntimeError("APIFY_TOKEN is not set in .env")
 
+        # Pass the token in the Authorization header, NOT as a ?token= query
+        # param: httpx logs the full request URL, so a URL-embedded token leaks
+        # into the pod logs (and ELK). The header is not logged.
         response = httpx.post(
             RUN_SYNC_URL,
-            params={"token": settings.apify_token},
+            headers={"Authorization": f"Bearer {settings.apify_token}"},
             json={
                 "searchQueries": ["Warsaw"],
                 "maxEvents": MAX_EVENTS,
