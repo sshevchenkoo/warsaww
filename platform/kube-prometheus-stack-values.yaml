@@ -94,9 +94,27 @@ alertmanager:
         group_wait: 30s
         group_interval: 5m
         repeat_interval: 4h
-        receiver: 'null'
+        # Default: send everything to Telegram. `null` stays defined so a future
+        # child route can mute a noisy alert by pointing it at `null`.
+        receiver: 'telegram'
       receivers:
-        - name: 'null'   # wire a real receiver (Telegram/email/webhook) before relying on alerts
+        - name: 'null'
+        # Telegram bot receiver. bot_token + chat_id come from .env via envsubst
+        # (make do-platform), so no secret lands in git. ⚠️ Set TELEGRAM_BOT_TOKEN
+        # (from @BotFather) and TELEGRAM_CHAT_ID (your user id, or a group's —
+        # negative) in .env BEFORE the next `make do-platform`; an empty value
+        # makes the Alertmanager config invalid and it won't load.
+        - name: 'telegram'
+          telegram_configs:
+            - bot_token: '${TELEGRAM_BOT_TOKEN}'
+              chat_id: ${TELEGRAM_CHAT_ID}
+              parse_mode: HTML
+              send_resolved: true
+              message: |-
+                {{ range .Alerts }}<b>[{{ .Status | toUpper }}] {{ .Labels.alertname }}</b> ({{ .Labels.severity }})
+                {{ .Annotations.summary }}{{ if .Annotations.description }}
+                {{ .Annotations.description }}{{ end }}
+                {{ end }}
 
 nodeExporter:
   enabled: true

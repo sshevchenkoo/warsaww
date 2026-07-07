@@ -24,6 +24,7 @@ api ──► (VPC) ──► DO Managed Postgres 16 (pgvector)
   - `DIGITALOCEAN_TOKEN` (the provider reads this), `TF_VAR_ssh_public_key` (`cat .ssh/id_ed25519.pub`), `TF_VAR_admin_ip` (`curl ifconfig.me` + `/32`)
   - `GITHUB_USER`, `GITHUB_TOKEN`, `ACME_EMAIL`, `WARSAW_DOMAIN`, `GRAFANA_PASSWORD`, `KIBANA_PASSWORD`
   - `PG_MONITOR_PASSWORD` (for the read-only DB monitoring role — see *Postgres metrics* under Notes)
+  - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (Alertmanager Telegram alerts — see *Alerting* under Notes)
 
 ## Steps (all via the Makefile)
 
@@ -86,6 +87,14 @@ Rollback: `kubectl -n warsaw rollout undo deploy/api` or redeploy an older `IMAG
   packages public, or add an imagePullSecret to the `warsaw` namespace.
 - **TLS**: `40-ingress.yml` already carries `cert-manager.io/cluster-issuer: letsencrypt-prod`
   and SSE-safe annotations (proxy-buffering off, long timeouts).
+- **Alerting (Telegram)**: Alertmanager routes all alerts to a Telegram bot. Create
+  a bot via [@BotFather](https://t.me/BotFather), get your `chat_id` (message the bot,
+  then `https://api.telegram.org/bot<TOKEN>/getUpdates`; group ids are negative), set
+  `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` in `.env`, then `make do-platform`
+  (envsubst injects them into the Alertmanager config — no secret in git). ⚠️ Both
+  must be set before `do-platform`; an empty value makes the Alertmanager config
+  invalid. Test: `kubectl -n monitoring port-forward svc/kube-prometheus-stack-alertmanager 9093`
+  and fire a test alert, or wait for a real one.
 - **Postgres metrics**: DO Postgres is managed (no in-cluster instance), so a
   `prometheus-postgres-exporter` connects out to it and backs the Grafana
   PostgreSQL panels + `PostgresDown` / `PostgresTooManyConnections` alerts.
