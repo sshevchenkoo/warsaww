@@ -21,16 +21,19 @@ from app.observability import setup_observability
 log = logging.getLogger(__name__)
 
 
-def _ensure_extensions() -> None:
+def _ensure_extensions(eng=engine) -> None:
     """Enable the extensions search relies on — `vector` (semantic) and
     `pg_trgm` (lexical/hybrid) — before create_all builds their indexes.
 
     On managed Postgres the app role often lacks CREATE EXTENSION; there they
     are created out-of-band (`make do-db-init` / db/init.sql), so a permission
-    failure here is downgraded to a warning rather than blocking startup."""
+    failure here is downgraded to a warning rather than blocking startup.
+
+    `eng` defaults to the app engine; tests pass a throwaway one so they build
+    the exact same schema + RLS the app does."""
     for ext in ("vector", "pg_trgm"):
         try:
-            with engine.begin() as conn:
+            with eng.begin() as conn:
                 conn.execute(text(f"CREATE EXTENSION IF NOT EXISTS {ext}"))
         except OperationalError:
             raise  # DB not accepting connections yet — let the retry loop wait
@@ -41,7 +44,7 @@ def _ensure_extensions() -> None:
             )
 
 
-def _ensure_indexes() -> None:
+def _ensure_indexes(eng=engine) -> None:
     """create_all does not add new indexes to already-existing tables, so the
     indexes added after those tables first shipped are ensured explicitly
     (idempotent). Covers hybrid-search trigram indexes (audit #7) and the FK
@@ -54,12 +57,12 @@ def _ensure_indexes() -> None:
         "CREATE INDEX IF NOT EXISTS ix_saved_items_item_id ON saved_items (item_id)",
         "CREATE INDEX IF NOT EXISTS ix_shared_events_item_id ON shared_events (item_id)",
     )
-    with engine.begin() as conn:
+    with eng.begin() as conn:
         for stmt in stmts:
             conn.execute(text(stmt))
 
 
-def _ensure_constraints() -> None:
+def _ensure_constraints(eng=engine) -> None:
     """create_all won't add a constraint to an already-existing table, so the
     CHECK constraints (audit #9) are added idempotently. Existing prod data
     already conforms (items.kind in event/place; friendships empty)."""
@@ -67,7 +70,7 @@ def _ensure_constraints() -> None:
         ("ck_items_kind", "items", "kind IN ('event', 'place')"),
         ("ck_friendship_status", "friendships", "status IN ('pending', 'accepted')"),
     )
-    with engine.begin() as conn:
+    with eng.begin() as conn:
         for name, table, expr in checks:
             conn.execute(
                 text(
@@ -79,7 +82,7 @@ def _ensure_constraints() -> None:
             )
 
 
-def _ensure_rls() -> None:
+def _ensure_rls(eng=engine) -> None:
     """Row-Level Security (audit #5): a DB-enforced backstop under the app-layer
     authz, scoping every user-owned row to the requester via `app.user_id` (set
     per request in auth.deps.current_user).
@@ -125,21 +128,21 @@ def _ensure_rls() -> None:
         "DROP POLICY IF EXISTS p_saved_delete ON saved_items",
         f"CREATE POLICY p_saved_delete ON saved_items FOR DELETE USING (user_id = {me})",
     ]
-    with engine.begin() as conn:
+    with eng.begin() as conn:
         for stmt in stmts:
             conn.execute(text(stmt))
 
 
-def _create_schema(retries: int = 30, delay: float = 2.0) -> None:
+def _create_schema(retries: int = 30, delay: float = 2.0, eng=engine) -> None:
     """Create tables on startup, waiting for Postgres to accept connections
     (it may still be booting in compose / k8s)."""
     for attempt in range(retries):
         try:
-            _ensure_extensions()
-            Base.metadata.create_all(engine)
-            _ensure_indexes()
-            _ensure_constraints()
-            _ensure_rls()
+            _ensure_extensions(eng)
+            Base.metadata.create_all(eng)
+            _ensure_indexes(eng)
+            _ensure_constraints(eng)
+            _ensure_rls(eng)
             return
         except OperationalError:
             if attempt == retries - 1:

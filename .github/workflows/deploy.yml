@@ -23,6 +23,21 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Throwaway Postgres (with pgvector) ON THE RUNNER — used by the RLS/search
+    # integration tests via TEST_DATABASE_URL. It never touches the prod cluster;
+    # it's created and destroyed with the job.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -30,9 +45,12 @@ jobs:
           python-version: "3.12"
       - name: Backend lint + tests
         working-directory: backend
+        env:
+          # Enables the DB-integration tests (RLS + search). Unset → they skip.
+          TEST_DATABASE_URL: postgresql+psycopg://postgres:test@localhost:5432/postgres
         run: |
           pip install -e '.[dev]'
-          ruff check app
+          ruff check app tests
           pytest -q
       - uses: actions/setup-node@v4
         with:
