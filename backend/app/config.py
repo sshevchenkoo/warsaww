@@ -108,6 +108,10 @@ class Settings(BaseSettings):
     # shared onboarding sender, usable for testing only.
     resend_api_key: str | None = None
     email_from: str = "Warsaw Events <onboarding@resend.dev>"
+    # Replies to verification emails go here (e.g. your personal inbox). The FROM
+    # address must be a domain you verified in Resend — a @gmail.com can't be a
+    # sender — so route replies to a Gmail via reply-to instead.
+    email_reply_to: str | None = None
     email_verify_ttl_hours: int = 48
     # When True, password login is refused until the email is verified. Default
     # off so email delivery problems can't lock users out during rollout.
