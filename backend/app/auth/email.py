@@ -50,16 +50,19 @@ def send_verification_email(to_email: str, verify_url: str) -> None:
         f"<p>Or paste this link into your browser:<br>{verify_url}</p>"
         f"<p>This link expires in {settings.email_verify_ttl_hours} hours.</p>"
     )
+    payload = {
+        "from": settings.email_from,
+        "to": [to_email],
+        "subject": "Verify your email — Warsaw Events",
+        "html": html,
+    }
+    if settings.email_reply_to:
+        payload["reply_to"] = settings.email_reply_to  # replies land in your inbox
     try:
         resp = httpx.post(
             RESEND_URL,
             headers={"Authorization": f"Bearer {settings.resend_api_key}"},
-            json={
-                "from": settings.email_from,
-                "to": [to_email],
-                "subject": "Verify your email — Warsaw Events",
-                "html": html,
-            },
+            json=payload,
             timeout=15,
         )
         resp.raise_for_status()
