@@ -8,10 +8,16 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Install dependencies first so the layer caches across code changes.
-COPY pyproject.toml ./
+# Install dependencies from the pinned, hashed lock so the image is
+# reproducible (pyproject uses >= ranges; requirements.lock pins exact versions).
+# Regenerate the lock after changing deps:
+#   docker run --rm -v "$PWD":/w -w /w python:3.12-slim sh -c \
+#     "pip install -q uv && uv pip compile pyproject.toml --generate-hashes -o requirements.lock"
+COPY requirements.lock pyproject.toml ./
+RUN pip install --no-cache-dir --require-hashes -r requirements.lock
+# Then the app itself, without re-resolving its dependencies (already pinned above).
 COPY app ./app
-RUN pip install .
+RUN pip install --no-cache-dir --no-deps .
 
 # Run as a non-root user.
 RUN useradd --create-home --uid 10001 appuser
