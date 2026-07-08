@@ -87,14 +87,22 @@ Rollback: `kubectl -n warsaw rollout undo deploy/api` or redeploy an older `IMAG
   packages public, or add an imagePullSecret to the `warsaw` namespace.
 - **TLS**: `40-ingress.yml` already carries `cert-manager.io/cluster-issuer: letsencrypt-prod`
   and SSE-safe annotations (proxy-buffering off, long timeouts).
-- **Alerting (Telegram)**: Alertmanager routes all alerts to a Telegram bot. Create
-  a bot via [@BotFather](https://t.me/BotFather), get your `chat_id` (message the bot,
-  then `https://api.telegram.org/bot<TOKEN>/getUpdates`; group ids are negative), set
-  `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` in `.env`, then `make do-platform`
-  (envsubst injects them into the Alertmanager config — no secret in git). ⚠️ Both
-  must be set before `do-platform`; an empty value makes the Alertmanager config
-  invalid. Test: `kubectl -n monitoring port-forward svc/kube-prometheus-stack-alertmanager 9093`
-  and fire a test alert, or wait for a real one.
+- **Alerting (Telegram)**: DORMANT by default — Alertmanager routes to `null`, and
+  the Telegram receiver is a commented template in `kube-prometheus-stack-values.yaml`,
+  so `do-platform` is safe without any Telegram config. To ACTIVATE: create a bot via
+  [@BotFather](https://t.me/BotFather), get your `chat_id` (message the bot, then
+  `https://api.telegram.org/bot<TOKEN>/getUpdates`; group ids are negative), set
+  `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` in `.env`, **uncomment the `telegram`
+  receiver and flip the route to it** in the values file, then `make do-platform`
+  (envsubst injects them — no secret in git). ⚠️ Don't uncomment without setting both
+  vars: an empty bot_token makes the Alertmanager config invalid.
+- **Email verification (Resend)**: password registrations get a verification link;
+  Google logins are auto-verified. Set `RESEND_API_KEY` and `EMAIL_FROM` (a verified
+  sender for your domain, e.g. `Warsaw Events <noreply@transendance.online>`) in the
+  app secret (`backend/k8s/secret.yml` + `backend/.env`). Without the key, sending is a
+  logged no-op (registration still works, links just aren't delivered). `REQUIRE_EMAIL_VERIFICATION=true`
+  refuses password login until verified (default off). ⚠️ This added a `users.email_verified`
+  column — a deploy shipping it needs **`make do-db-migrate` first** (the schema-change runbook).
 - **Postgres metrics**: DO Postgres is managed (no in-cluster instance), so a
   `prometheus-postgres-exporter` connects out to it and backs the Grafana
   PostgreSQL panels + `PostgresDown` / `PostgresTooManyConnections` alerts.

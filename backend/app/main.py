@@ -82,6 +82,26 @@ def _ensure_constraints(eng=engine) -> None:
             )
 
 
+def _ensure_columns(eng=engine) -> None:
+    """create_all won't add a new column to an already-existing table, so columns
+    introduced after a table first shipped are added idempotently. `email_verified`
+    backfills to true for Google accounts (Google already proved the address);
+    password accounts stay unverified until they confirm."""
+    with eng.begin() as conn:
+        conn.execute(
+            text(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified "
+                "boolean NOT NULL DEFAULT false"
+            )
+        )
+        conn.execute(
+            text(
+                "UPDATE users SET email_verified = true "
+                "WHERE google_sub IS NOT NULL AND email_verified = false"
+            )
+        )
+
+
 def _ensure_rls(eng=engine) -> None:
     """Row-Level Security (audit #5): a DB-enforced backstop under the app-layer
     authz, scoping every user-owned row to the requester via `app.user_id` (set
@@ -140,6 +160,7 @@ def _create_schema(retries: int = 30, delay: float = 2.0, eng=engine) -> None:
         try:
             _ensure_extensions(eng)
             Base.metadata.create_all(eng)
+            _ensure_columns(eng)
             _ensure_indexes(eng)
             _ensure_constraints(eng)
             _ensure_rls(eng)
