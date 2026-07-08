@@ -16,6 +16,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
 from app.auth.deps import current_user
+from app.auth.email import make_verify_token, read_verify_token, send_verification_email
 from app.auth.oauth import oauth
 from app.auth.passwords import MAX_PASSWORD_BYTES, hash_password, verify_password
 from app.catalog.db import get_session
@@ -52,7 +53,17 @@ def _user_payload(user: User) -> dict:
         "email": user.email,
         "name": user.name,
         "avatar_url": user.avatar_url,
+        "email_verified": user.email_verified,
     }
+
+
+def _send_verification(user: User) -> None:
+    """Email a fresh verification link to `user` (no-op if already verified or no
+    email). The token is signed + self-expiring — nothing stored in the DB."""
+    if not user.email or user.email_verified:
+        return
+    verify_url = f"{settings.frontend_url}/auth/verify?token={make_verify_token(user.id)}"
+    send_verification_email(user.email, verify_url)
 
 
 class RegisterRequest(BaseModel):
@@ -109,6 +120,7 @@ async def auth_callback(
     user.google_sub = sub
     if email:
         user.email = email
+        user.email_verified = True  # Google has verified the address
     if info.get("name"):
         user.name = info["name"]
     if info.get("picture"):
@@ -133,6 +145,7 @@ def register(
     )
     session.add(user)
     session.commit()
+    _send_verification(user)
     request.session["user_id"] = str(user.id)
     return _user_payload(user)
 
@@ -147,8 +160,45 @@ def login(
         req.password, user.password_hash
     ):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
+    # Optional gate (off by default): refuse login until the email is verified.
+    if settings.require_email_verification and not user.email_verified:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Please verify your email before signing in. Check your inbox or request a new link.",
+        )
     request.session["user_id"] = str(user.id)
     return _user_payload(user)
+
+
+@router.get("/auth/verify")
+def verify_email(
+    token: str, session: Session = Depends(get_session)
+) -> RedirectResponse:
+    """Confirm an email from a verification link, then bounce back to the app.
+    A bad/expired token just lands on the site with verified=0."""
+    user_id = read_verify_token(token)
+    ok = False
+    if user_id is not None:
+        user = session.get(User, user_id)
+        if user is not None:
+            if not user.email_verified:
+                user.email_verified = True
+                session.commit()
+            ok = True
+    return RedirectResponse(f"{settings.frontend_url}/?verified={'1' if ok else '0'}")
+
+
+@router.post("/auth/resend")
+def resend_verification(
+    request: Request, user: User = Depends(current_user)
+) -> dict:
+    """Re-send the verification email to the logged-in user (rate-limited to
+    prevent using it as an email-spam relay)."""
+    _rate_limit_auth(request)
+    if user.email_verified:
+        return {"status": "already_verified"}
+    _send_verification(user)
+    return {"status": "sent"}
 
 
 @router.post("/auth/logout")

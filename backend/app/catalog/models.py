@@ -104,6 +104,9 @@ class User(Base):
     # bcrypt hash — NULL for Google-only accounts.
     password_hash: Mapped[str | None] = mapped_column(Text)
     email: Mapped[str | None] = mapped_column(Text, unique=True)  # the login identifier
+    # True once the email is confirmed (verification link, or a Google login,
+    # which proves ownership). Password accounts start unverified.
+    email_verified: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     name: Mapped[str | None] = mapped_column(Text)
     avatar_url: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(

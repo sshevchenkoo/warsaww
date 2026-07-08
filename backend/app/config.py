@@ -100,6 +100,19 @@ class Settings(BaseSettings):
     # same session_secret).
     google_client_id: str | None = None
     google_client_secret: str | None = None
+
+    # Transactional email (Resend) for email verification. Without resend_api_key
+    # sending is a no-op (logged), so local dev / an unconfigured deploy still
+    # works — verification links just aren't delivered. email_from must be a
+    # verified sender for your domain in production; the default is Resend's
+    # shared onboarding sender, usable for testing only.
+    resend_api_key: str | None = None
+    email_from: str = "Warsaw Events <onboarding@resend.dev>"
+    email_verify_ttl_hours: int = 48
+    # When True, password login is refused until the email is verified. Default
+    # off so email delivery problems can't lock users out during rollout.
+    require_email_verification: bool = False
+
     session_secret: str = INSECURE_SESSION_SECRET  # signs the session cookie
     # Where the browser-facing app lives: the OAuth redirect URI is
     # f"{frontend_url}/auth/callback" and login redirects back here when done.
