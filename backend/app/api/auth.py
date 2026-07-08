@@ -92,8 +92,16 @@ async def auth_callback(
 
     user = session.query(User).filter_by(google_sub=sub).one_or_none()
     if user is None and email:
-        # Link to an existing account with the same email (e.g. one made by password).
+        # Link to an existing account with the same email (e.g. one made by
+        # password). Google has verified the user owns this email, so linking is
+        # legitimate — BUT any password already on that account was set before
+        # ownership was proven and could belong to an attacker who pre-registered
+        # this email (account pre-hijacking). Void it on link: the account becomes
+        # Google-owned and the pre-set password stops working.
         user = session.query(User).filter_by(email=email).one_or_none()
+        if user is not None and user.password_hash is not None:
+            log.info("OAuth link: clearing pre-existing password on account %s", user.id)
+            user.password_hash = None
     if user is None:
         user = User()
         session.add(user)
