@@ -96,6 +96,26 @@ spec:
                 secretKeyRef:
                   name: warsaw-secrets
                   key: SESSION_SECRET
+            # Transactional email (Resend). All optional: without RESEND_API_KEY
+            # sending is a logged no-op, so a missing key must not crash the pod.
+            - name: RESEND_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: warsaw-secrets
+                  key: RESEND_API_KEY
+                  optional: true
+            - name: EMAIL_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: warsaw-secrets
+                  key: EMAIL_FROM
+                  optional: true
+            - name: EMAIL_REPLY_TO
+              valueFrom:
+                secretKeyRef:
+                  name: warsaw-secrets
+                  key: EMAIL_REPLY_TO
+                  optional: true
           readinessProbe:
             httpGet:
               path: /health
