@@ -1,8 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { EventCard } from "@/components/EventCard";
+import { useUser } from "@/components/UserContext";
+import { VerifyPanel } from "@/components/VerifyPanel";
 import { getUpcoming, streamSearch, type Card, type Intent } from "@/lib/api";
 
 const EXAMPLES = [
@@ -30,6 +33,10 @@ export default function Home() {
   const [lastQuery, setLastQuery] = useState("");
   const abortRef = useRef<AbortController | null>(null);
 
+  // Search is gated: only a logged-in, email-verified user can run prompts.
+  const { user, loading: authLoading } = useUser();
+  const canSearch = !!user?.email_verified;
+
   // Load the default "upcoming" feed once on mount.
   useEffect(() => {
     getUpcoming().then(setUpcoming);
@@ -47,6 +54,7 @@ export default function Home() {
   }, [query]);
 
   async function run(prompt: string) {
+    if (!canSearch) return; // gated — the UI shows a sign-in / verify prompt instead
     const text = prompt.trim();
     if (!text) return;
     abortRef.current?.abort();
@@ -75,7 +83,7 @@ export default function Home() {
       // Let the user retry the same prompt after a failure by pressing Enter
       // again (the dedupe guard below would otherwise treat it as unchanged).
       setLastQuery("");
-      if (e.name === "RateLimitError") {
+      if (e.name === "RateLimitError" || e.name === "AuthError") {
         setLimitMsg(e.message);
         setStatus("limited");
       } else {
@@ -102,52 +110,80 @@ export default function Home() {
         </p>
       </header>
 
-      {/* Search */}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          // Enter submits the form even when the button is disabled, so gate here:
-          // ignore while a search is in flight, and skip an unchanged prompt so
-          // repeated Enter presses don't fire duplicate searches.
-          if (busy) return;
-          if (query.trim() === lastQuery) return;
-          run(query);
-        }}
-        className="relative"
-      >
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={placeholder}
-          autoFocus
-          aria-label="Search prompt"
-          className="w-full border-b-2 border-line bg-transparent pb-3 pr-14 text-2xl font-bold tracking-tight text-fg transition-colors placeholder:text-muted/70 focus:border-accent sm:text-4xl"
-        />
-        <button
-          type="submit"
-          aria-label="Search"
-          disabled={busy}
-          className="absolute bottom-2.5 right-0 grid h-11 w-11 place-items-center rounded-full bg-accent text-accent-ink transition-transform hover:scale-105 active:scale-95 disabled:opacity-50 sm:h-12 sm:w-12"
-        >
-          <span className="text-xl font-black">{busy ? "·" : "→"}</span>
-        </button>
-      </form>
-
-      {/* Example chips */}
-      {status === "idle" && (
-        <div className="mt-6 flex flex-wrap gap-2">
-          {EXAMPLES.map((ex) => (
+      {/* Search — gated behind a verified account. While auth is still loading
+          render nothing here to avoid flashing the sign-in prompt at a user who
+          turns out to be logged in. */}
+      {!authLoading && canSearch && (
+        <>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              // Enter submits the form even when the button is disabled, so gate here:
+              // ignore while a search is in flight, and skip an unchanged prompt so
+              // repeated Enter presses don't fire duplicate searches.
+              if (busy) return;
+              if (query.trim() === lastQuery) return;
+              run(query);
+            }}
+            className="relative"
+          >
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={placeholder}
+              autoFocus
+              aria-label="Search prompt"
+              className="w-full border-b-2 border-line bg-transparent pb-3 pr-14 text-2xl font-bold tracking-tight text-fg transition-colors placeholder:text-muted/70 focus:border-accent sm:text-4xl"
+            />
             <button
-              key={ex}
-              type="button"
-              onClick={() => run(ex)}
-              className="rounded-full border border-line px-3 py-1.5 font-mono text-xs tracking-wide text-muted transition-colors hover:border-accent hover:text-fg"
+              type="submit"
+              aria-label="Search"
+              disabled={busy}
+              className="absolute bottom-2.5 right-0 grid h-11 w-11 place-items-center rounded-full bg-accent text-accent-ink transition-transform hover:scale-105 active:scale-95 disabled:opacity-50 sm:h-12 sm:w-12"
             >
-              {ex}
+              <span className="text-xl font-black">{busy ? "·" : "→"}</span>
             </button>
-          ))}
+          </form>
+
+          {/* Example chips */}
+          {status === "idle" && (
+            <div className="mt-6 flex flex-wrap gap-2">
+              {EXAMPLES.map((ex) => (
+                <button
+                  key={ex}
+                  type="button"
+                  onClick={() => run(ex)}
+                  className="rounded-full border border-line px-3 py-1.5 font-mono text-xs tracking-wide text-muted transition-colors hover:border-accent hover:text-fg"
+                >
+                  {ex}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Not signed in: prompt to sign in / create an account. */}
+      {!authLoading && !user && (
+        <div className="rounded-2xl border border-line p-5 sm:p-6">
+          <h2 className="text-xl font-black tracking-tight">
+            sign in to search<span className="text-accent">.</span>
+          </h2>
+          <p className="mt-1 font-mono text-xs tracking-wide text-muted">
+            create a free account to write prompts and search events. browsing
+            what&apos;s coming up is open to everyone.
+          </p>
+          <Link
+            href="/login"
+            className="mt-4 inline-block rounded-full bg-accent px-5 py-2.5 font-bold text-accent-ink transition-transform hover:scale-[1.02] active:scale-95"
+          >
+            sign in / create account
+          </Link>
         </div>
       )}
+
+      {/* Signed in but not verified: enter the emailed code. */}
+      {!authLoading && user && !canSearch && <VerifyPanel />}
 
       {/* Intent read-out */}
       {chips.length > 0 && (

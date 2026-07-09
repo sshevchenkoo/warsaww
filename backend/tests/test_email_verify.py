@@ -1,36 +1,38 @@
-"""Email-verification tokens (signed, self-expiring) and the send no-op path.
-No network / no DB."""
+"""Email verification via a numeric code: code generation, keyed hashing, and
+the send no-op path. No network / no DB."""
 
-import uuid
+import re
 
 from app.auth import email as emailmod
-from app.auth.email import make_verify_token, read_verify_token, send_verification_email
+from app.auth.email import generate_code, hash_code, send_verification_email, verify_code
 
 
-def test_token_roundtrip():
-    uid = uuid.uuid4()
-    token = make_verify_token(uid)
-    assert read_verify_token(token) == uid
+def test_generate_code_is_six_digits():
+    for _ in range(50):
+        assert re.fullmatch(r"\d{6}", generate_code())  # always zero-padded 6 digits
 
 
-def test_tampered_or_garbage_token_is_none():
-    assert read_verify_token("not-a-real-token") is None
-    token = make_verify_token(uuid.uuid4())
-    assert read_verify_token(token + "x") is None  # signature no longer valid
+def test_hash_roundtrip_and_reject_wrong_code():
+    code = generate_code()
+    h = hash_code(code)
+    assert h != code  # never store the code itself
+    assert verify_code(code, h) is True
+    wrong = "111111" if code != "111111" else "222222"
+    assert verify_code(wrong, h) is False
 
 
-def test_token_uses_distinct_salt_from_sessions():
-    # A token signed for a different purpose must not validate as a verify token.
-    from itsdangerous import URLSafeTimedSerializer
-
-    from app.config import settings
-
-    other = URLSafeTimedSerializer(settings.session_secret, salt="something-else")
-    assert read_verify_token(other.dumps(str(uuid.uuid4()))) is None
+def test_hash_is_keyed_by_session_secret(monkeypatch):
+    # Same code under two secrets → different hash, and a hash made under one
+    # secret must not verify under another (keyed HMAC, not a bare digest).
+    monkeypatch.setattr(emailmod.settings, "session_secret", "secret-A")
+    h_a = hash_code("123456")
+    monkeypatch.setattr(emailmod.settings, "session_secret", "secret-B")
+    assert hash_code("123456") != h_a
+    assert verify_code("123456", h_a) is False
 
 
 def test_send_is_noop_without_api_key(monkeypatch, caplog):
     # Unconfigured environment must not raise — registration still works.
     monkeypatch.setattr(emailmod.settings, "resend_api_key", None)
-    send_verification_email("user@example.com", "https://example.com/verify?token=x")
+    send_verification_email("user@example.com", "123456")
     assert any("not sent" in r.message for r in caplog.records)

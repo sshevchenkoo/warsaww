@@ -75,6 +75,15 @@ export async function streamSearch(prompt: string, handlers: Handlers): Promise<
     err.name = "RateLimitError";
     throw err;
   }
+  // Gated: not signed in (401) or email not verified (403). The home page
+  // normally renders a sign-in / verify prompt instead of the search box, so
+  // this only fires if the session lapsed mid-use — surface the API's message.
+  if (res.status === 401 || res.status === 403) {
+    const data = await res.json().catch(() => null);
+    const err = new Error(data?.detail ?? "Sign in and verify your email to search.");
+    err.name = "AuthError";
+    throw err;
+  }
   if (!res.ok || !res.body) {
     throw new Error(`search failed: ${res.status}`);
   }

@@ -12,7 +12,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.catalog.db import SessionLocal, get_session
-from app.catalog.models import Item, IntentLog
+from app.catalog.models import Item, IntentLog, User
 from app.config import settings
 from app.llm.embeddings import embed_query
 from app.llm.intent import ClaudeIntentExtractor
@@ -60,6 +60,29 @@ def _card(item: Item, blurb: str | None) -> dict:
     return out.model_dump(mode="json")
 
 
+def _require_verified_user(request: Request) -> None:
+    """Product gate for /search: the caller must be logged in AND email-verified.
+    Resolved in a short-lived session (not a request-scoped dependency) so no
+    pooled connection is held across the SSE stream. Raises 401 (not signed in)
+    or 403 (signed in, not verified)."""
+    raw = request.session.get("user_id")
+    user_id = None
+    if raw:
+        try:
+            user_id = uuid.UUID(raw)
+        except (ValueError, TypeError):
+            request.session.clear()
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Sign in to search.")
+    with SessionLocal() as session:
+        user = session.get(User, user_id)
+        if user is None:
+            request.session.clear()
+            raise HTTPException(status_code=401, detail="Sign in to search.")
+        if not user.email_verified:
+            raise HTTPException(status_code=403, detail="Verify your email to search.")
+
+
 @router.get("/health")
 def health() -> dict:
     return {"status": "ok"}
@@ -100,6 +123,10 @@ def search(req: SearchRequest, request: Request) -> StreamingResponse:
     So a pooled connection is held only for the short window that logs the parse
     and runs retrieval, then released BEFORE streaming. Holding it across the
     stream throttled concurrency hard (managed max_connections=25)."""
+    # Gate: search is for logged-in, email-verified accounts only (product rule,
+    # toggleable). Checked before any LLM work so an unauthorized call is cheap.
+    if settings.require_verified_email_to_search:
+        _require_verified_user(request)
     # Per-session daily quota (the only costly endpoint). Anonymous visitors get
     # a session id so the limit follows them too.
     sid = request.session.get("sid")

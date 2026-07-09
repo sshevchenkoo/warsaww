@@ -8,6 +8,7 @@ export type User = {
   email: string | null;
   name: string | null;
   avatar_url: string | null;
+  email_verified: boolean;
 };
 
 export const LOGIN_URL = "/auth/login/google";
@@ -48,6 +49,18 @@ export function register(email: string, password: string, name?: string): Promis
 
 export function login(email: string, password: string): Promise<User> {
   return authPost("/auth/login", { email, password });
+}
+
+// Confirm the email with the 6-digit code we mailed; returns the updated user
+// (email_verified flips to true). Throws with the API's message on a bad/expired
+// code or too many attempts.
+export function verifyEmail(code: string): Promise<User> {
+  return authPost("/auth/verify", { code });
+}
+
+// Ask the API to email a fresh verification code to the logged-in user.
+export async function resendVerification(): Promise<void> {
+  await req("/auth/resend", { method: "POST" });
 }
 
 export async function getSavedIds(): Promise<string[]> {
