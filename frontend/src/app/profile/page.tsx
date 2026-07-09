@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { EventCard } from "@/components/EventCard";
 import { useUser } from "@/components/UserContext";
+import { VerifyPanel } from "@/components/VerifyPanel";
 import type { Card } from "@/lib/api";
 import { getSaved, uploadAvatar } from "@/lib/auth";
 import { dismissShared, listShared, type SharedEvent } from "@/lib/social";
@@ -124,6 +125,14 @@ export default function Profile() {
           people →
         </Link>
       </header>
+
+      {/* Unconfirmed email: the code-entry form lives here so a user who left the
+          signup page can still verify (and unlock search) from their profile. */}
+      {!user.email_verified && (
+        <section className="mb-10">
+          <VerifyPanel />
+        </section>
+      )}
 
       {shared.length > 0 && (
         <section className="mb-10">
