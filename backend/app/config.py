@@ -112,10 +112,20 @@ class Settings(BaseSettings):
     # address must be a domain you verified in Resend — a @gmail.com can't be a
     # sender — so route replies to a Gmail via reply-to instead.
     email_reply_to: str | None = None
-    email_verify_ttl_hours: int = 48
+    # Email verification uses a short numeric code the user types back in (not a
+    # magic link). The code is single-use, expires quickly, and is capped at a
+    # few wrong attempts before a fresh one must be requested — the code space is
+    # only ~1M wide, so expiry + attempt cap + the auth rate limit are what keep
+    # it from being guessable.
+    email_verify_code_ttl_minutes: int = 15
+    email_verify_max_attempts: int = 5
     # When True, password login is refused until the email is verified. Default
     # off so email delivery problems can't lock users out during rollout.
     require_email_verification: bool = False
+    # Product gate: when True, /search requires a logged-in, email-verified user.
+    # Anonymous or unverified visitors can still browse the upcoming feed and
+    # open item pages, but can't run prompt searches.
+    require_verified_email_to_search: bool = True
 
     session_secret: str = INSECURE_SESSION_SECRET  # signs the session cookie
     # Where the browser-facing app lives: the OAuth redirect URI is

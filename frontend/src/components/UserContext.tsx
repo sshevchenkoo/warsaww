@@ -16,8 +16,10 @@ import {
   login as apiLogin,
   logout as apiLogout,
   register as apiRegister,
+  resendVerification as apiResendVerification,
   saveItem,
   unsaveItem,
+  verifyEmail as apiVerifyEmail,
   type User,
 } from "@/lib/auth";
 
@@ -28,6 +30,8 @@ type UserState = {
   toggleSave: (id: string) => void;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name?: string) => Promise<void>;
+  verify: (code: string) => Promise<void>;
+  resendVerification: () => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (patch: Partial<User>) => void;
   loginUrl: string;
@@ -86,6 +90,16 @@ export function UserProvider({ children }: { children: ReactNode }) {
     [applySession],
   );
 
+  // Confirm the email with the mailed code; on success the returned user has
+  // email_verified=true, which ungates search across the app.
+  const verify = useCallback(async (code: string) => {
+    setUser(await apiVerifyEmail(code));
+  }, []);
+
+  const resendVerification = useCallback(async () => {
+    await apiResendVerification();
+  }, []);
+
   const logout = useCallback(async () => {
     await apiLogout();
     setUser(null);
@@ -107,6 +121,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
         toggleSave,
         login,
         register,
+        verify,
+        resendVerification,
         logout,
         updateUser,
         loginUrl: LOGIN_URL,

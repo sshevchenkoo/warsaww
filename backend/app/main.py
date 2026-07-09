@@ -100,6 +100,25 @@ def _ensure_columns(eng=engine) -> None:
                 "WHERE google_sub IS NOT NULL AND email_verified = false"
             )
         )
+        # Code-based email verification (added after email_verified shipped).
+        conn.execute(
+            text(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+                "email_verify_code_hash text"
+            )
+        )
+        conn.execute(
+            text(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+                "email_verify_code_expires_at timestamptz"
+            )
+        )
+        conn.execute(
+            text(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+                "email_verify_attempts integer NOT NULL DEFAULT 0"
+            )
+        )
 
 
 def _ensure_rls(eng=engine) -> None:

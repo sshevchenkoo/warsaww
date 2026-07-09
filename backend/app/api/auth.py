@@ -8,6 +8,7 @@ by password and later using Google with the same email is one account.
 """
 
 import logging
+from datetime import datetime, timedelta, timezone
 
 from authlib.integrations.starlette_client import OAuthError
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -16,7 +17,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
 from app.auth.deps import current_user
-from app.auth.email import make_verify_token, read_verify_token, send_verification_email
+from app.auth.email import generate_code, hash_code, send_verification_email, verify_code
 from app.auth.oauth import oauth
 from app.auth.passwords import MAX_PASSWORD_BYTES, hash_password, verify_password
 from app.catalog.db import get_session
@@ -57,13 +58,20 @@ def _user_payload(user: User) -> dict:
     }
 
 
-def _send_verification(user: User) -> None:
-    """Email a fresh verification link to `user` (no-op if already verified or no
-    email). The token is signed + self-expiring — nothing stored in the DB."""
+def _issue_verification(user: User, session: Session) -> None:
+    """Generate a fresh verification code for `user`, store its keyed hash + expiry
+    (resetting the attempt counter), and email the code. No-op if the account is
+    already verified or has no email."""
     if not user.email or user.email_verified:
         return
-    verify_url = f"{settings.frontend_url}/auth/verify?token={make_verify_token(user.id)}"
-    send_verification_email(user.email, verify_url)
+    code = generate_code()
+    user.email_verify_code_hash = hash_code(code)
+    user.email_verify_code_expires_at = datetime.now(timezone.utc) + timedelta(
+        minutes=settings.email_verify_code_ttl_minutes
+    )
+    user.email_verify_attempts = 0
+    session.commit()
+    send_verification_email(user.email, code)
 
 
 class RegisterRequest(BaseModel):
@@ -145,8 +153,8 @@ def register(
     )
     session.add(user)
     session.commit()
-    _send_verification(user)
     request.session["user_id"] = str(user.id)
+    _issue_verification(user, session)
     return _user_payload(user)
 
 
@@ -170,34 +178,60 @@ def login(
     return _user_payload(user)
 
 
-@router.get("/auth/verify")
+class VerifyRequest(BaseModel):
+    code: str = Field(min_length=4, max_length=12)
+
+
+@router.post("/auth/verify")
 def verify_email(
-    token: str, session: Session = Depends(get_session)
-) -> RedirectResponse:
-    """Confirm an email from a verification link, then bounce back to the app.
-    A bad/expired token just lands on the site with verified=0."""
-    user_id = read_verify_token(token)
-    ok = False
-    if user_id is not None:
-        user = session.get(User, user_id)
-        if user is not None:
-            if not user.email_verified:
-                user.email_verified = True
-                session.commit()
-            ok = True
-    return RedirectResponse(f"{settings.frontend_url}/?verified={'1' if ok else '0'}")
+    req: VerifyRequest,
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> dict:
+    """Confirm the logged-in user's email with the code we emailed. Wrong codes
+    are counted and capped; an expired or exhausted code needs a fresh resend.
+    Returns the updated user payload (email_verified flips to true on success)."""
+    _rate_limit_auth(request)
+    if user.email_verified:
+        return _user_payload(user)
+    now = datetime.now(timezone.utc)
+    if (
+        not user.email_verify_code_hash
+        or user.email_verify_code_expires_at is None
+        or user.email_verify_code_expires_at < now
+    ):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "Your code expired. Request a new one."
+        )
+    if user.email_verify_attempts >= settings.email_verify_max_attempts:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS, "Too many attempts. Request a new code."
+        )
+    if not verify_code(req.code, user.email_verify_code_hash):
+        user.email_verify_attempts += 1
+        session.commit()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid code.")
+    user.email_verified = True
+    user.email_verify_code_hash = None
+    user.email_verify_code_expires_at = None
+    user.email_verify_attempts = 0
+    session.commit()
+    return _user_payload(user)
 
 
 @router.post("/auth/resend")
 def resend_verification(
-    request: Request, user: User = Depends(current_user)
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
 ) -> dict:
-    """Re-send the verification email to the logged-in user (rate-limited to
+    """Re-send a fresh verification code to the logged-in user (rate-limited to
     prevent using it as an email-spam relay)."""
     _rate_limit_auth(request)
     if user.email_verified:
         return {"status": "already_verified"}
-    _send_verification(user)
+    _issue_verification(user, session)
     return {"status": "sent"}
 
 

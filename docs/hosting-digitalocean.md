@@ -96,13 +96,23 @@ Rollback: `kubectl -n warsaw rollout undo deploy/api` or redeploy an older `IMAG
   receiver and flip the route to it** in the values file, then `make do-platform`
   (envsubst injects them — no secret in git). ⚠️ Don't uncomment without setting both
   vars: an empty bot_token makes the Alertmanager config invalid.
-- **Email verification (Resend)**: password registrations get a verification link;
-  Google logins are auto-verified. Set `RESEND_API_KEY` and `EMAIL_FROM` (a verified
-  sender for your domain, e.g. `Warsaw Events <noreply@transendance.online>`) in the
-  app secret (`backend/k8s/secret.yml` + `backend/.env`). Without the key, sending is a
-  logged no-op (registration still works, links just aren't delivered). `REQUIRE_EMAIL_VERIFICATION=true`
-  refuses password login until verified (default off). ⚠️ This added a `users.email_verified`
-  column — a deploy shipping it needs **`make do-db-migrate` first** (the schema-change runbook).
+- **Email verification (Resend)**: password registrations are emailed a 6-digit
+  code they type back in (`POST /auth/verify {code}`); Google logins are
+  auto-verified. Codes are single-use, expire after `EMAIL_VERIFY_CODE_TTL_MINUTES`
+  (15), and are capped at `EMAIL_VERIFY_MAX_ATTEMPTS` (5) wrong tries before a
+  resend is needed. Set `RESEND_API_KEY`, `EMAIL_FROM` (a verified sender for your
+  domain, e.g. `Warsaw Events <noreply@transendance.online>`), and optional
+  `EMAIL_REPLY_TO` in the app secret (`backend/k8s/secret.yml` + `backend/.env`) —
+  and map them into the api Deployment env (`30-api.yml`). Without the key, sending
+  is a logged no-op (registration still works, codes just aren't delivered).
+- **Search gate**: `REQUIRE_VERIFIED_EMAIL_TO_SEARCH` (default **true**) makes
+  `/search` require a logged-in, email-verified user — anonymous/unverified
+  visitors get 401/403 and the frontend shows a sign-in / enter-code prompt (the
+  `/upcoming` feed stays open to everyone). Set it false to reopen anonymous search.
+  `REQUIRE_EMAIL_VERIFICATION=true` additionally refuses password *login* until
+  verified (default off). ⚠️ These added `users.email_verify_code_hash /
+  _expires_at / _attempts` columns — a deploy shipping them needs
+  **`make do-db-migrate` first** (the schema-change runbook).
 - **Postgres metrics**: DO Postgres is managed (no in-cluster instance), so a
   `prometheus-postgres-exporter` connects out to it and backs the Grafana
   PostgreSQL panels + `PostgresDown` / `PostgresTooManyConnections` alerts.

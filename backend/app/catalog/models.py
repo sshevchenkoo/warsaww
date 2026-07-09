@@ -104,9 +104,19 @@ class User(Base):
     # bcrypt hash — NULL for Google-only accounts.
     password_hash: Mapped[str | None] = mapped_column(Text)
     email: Mapped[str | None] = mapped_column(Text, unique=True)  # the login identifier
-    # True once the email is confirmed (verification link, or a Google login,
-    # which proves ownership). Password accounts start unverified.
+    # True once the email is confirmed (a verification code the user entered, or a
+    # Google login, which proves ownership). Password accounts start unverified.
     email_verified: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    # Pending email-verification code: a keyed hash (never the code itself), its
+    # expiry, and a wrong-attempt counter. All NULL/0 once verified or before the
+    # first code is issued. See app.auth.email.
+    email_verify_code_hash: Mapped[str | None] = mapped_column(Text)
+    email_verify_code_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    email_verify_attempts: Mapped[int] = mapped_column(
+        Integer, server_default=text("0"), nullable=False
+    )
     name: Mapped[str | None] = mapped_column(Text)
     avatar_url: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(

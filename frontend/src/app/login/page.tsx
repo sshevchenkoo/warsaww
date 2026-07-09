@@ -27,9 +27,15 @@ export default function Login() {
     setError(null);
     setBusy(true);
     try {
-      if (mode === "signup") await register(email, password, name || undefined);
-      else await login(email, password);
-      router.push("/profile");
+      if (mode === "signup") {
+        await register(email, password, name || undefined);
+        // New accounts are unverified — land on home, which shows the
+        // enter-your-code panel so they can unlock search.
+        router.push("/");
+      } else {
+        await login(email, password);
+        router.push("/profile");
+      }
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);
