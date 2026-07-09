@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { useUser } from "@/components/UserContext";
+import { VerifyPanel } from "@/components/VerifyPanel";
 
 type Mode = "signin" | "signup";
 
@@ -13,33 +14,44 @@ export default function Login() {
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Already logged in → no reason to be here.
+  // A verified user has no reason to be here → send them to search.
   useEffect(() => {
-    if (user) router.replace("/profile");
+    if (user?.email_verified) router.replace("/");
   }, [user, router]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (mode === "signup" && password !== confirm) {
+      setError("Passwords don't match.");
+      return;
+    }
     setBusy(true);
     try {
-      if (mode === "signup") {
-        await register(email, password, name || undefined);
-        // New accounts are unverified — land on home, which shows the
-        // enter-your-code panel so they can unlock search.
-        router.push("/");
-      } else {
-        await login(email, password);
-        router.push("/profile");
-      }
+      if (mode === "signup") await register(email, password, name || undefined);
+      else await login(email, password);
+      // No redirect here: an unverified account falls through to the code panel
+      // below; once verified the effect above bounces to home.
     } catch (err) {
       setError((err as Error).message);
+    } finally {
       setBusy(false);
     }
+  }
+
+  // Logged in but not verified (just registered, or signed in to an unconfirmed
+  // account) → enter the emailed code right here before going anywhere.
+  if (user && !user.email_verified) {
+    return (
+      <main className="mx-auto w-full max-w-sm px-5 pb-24 pt-16">
+        <VerifyPanel />
+      </main>
+    );
   }
 
   return (
@@ -78,6 +90,18 @@ export default function Login() {
           autoComplete={mode === "signup" ? "new-password" : "current-password"}
           className="border-b-2 border-line bg-transparent pb-2 text-lg outline-none placeholder:text-muted/70 focus:border-accent"
         />
+        {mode === "signup" && (
+          <input
+            type="password"
+            required
+            minLength={8}
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            placeholder="confirm password"
+            autoComplete="new-password"
+            className="border-b-2 border-line bg-transparent pb-2 text-lg outline-none placeholder:text-muted/70 focus:border-accent"
+          />
+        )}
 
         {error && <p className="font-mono text-xs text-accent">{error}</p>}
 
@@ -94,6 +118,7 @@ export default function Login() {
         type="button"
         onClick={() => {
           setError(null);
+          setConfirm("");
           setMode(mode === "signup" ? "signin" : "signup");
         }}
         className="mt-4 font-mono text-xs tracking-wide text-muted transition-colors hover:text-fg"

@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 
 import { EventCard } from "@/components/EventCard";
 import { useUser } from "@/components/UserContext";
-import { VerifyPanel } from "@/components/VerifyPanel";
 import { getUpcoming, streamSearch, type Card, type Intent } from "@/lib/api";
 
 const EXAMPLES = [
@@ -182,8 +181,30 @@ export default function Home() {
         </div>
       )}
 
-      {/* Signed in but not verified: enter the emailed code. */}
-      {!authLoading && user && !canSearch && <VerifyPanel />}
+      {/* Signed in but not verified: the search box stays visible but dimmed and
+          disabled, with a nudge to confirm the email (code entry lives on the
+          profile page). */}
+      {!authLoading && user && !canSearch && (
+        <div>
+          <div className="pointer-events-none relative select-none opacity-40" aria-hidden="true">
+            <div className="w-full truncate border-b-2 border-line pb-3 pr-14 text-2xl font-bold tracking-tight text-muted sm:text-4xl">
+              {placeholder}
+            </div>
+            <div className="absolute bottom-2.5 right-0 grid h-11 w-11 place-items-center rounded-full bg-accent text-accent-ink sm:h-12 sm:w-12">
+              <span className="text-xl font-black">→</span>
+            </div>
+          </div>
+          <p className="mt-4 font-mono text-xs tracking-wide text-muted">
+            Please confirm your email to search.{" "}
+            <Link
+              href="/profile"
+              className="text-accent underline-offset-2 hover:underline"
+            >
+              enter your code →
+            </Link>
+          </p>
+        </div>
+      )}
 
       {/* Intent read-out */}
       {chips.length > 0 && (
