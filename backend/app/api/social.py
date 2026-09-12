@@ -2,11 +2,11 @@
 items with friends. All require the logged-in user."""
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import and_, delete, or_, select
+from sqlalchemy import and_, delete, or_, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -17,6 +17,19 @@ from app.catalog.models import Friendship, Item, SavedItem, SharedEvent, User
 
 router = APIRouter()
 
+# A user is "online" if their last heartbeat (/me/ping) landed within this window.
+ONLINE_WINDOW = timedelta(minutes=2)
+
+
+def _is_online(user: User) -> bool:
+    """Whether the user's last presence heartbeat is recent enough to be online."""
+    seen = user.last_seen_at
+    if seen is None:
+        return False
+    if seen.tzinfo is None:  # a naive timestamp from the DB is UTC
+        seen = seen.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - seen < ONLINE_WINDOW
+
 
 # ─── Response shapes ──────────────────────────────────────────────────────────
 class PublicUser(BaseModel):
@@ -25,6 +38,8 @@ class PublicUser(BaseModel):
     avatar_url: str | None
     # relationship to the requester: self | friends | request_sent | request_received | none
     friendship: str = "none"
+    # presence: true while the user has pinged within ONLINE_WINDOW.
+    online: bool = False
 
 
 class SharedEventOut(BaseModel):
@@ -69,7 +84,11 @@ def _are_friends(session: Session, a: uuid.UUID, b: uuid.UUID) -> bool:
 
 def _public(user: User, friendship: str) -> PublicUser:
     return PublicUser(
-        id=user.id, name=user.name, avatar_url=user.avatar_url, friendship=friendship
+        id=user.id,
+        name=user.name,
+        avatar_url=user.avatar_url,
+        friendship=friendship,
+        online=_is_online(user),
     )
 
 
@@ -339,3 +358,21 @@ def dismiss_shared(
     )
     session.commit()
     return {"status": "removed"}
+
+
+# ─── Presence ─────────────────────────────────────────────────────────────────
+@router.post("/me/ping")
+def heartbeat(
+    user: User = Depends(current_user),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Presence heartbeat: stamp the caller's last_seen_at = now() so friends see
+    them as online. The frontend calls this on load and once a minute while the
+    tab is open; a user reads back as online for ONLINE_WINDOW after the last
+    ping. `users` carries no RLS, so this is a plain owner-scoped write."""
+    session.execute(
+        text("UPDATE users SET last_seen_at = now() WHERE id = :uid"),
+        {"uid": str(user.id)},
+    )
+    session.commit()
+    return {"status": "ok"}

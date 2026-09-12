@@ -119,6 +119,9 @@ class User(Base):
     )
     name: Mapped[str | None] = mapped_column(Text)
     avatar_url: Mapped[str | None] = mapped_column(Text)
+    # Presence: refreshed by the /me/ping heartbeat. A user counts as "online"
+    # while this is within a short window (see app.api.social._is_online).
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
     )

@@ -119,6 +119,11 @@ def _ensure_columns(eng=engine) -> None:
                 "email_verify_attempts integer NOT NULL DEFAULT 0"
             )
         )
+        # Presence timestamp (added after the account columns shipped) — stamped
+        # by the /me/ping heartbeat and read back as an online/offline flag.
+        conn.execute(
+            text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at timestamptz")
+        )
 
 
 def _ensure_rls(eng=engine) -> None:
