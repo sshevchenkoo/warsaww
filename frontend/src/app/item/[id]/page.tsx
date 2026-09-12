@@ -1,37 +1,39 @@
-"use client";
-
+import type { Metadata } from "next";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
 
-import { ShareButton } from "@/components/ShareButton";
-import { useUser } from "@/components/UserContext";
-import { getItem, type Card } from "@/lib/api";
+import { ItemActions } from "@/components/ItemActions";
+import { ItemImage } from "@/components/ItemImage";
+import type { Card } from "@/lib/api";
 import { categoryLabel, fallbackHue, formatPrice, formatWhen } from "@/lib/format";
 
-export default function ItemPage() {
-  const { id } = useParams<{ id: string }>();
-  // undefined = loading, null = not found.
-  const [item, setItem] = useState<Card | null | undefined>(undefined);
-  const [imgError, setImgError] = useState(false);
-  const { user, savedIds, toggleSave } = useUser();
+// Server-side fetch straight to the API. The browser client uses relative proxy
+// paths (see lib/api.ts / next.config.ts), but on the server we call the API
+// directly so the page HTML is rendered on the server — SSR for a fast first
+// paint and real SEO (title/description in the initial markup, not after hydration).
+const BACKEND = process.env.BACKEND_INTERNAL_URL ?? "http://localhost:8000";
 
-  useEffect(() => {
-    getItem(id).then(setItem);
-  }, [id]);
+async function fetchItem(id: string): Promise<Card | null> {
+  const res = await fetch(`${BACKEND}/items/${id}`, { next: { revalidate: 60 } });
+  return res.ok ? ((await res.json()) as Card) : null;
+}
 
-  if (item === undefined) {
-    return (
-      <main className="mx-auto w-full max-w-3xl px-5 pt-10">
-        <p className="flex items-center gap-2 font-mono text-sm text-muted">
-          <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-          loading…
-        </p>
-      </main>
-    );
-  }
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const item = await fetchItem(id);
+  if (!item) return { title: "Not found · Warsaw" };
+  const description = item.description?.slice(0, 160) ?? `${categoryLabel(item)} in Warsaw`;
+  return { title: `${item.name} · Warsaw`, description };
+}
 
-  if (item === null) {
+export default async function ItemPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const item = await fetchItem(id);
+
+  if (!item) {
     return (
       <main className="mx-auto w-full max-w-3xl px-5 pt-16">
         <h1 className="text-3xl font-black tracking-tighter">not found</h1>
@@ -45,7 +47,6 @@ export default function ItemPage() {
   const when = formatWhen(item);
   const price = formatPrice(item);
   const hue = fallbackHue(item.id);
-  const saved = savedIds.has(item.id);
 
   return (
     <main className="mx-auto w-full max-w-3xl px-5 pb-24 pt-8">
@@ -57,36 +58,13 @@ export default function ItemPage() {
       </Link>
 
       <div className="relative mt-5 aspect-[16/9] overflow-hidden rounded-2xl border border-line bg-card">
-        {item.image_url && !imgError ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={item.image_url}
-            alt=""
-            onError={() => setImgError(true)}
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-        ) : (
-          <div className="absolute inset-0" style={{ background: `hsl(${hue} 55% 16%)` }} />
-        )}
+        <ItemImage imageUrl={item.image_url} hue={hue} />
         <div className="absolute left-0 top-0 p-4">
           <span className="rounded-full border border-white/25 bg-black/30 px-2.5 py-1 font-mono text-[10px] font-medium tracking-[0.14em] text-fg backdrop-blur-sm">
             {categoryLabel(item)}
           </span>
         </div>
-        {user && (
-          <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
-            <ShareButton itemId={item.id} compact />
-            <button
-              type="button"
-              onClick={() => toggleSave(item.id)}
-              aria-label={saved ? "Remove from saved" : "Save"}
-              aria-pressed={saved}
-              className="grid h-10 w-10 place-items-center rounded-full border border-white/25 bg-black/40 text-xl backdrop-blur-sm transition-transform hover:scale-110 active:scale-90"
-            >
-              <span className={saved ? "text-accent" : "text-fg"}>{saved ? "♥" : "♡"}</span>
-            </button>
-          </div>
-        )}
+        <ItemActions itemId={item.id} />
       </div>
 
       {(when || price) && (
