@@ -15,6 +15,8 @@ export type PublicUser = {
   name: string | null;
   avatar_url: string | null;
   friendship: Friendship;
+  // presence: true while the user pinged recently (see the /me/ping heartbeat).
+  online?: boolean;
 };
 
 export type SharedEvent = {
@@ -80,3 +82,8 @@ export const listShared = (): Promise<SharedEvent[]> =>
   req("/me/shared").then((r) => asJson(r, []));
 
 export const dismissShared = (shareId: string) => mutate(`/me/shared/${shareId}`, "DELETE");
+
+// Presence heartbeat: refresh our last_seen so friends see us as online. Fire
+// and forget — a failed ping just means we look offline a little sooner.
+export const pingPresence = (): Promise<unknown> =>
+  req("/me/ping", { method: "POST" }).catch(() => null);

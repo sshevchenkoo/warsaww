@@ -114,6 +114,14 @@ export default function Profile() {
           <h1 className="text-3xl font-black tracking-tighter sm:text-4xl">
             {person.name ?? "user"}
           </h1>
+          <p className="mt-1 flex items-center gap-1.5 font-mono text-xs text-muted">
+            <span
+              className={`inline-block h-2 w-2 rounded-full ${
+                person.online ? "bg-green-500" : "bg-muted/40"
+              }`}
+            />
+            {person.online ? "online" : "offline"}
+          </p>
         </div>
 
         {rel !== "self" && (

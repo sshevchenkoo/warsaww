@@ -22,6 +22,7 @@ import {
   verifyEmail as apiVerifyEmail,
   type User,
 } from "@/lib/auth";
+import { pingPresence } from "@/lib/social";
 
 type UserState = {
   user: User | null;
@@ -52,6 +53,16 @@ export function UserProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     })();
   }, []);
+
+  // Presence heartbeat: while signed in, ping on mount and once a minute so
+  // friends see us as online (the API marks us online for a couple of minutes
+  // after the last ping).
+  useEffect(() => {
+    if (!user) return;
+    pingPresence();
+    const timer = setInterval(pingPresence, 60_000);
+    return () => clearInterval(timer);
+  }, [user]);
 
   // Optimistic toggle: flip the heart immediately, fire the API in the
   // background (saving is idempotent and un-saving a missing row is a no-op).
