@@ -4,12 +4,12 @@
 #
 # Cloud parity, with the delivery mechanism adapted to Compose:
 #   - DOKS Helm charts (kube-prometheus-stack / otel / tempo / postgres-exporter
-#     / fluent-bit) → plain containers with static config under platform/local/.
+#     / fluent-bit) → plain containers with static config under deploy/local/config/.
 #   - k8s CRDs (ServiceMonitor / PrometheusRule) → prometheus.yml + rules.yml.
-#   - ELK mirrors infrastructure/ansible/roles/elk (ES + Logstash + Kibana),
+#   - ELK mirrors deploy/cloud/ansible/roles/elk (ES + Logstash + Kibana),
 #     fed by Fluent Bit shipping every container's logs (Docker fluentd driver).
 # k8s-only signals (kube-state-metrics / node-exporter pod & node panels) have no
-# local equivalent and simply stay empty — see platform/local/README.md.
+# local equivalent and simply stay empty — see deploy/local/config/README.md.
 name: warsaw-stack
 
 services:
@@ -23,7 +23,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ../../backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql
       - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U app -d events"]
@@ -37,12 +37,12 @@ services:
       - "6379:6379"
 
   api:
-    build: ./backend
+    build: ../../backend
     # API keys (ANTHROPIC_API_KEY, VOYAGE_API_KEY, …) come from backend/.env.
     # Marked optional so the stack still boots without it (the API needs it to
     # actually serve — copy backend/.env.example to backend/.env).
     env_file:
-      - path: ./backend/.env
+      - path: ../../backend/.env
         required: false
     environment:
       DATABASE_URL: postgresql+psycopg://app:app@db:5432/events
@@ -66,7 +66,7 @@ services:
         tag: "warsaw.api"
 
   web:
-    build: ./frontend
+    build: ../../frontend
     environment:
       BACKEND_INTERNAL_URL: http://api:8000
     ports:
@@ -88,8 +88,8 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.retention.time=7d
     volumes:
-      - ./platform/local/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./platform/local/prometheus-rules.yml:/etc/prometheus/rules.yml:ro
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/prometheus-rules.yml:/etc/prometheus/rules.yml:ro
       - prometheus-data:/prometheus
     ports:
       - "9090:9090"
@@ -99,7 +99,7 @@ services:
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
     volumes:
-      - ./platform/local/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./config/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
     ports:
       - "9093:9093"
 
@@ -120,8 +120,8 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
-      - ./platform/local/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./platform/local/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     ports:
       - "3001:3000"
@@ -134,7 +134,7 @@ services:
     image: otel/opentelemetry-collector-contrib:0.107.0
     command: ["--config=/etc/otelcol/config.yaml"]
     volumes:
-      - ./platform/local/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+      - ./config/otel-collector.yaml:/etc/otelcol/config.yaml:ro
     ports:
       - "4317:4317"   # OTLP gRPC (the API pushes spans here)
       - "4318:4318"   # OTLP HTTP
@@ -147,7 +147,7 @@ services:
     image: grafana/tempo:2.5.0
     command: ["-config.file=/etc/tempo/tempo.yaml"]
     volumes:
-      - ./platform/local/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - ./config/tempo.yaml:/etc/tempo/tempo.yaml:ro
       - tempo-data:/var/tempo
     ports:
       - "3200:3200"   # Tempo query API (Grafana datasource)
@@ -173,7 +173,7 @@ services:
   logstash:
     image: docker.elastic.co/logstash/logstash:7.17.21
     volumes:
-      - ./platform/local/logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - ./config/logstash/pipeline:/usr/share/logstash/pipeline:ro
     environment:
       - "LS_JAVA_OPTS=-Xms256m -Xmx256m"
     depends_on:
@@ -194,7 +194,7 @@ services:
   fluent-bit:
     image: fluent/fluent-bit:3.1.6
     volumes:
-      - ./platform/local/fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - ./config/fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
     ports:
       - "24224:24224"       # forward input — the Docker fluentd log driver target
       - "24224:24224/udp"

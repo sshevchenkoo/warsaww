@@ -112,18 +112,18 @@ jobs:
         run: doctl kubernetes cluster kubeconfig save "$CLUSTER_NAME"
       - name: Apply manifests (rolling update to the new image)
         # The warsaw-secrets Secret is NOT applied here — it is managed manually
-        # (kubectl apply -f backend/k8s/secret.yml), so app secrets never enter CI.
+        # (kubectl apply -f deploy/cloud/k8s/secret.yml), so app secrets never enter CI.
         # Restrict envsubst to our three vars so no other `$...` is touched.
         run: |
           SUBST='$GITHUB_USER $IMAGE_TAG $WARSAW_DOMAIN'
-          kubectl apply -f backend/k8s/00-namespace.yml
-          kubectl apply -f backend/k8s/45-networkpolicies.yml
-          kubectl apply -f backend/k8s/20-redis.yml
-          envsubst "$SUBST" < backend/k8s/30-api.yml      | kubectl apply -f -
-          kubectl apply -f backend/k8s/35-pdb.yml
-          envsubst "$SUBST" < backend/k8s/50-cronjobs.yml | kubectl apply -f -
-          envsubst "$SUBST" < frontend/k8s/web.yml        | kubectl apply -f -
-          envsubst "$SUBST" < backend/k8s/40-ingress.yml  | kubectl apply -f -
+          kubectl apply -f deploy/cloud/k8s/00-namespace.yml
+          kubectl apply -f deploy/cloud/k8s/45-networkpolicies.yml
+          kubectl apply -f deploy/cloud/k8s/20-redis.yml
+          envsubst "$SUBST" < deploy/cloud/k8s/30-api.yml      | kubectl apply -f -
+          kubectl apply -f deploy/cloud/k8s/35-pdb.yml
+          envsubst "$SUBST" < deploy/cloud/k8s/50-cronjobs.yml | kubectl apply -f -
+          envsubst "$SUBST" < deploy/cloud/k8s/web.yml         | kubectl apply -f -
+          envsubst "$SUBST" < deploy/cloud/k8s/40-ingress.yml  | kubectl apply -f -
       - name: Wait for rollout
         run: |
           kubectl -n warsaw rollout status deploy/api --timeout=180s

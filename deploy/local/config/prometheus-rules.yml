@@ -1,4 +1,4 @@
-# Local alert rules — the subset of platform/alerting-rules.yaml (the cloud
+# Local alert rules — the subset of deploy/cloud/platform/alerting-rules.yaml (the cloud
 # PrometheusRule CRD) that has data without Kubernetes: the app and Postgres
 # rules. The k8s/node/cert rules (PodCrashLooping, Node*, CertificateExpiring…)
 # depend on kube-state-metrics / node-exporter / cert-manager and are cloud-only.

@@ -78,7 +78,7 @@ prometheus:
       # with), so the exporter connects out to it as the read-only warsaw_monitor
       # role. Backs pg_up / pg_stat_database_numbackends / pg_settings_max_connections
       # → the PostgreSQL panels and PostgresDown / PostgresTooManyConnections
-      # alerts. Deployed by `make do-platform` (platform/postgres-exporter-values.yaml).
+      # alerts. Deployed by `make do-platform` (deploy/cloud/platform/postgres-exporter-values.yaml).
       - job_name: postgres
         static_configs:
           - targets: ["prometheus-postgres-exporter.monitoring.svc.cluster.local:9187"]

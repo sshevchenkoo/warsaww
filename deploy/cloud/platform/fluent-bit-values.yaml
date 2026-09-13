@@ -1,8 +1,8 @@
 # Helm values for the fluent/fluent-bit chart. Ships every container's logs to the
 # ELK droplet's Logstash TCP json_lines input (port 5000), which matches
-# infrastructure/ansible/roles/elk/templates/logstash.conf.j2.
+# deploy/cloud/ansible/roles/elk/templates/logstash.conf.j2.
 #
-#   ELK_PRIVATE_IP=<from terraform output> envsubst < platform/fluent-bit-values.yaml \
+#   ELK_PRIVATE_IP=<from terraform output> envsubst < deploy/cloud/platform/fluent-bit-values.yaml \
 #     | helm upgrade --install fluent-bit fluent/fluent-bit -n logging --create-namespace -f -
 config:
   inputs: |

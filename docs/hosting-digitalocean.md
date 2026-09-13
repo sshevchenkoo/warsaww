@@ -2,7 +2,7 @@
 
 The production deploy: the app on a managed Kubernetes cluster (DOKS), Postgres as a
 DO Managed Database, monitoring in-cluster, and ELK on a separate droplet. IaC lives
-in `infrastructure/digitalocean/`; for local development use `make dev`
+in `deploy/cloud/terraform/`; for local development use `make dev`
 (docker-compose).
 
 ```
@@ -41,8 +41,8 @@ make do-images
 # 4. Cluster platform: ingress-nginx, cert-manager + issuer, monitoring, fluent-bit
 make do-platform
 
-# 5. App secret: fill backend/k8s/secret.yml from secret.example.yml.
-#    DATABASE_URL = terraform -chdir=infrastructure/digitalocean output -raw database_url
+# 5. App secret: fill deploy/cloud/k8s/secret.yml from secret.example.yml.
+#    DATABASE_URL = terraform -chdir=deploy/cloud/terraform output -raw database_url
 #    (managed DB; you do NOT apply 10-postgres.yml). Keep ANTHROPIC/VOYAGE/APIFY/
 #    TICKETMASTER/GOOGLE_*/SESSION_SECRET. Then:
 make do-deploy
@@ -102,7 +102,7 @@ Rollback: `kubectl -n warsaw rollout undo deploy/api` or redeploy an older `IMAG
   (15), and are capped at `EMAIL_VERIFY_MAX_ATTEMPTS` (5) wrong tries before a
   resend is needed. Set `RESEND_API_KEY`, `EMAIL_FROM` (a verified sender for your
   domain, e.g. `Warsaw Events <noreply@transendance.online>`), and optional
-  `EMAIL_REPLY_TO` in the app secret (`backend/k8s/secret.yml` + `backend/.env`) —
+  `EMAIL_REPLY_TO` in the app secret (`deploy/cloud/k8s/secret.yml` + `backend/.env`) —
   and map them into the api Deployment env (`30-api.yml`). Without the key, sending
   is a logged no-op (registration still works, codes just aren't delivered).
 - **Search gate**: `REQUIRE_VERIFIED_EMAIL_TO_SEARCH` (default **true**) makes

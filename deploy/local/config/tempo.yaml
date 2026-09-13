@@ -1,4 +1,4 @@
-# Single-binary Tempo (mirrors platform/tempo-values.yaml) — receives OTLP from
+# Single-binary Tempo (mirrors deploy/cloud/platform/tempo-values.yaml) — receives OTLP from
 # the collector and stores traces on a local volume. Grafana queries it at :3200.
 server:
   http_listen_port: 3200
