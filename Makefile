@@ -1,6 +1,6 @@
 .PHONY: help keys check-keys \
         dev app-up app-down app-logs app-seed web web-bg web-logs \
-        stack-up stack-down stack-logs stack-seed \
+        stack-up stack-init stack-seed seed-fixtures stack-down stack-logs \
         do-infra-up do-infra-plan do-infra-down do-kubeconfig do-db-init \
         do-images do-platform do-deploy do-elk
 
@@ -61,8 +61,10 @@ help:
 	@echo "    make web-logs        — follow the frontend logs"
 	@echo ""
 	@echo "  $(YELLOW)Full local stack (app + observability, one command):$(NC)"
+	@echo "    make stack-init      — FIRST RUN: start the stack + load 100 [TEST] demo events"
 	@echo "    make stack-up        — app + Grafana/Prometheus/Tempo + ELK (~4-6 GB RAM)"
-	@echo "    make stack-seed      — load Warsaw places + events into the DB"
+	@echo "    make seed-fixtures   — load the 100 [TEST] demo events (no API keys)"
+	@echo "    make stack-seed      — demo fixtures + real Warsaw sources"
 	@echo "    make stack-logs      — follow all stack logs"
 	@echo "    make stack-down      — stop the whole stack (volumes kept)"
 	@echo ""
@@ -150,9 +152,25 @@ stack-up:              ## Start the whole stack (app + Grafana/Prometheus/Tempo 
 	$(STACK) up -d --build
 	@echo "$(GREEN)Up:$(NC) web http://localhost:3000 · api http://localhost:8000"
 	@echo "  Grafana http://localhost:3001 (admin/admin) · Prometheus :9090 · Kibana :5601 · Alertmanager :9093"
-	@echo "  Next: $(YELLOW)make stack-seed$(NC) to load data · $(YELLOW)make stack-logs$(NC) for logs · $(YELLOW)make stack-down$(NC) to stop"
+	@echo "  Next: $(YELLOW)make stack-init$(NC) (first run: also loads demo data) or $(YELLOW)make stack-seed$(NC)"
 
-stack-seed:            ## Load Warsaw places + events into the running stack's DB
+# First-run one-liner for a fresh machine: start the stack, wait for the API,
+# and load the bundled 100 [TEST] demo events — no API keys required.
+stack-init: stack-up  ## First run: start the stack + wait + load the demo dataset
+	@echo "$(GREEN)Waiting for the API to be ready...$(NC)"
+	@for i in $$(seq 1 60); do \
+	  curl -sf http://localhost:8000/health >/dev/null 2>&1 && break; \
+	  sleep 2; \
+	done
+	$(MAKE) seed-fixtures
+	@echo "$(GREEN)Ready:$(NC) 100 [TEST] demo events loaded — open http://localhost:3000"
+
+seed-fixtures:         ## Load the bundled 100 [TEST] demo events (no API keys needed)
+	$(STACK) exec api python -m app.ingestion.runner --source=fixtures
+
+# Full seed: demo fixtures (always) + real sources (places is keyless; Ticketmaster
+# and facebook_events need their API keys — they log and skip cleanly without them).
+stack-seed: seed-fixtures  ## Load demo fixtures + real Warsaw sources into the DB
 	$(STACK) exec api python -m app.ingestion.runner --source=places
 	$(STACK) exec api python -m app.ingestion.runner --source=facebook_events
 
