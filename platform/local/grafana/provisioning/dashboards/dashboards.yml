@@ -1,0 +1,13 @@
+# Load every dashboard JSON under /var/lib/grafana/dashboards on startup.
+apiVersion: 1
+
+providers:
+  - name: warsaw-local
+    orgId: 1
+    folder: ""
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false
