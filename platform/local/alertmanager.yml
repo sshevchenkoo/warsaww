@@ -1,0 +1,15 @@
+# Local Alertmanager — mirrors the cloud's dormant setup (routes to a 'null'
+# receiver). Alerts are visible in Prometheus (/alerts) and Alertmanager
+# (:9093); wire a real receiver here to actually notify.
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: 'null'
+  group_by: ['alertname']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  - name: 'null'

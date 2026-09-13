@@ -1,0 +1,67 @@
+# Local alert rules — the subset of platform/alerting-rules.yaml (the cloud
+# PrometheusRule CRD) that has data without Kubernetes: the app and Postgres
+# rules. The k8s/node/cert rules (PodCrashLooping, Node*, CertificateExpiring…)
+# depend on kube-state-metrics / node-exporter / cert-manager and are cloud-only.
+groups:
+  - name: application
+    rules:
+      - alert: APIDown
+        expr: absent(up{job="warsaw-api"} == 1)
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "warsaw-api is down"
+          description: "No healthy warsaw-api instance has been scraped for 2m."
+
+      - alert: APIHighErrorRate
+        expr: |
+          sum(rate(http_requests_total{job="warsaw-api", status=~"5.*"}[5m]))
+            / sum(rate(http_requests_total{job="warsaw-api"}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "warsaw-api 5xx error rate above 5%"
+          description: "{{ $value | humanizePercentage }} of requests are failing."
+
+      - alert: APIHighLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(http_request_duration_seconds_bucket{job="warsaw-api"}[5m]))
+          ) > 1.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "warsaw-api p95 latency above 1.5s"
+          description: "p95 request latency is {{ $value | printf \"%.2f\" }}s."
+
+  - name: monitoring-self
+    rules:
+      - alert: TargetDown
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Scrape target {{ $labels.job }} / {{ $labels.instance }} is down"
+
+  - name: postgres
+    rules:
+      - alert: PostgresDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is down"
+
+      - alert: PostgresTooManyConnections
+        expr: |
+          sum(pg_stat_database_numbackends) / max(pg_settings_max_connections) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL connections above 80% of max_connections"

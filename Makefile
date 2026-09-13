@@ -1,7 +1,11 @@
 .PHONY: help keys check-keys \
         dev app-up app-down app-logs app-seed web web-bg web-logs \
+        stack-up stack-down stack-logs stack-seed \
         do-infra-up do-infra-plan do-infra-down do-kubeconfig do-db-init \
         do-images do-platform do-deploy do-elk
+
+# ─── Full local stack (app + observability) ───────────────────────────────────
+STACK := docker compose -f docker-compose.observability.yml
 
 # ─── Load .env ────────────────────────────────────────────────────────────────
 -include .env
@@ -51,6 +55,12 @@ help:
 	@echo "    make web             — start the Next.js frontend on :3000 (foreground)"
 	@echo "    make app-logs        — follow the API logs"
 	@echo "    make web-logs        — follow the frontend logs"
+	@echo ""
+	@echo "  $(YELLOW)Full local stack (app + observability, one command):$(NC)"
+	@echo "    make stack-up        — app + Grafana/Prometheus/Tempo + ELK (~4-6 GB RAM)"
+	@echo "    make stack-seed      — load Warsaw places + events into the DB"
+	@echo "    make stack-logs      — follow all stack logs"
+	@echo "    make stack-down      — stop the whole stack (volumes kept)"
 	@echo ""
 	@echo "  $(YELLOW)DigitalOcean prod (DOKS) — full runbook: docs/hosting-digitalocean.md:$(NC)"
 	@echo "    make keys            — generate the SSH key in .ssh/ (used by do-elk)"
@@ -127,6 +137,27 @@ app-down:
 	@PIDS=$$(lsof -ti:3000 2>/dev/null); if [ -n "$$PIDS" ]; then kill $$PIDS 2>/dev/null && echo "$(GREEN)Frontend stopped$(NC)"; fi
 	cd $(BACKEND_DIR) && docker compose down
 	@echo "$(GREEN)App stack stopped (data kept in the pgdata volume)$(NC)"
+
+# ─── Full local stack: app + observability (Grafana/Prometheus/Tempo + ELK) ───
+# The same observability the cloud runs, on a laptop — see platform/local/README.md.
+# Heavy (~4-6 GB RAM); stop with `make stack-down` when done.
+stack-up:              ## Start the whole stack (app + Grafana/Prometheus/Tempo + ELK)
+	@echo "$(GREEN)Building + starting the full local stack (this pulls several images)...$(NC)"
+	$(STACK) up -d --build
+	@echo "$(GREEN)Up:$(NC) web http://localhost:3000 · api http://localhost:8000"
+	@echo "  Grafana http://localhost:3001 (admin/admin) · Prometheus :9090 · Kibana :5601 · Alertmanager :9093"
+	@echo "  Next: $(YELLOW)make stack-seed$(NC) to load data · $(YELLOW)make stack-logs$(NC) for logs · $(YELLOW)make stack-down$(NC) to stop"
+
+stack-seed:            ## Load Warsaw places + events into the running stack's DB
+	$(STACK) exec api python -m app.ingestion.runner --source=places
+	$(STACK) exec api python -m app.ingestion.runner --source=facebook_events
+
+stack-logs:            ## Follow all stack logs
+	$(STACK) logs -f
+
+stack-down:            ## Stop the full stack (named volumes are kept)
+	$(STACK) down
+	@echo "$(GREEN)Full stack stopped (data kept in named volumes)$(NC)"
 
 # ─── DigitalOcean prod (DOKS) ─────────────────────────────────────────────────
 # Prereqs: terraform, kubectl, helm, ansible, envsubst, psql, doctl/ssh.

@@ -1,0 +1,32 @@
+# Grafana datasources, auto-provisioned on startup — the local equivalent of the
+# cloud's grafana_datasource sidecar ConfigMaps (Prometheus is added by the
+# kube-prometheus-stack chart; Tempo via grafana-tempo-datasource.yaml). Postgres
+# backs the Search Analytics dashboard (queries the intent_logs table).
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+
+  - name: Tempo
+    type: tempo
+    uid: tempo
+    access: proxy
+    url: http://tempo:3200
+
+  - name: Postgres
+    type: postgres
+    uid: postgres
+    access: proxy
+    url: db:5432
+    user: app
+    jsonData:
+      database: events
+      sslmode: disable
+      postgresVersion: 1600
+    secureJsonData:
+      password: app

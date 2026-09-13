@@ -1,0 +1,210 @@
+# Full local stack — the app PLUS the same observability the cloud runs, so the
+# ELK and Prometheus/Grafana DevOps modules are demonstrable on a laptop (the
+# DigitalOcean env is torn down). One command: `make stack-up`.
+#
+# Cloud parity, with the delivery mechanism adapted to Compose:
+#   - DOKS Helm charts (kube-prometheus-stack / otel / tempo / postgres-exporter
+#     / fluent-bit) → plain containers with static config under platform/local/.
+#   - k8s CRDs (ServiceMonitor / PrometheusRule) → prometheus.yml + rules.yml.
+#   - ELK mirrors infrastructure/ansible/roles/elk (ES + Logstash + Kibana),
+#     fed by Fluent Bit shipping every container's logs (Docker fluentd driver).
+# k8s-only signals (kube-state-metrics / node-exporter pod & node panels) have no
+# local equivalent and simply stay empty — see platform/local/README.md.
+name: warsaw-stack
+
+services:
+  # ─── App ────────────────────────────────────────────────────────────────────
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: events
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d events"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  api:
+    build: ./backend
+    # API keys (ANTHROPIC_API_KEY, VOYAGE_API_KEY, …) come from backend/.env.
+    # Marked optional so the stack still boots without it (the API needs it to
+    # actually serve — copy backend/.env.example to backend/.env).
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://app:app@db:5432/events
+      REDIS_URL: redis://redis:6379/0
+      # Turn on OpenTelemetry tracing → otel-collector → Tempo (already wired in
+      # app/observability.py; only needs this endpoint set).
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: warsaw-api
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: "localhost:24224"
+        fluentd-async: "true"
+        tag: "warsaw.api"
+
+  web:
+    build: ./frontend
+    environment:
+      BACKEND_INTERNAL_URL: http://api:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_started
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: "localhost:24224"
+        fluentd-async: "true"
+        tag: "warsaw.web"
+
+  # ─── Metrics: Prometheus + Alertmanager + Grafana + postgres-exporter ─────────
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ./platform/local/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./platform/local/prometheus-rules.yml:/etc/prometheus/rules.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+    volumes:
+      - ./platform/local/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
+
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    environment:
+      DATA_SOURCE_NAME: "postgresql://app:app@db:5432/events?sslmode=disable"
+    ports:
+      - "9187:9187"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./platform/local/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./platform/local/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      prometheus:
+        condition: service_started
+
+  # ─── Traces: OpenTelemetry Collector → Tempo ──────────────────────────────────
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.107.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./platform/local/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC (the API pushes spans here)
+      - "4318:4318"   # OTLP HTTP
+      - "8889:8889"   # Prometheus scrape of OTLP-received metrics
+    depends_on:
+      tempo:
+        condition: service_started
+
+  tempo:
+    image: grafana/tempo:2.5.0
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ./platform/local/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "3200:3200"   # Tempo query API (Grafana datasource)
+
+  # ─── Logs: Elasticsearch + Logstash + Kibana, fed by Fluent Bit ───────────────
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.21
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      # Lighter heap than the cloud droplet (2g) — enough for a local demo.
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 15
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:7.17.21
+    volumes:
+      - ./platform/local/logstash/pipeline:/usr/share/logstash/pipeline:ro
+    environment:
+      - "LS_JAVA_OPTS=-Xms256m -Xmx256m"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.17.21
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - SERVER_HOST=0.0.0.0
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  fluent-bit:
+    image: fluent/fluent-bit:3.1.6
+    volumes:
+      - ./platform/local/fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+    ports:
+      - "24224:24224"       # forward input — the Docker fluentd log driver target
+      - "24224:24224/udp"
+    depends_on:
+      logstash:
+        condition: service_started
+
+volumes:
+  pgdata:
+  prometheus-data:
+  grafana-data:
+  tempo-data:
+  es-data:
