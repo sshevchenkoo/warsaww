@@ -5,7 +5,7 @@
         do-images do-platform do-deploy do-elk
 
 # ─── Full local stack (app + observability) ───────────────────────────────────
-STACK := docker compose -f docker-compose.observability.yml
+STACK := docker compose -f deploy/local/docker-compose.yml
 
 # ─── Load .env ────────────────────────────────────────────────────────────────
 -include .env
@@ -17,13 +17,17 @@ SSH_DIR     := $(ROOT_DIR)/.ssh
 # Override SSH_KEY in .env to reuse an existing private key (e.g. ~/.ssh/hetzner_warsaw).
 SSH_KEY     ?= $(SSH_DIR)/id_ed25519
 SSH_KEY_PUB := $(SSH_KEY).pub
-ANSIBLE_DIR := $(ROOT_DIR)/infrastructure/ansible
 BACKEND_DIR  := $(ROOT_DIR)/backend
 FRONTEND_DIR := $(ROOT_DIR)/frontend
 WEB_LOG      := /tmp/warsaw-web-dev.log
 
+# ─── Deploy layout (all infra lives under deploy/: cloud vs local) ─────────────
+ANSIBLE_DIR  := $(ROOT_DIR)/deploy/cloud/ansible
+K8S_DIR      := $(ROOT_DIR)/deploy/cloud/k8s
+PLATFORM_DIR := $(ROOT_DIR)/deploy/cloud/platform
+
 # ─── DigitalOcean prod (DOKS) ─────────────────────────────────────────────────
-DO_TF_DIR    := $(ROOT_DIR)/infrastructure/digitalocean
+DO_TF_DIR    := $(ROOT_DIR)/deploy/cloud/terraform
 KUBECONFIG_DO := $(ROOT_DIR)/.kube/config-do
 WARSAW_API_IMAGE := ghcr.io/$(GITHUB_USER)/warsaw-events
 WARSAW_WEB_IMAGE := ghcr.io/$(GITHUB_USER)/warsaw-web
@@ -139,7 +143,7 @@ app-down:
 	@echo "$(GREEN)App stack stopped (data kept in the pgdata volume)$(NC)"
 
 # ─── Full local stack: app + observability (Grafana/Prometheus/Tempo + ELK) ───
-# The same observability the cloud runs, on a laptop — see platform/local/README.md.
+# The same observability the cloud runs, on a laptop — see deploy/local/config/README.md.
 # Heavy (~4-6 GB RAM); stop with `make stack-down` when done.
 stack-up:              ## Start the whole stack (app + Grafana/Prometheus/Tempo + ELK)
 	@echo "$(GREEN)Building + starting the full local stack (this pulls several images)...$(NC)"
@@ -193,7 +197,7 @@ do-db-init:         ## Enable pgvector + pg_trgm on the managed DB (run once, ne
 do-db-role:         ## Create/rotate the least-privilege app DB role (admin, idempotent)
 	# Least-privilege DML-only role so the app no longer runs as `doadmin`
 	# (audit #4). Run AFTER do-db-init and BEFORE do-db-migrate. Then set
-	# DATABASE_URL in backend/k8s/secret.yml to this role and redeploy.
+	# DATABASE_URL in deploy/cloud/k8s/secret.yml to this role and redeploy.
 	@[ -n "$(WARSAW_APP_DB_PASSWORD)" ] || (echo "$(RED)WARSAW_APP_DB_PASSWORD not set in .env$(NC)" && exit 1)
 	@URL=$$(cd $(DO_TF_DIR) && terraform output -raw database_admin_uri | sed 's#/defaultdb#/events#'); \
 	 psql "$$URL" -v ON_ERROR_STOP=1 -v pw="$(WARSAW_APP_DB_PASSWORD)" -f $(BACKEND_DIR)/db/app-role.sql \
@@ -243,40 +247,40 @@ do-platform:        ## Helm: ingress-nginx, cert-manager(+issuer), monitoring (f
 	$(KDO) helm upgrade --install cert-manager jetstack/cert-manager -n cert-manager --create-namespace --set crds.enabled=true
 	# CoreDNS rewrite so cert-manager's HTTP-01 self-check reaches the ingress
 	# ClusterIP directly (DOKS+Cilium doesn't hairpin to the LB external IP).
-	@envsubst < $(ROOT_DIR)/platform/coredns-custom.yaml | $(KDO) kubectl apply -f -
+	@envsubst < $(PLATFORM_DIR)/coredns-custom.yaml | $(KDO) kubectl apply -f -
 	$(KDO) kubectl -n kube-system rollout restart deployment coredns
 	# kube-prometheus-stack WITH values (Grafana pw, retention/persistence, resources,
 	# scrape configs). Release name matches the PrometheusRule `release` label so the
 	# operator picks up the shared alert rules. --wait so the PrometheusRule CRD exists.
-	@envsubst < $(ROOT_DIR)/platform/kube-prometheus-stack-values.yaml | \
+	@envsubst < $(PLATFORM_DIR)/kube-prometheus-stack-values.yaml | \
 		$(KDO) helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
 		-n monitoring --create-namespace --wait -f -
 	# Tracing backend + collector.
-	$(KDO) helm upgrade --install tempo grafana/tempo -n monitoring -f $(ROOT_DIR)/platform/tempo-values.yaml
-	$(KDO) helm upgrade --install otel-collector open-telemetry/opentelemetry-collector -n monitoring -f $(ROOT_DIR)/platform/otel-collector-values.yaml
+	$(KDO) helm upgrade --install tempo grafana/tempo -n monitoring -f $(PLATFORM_DIR)/tempo-values.yaml
+	$(KDO) helm upgrade --install otel-collector open-telemetry/opentelemetry-collector -n monitoring -f $(PLATFORM_DIR)/otel-collector-values.yaml
 	# postgres_exporter against the managed DB so the pg_* panels/alerts have
 	# data. Needs the `warsaw_monitor` role (make do-db-monitor-role) and the
 	# postgres-exporter-dsn secret in `monitoring` (see the runbook); harmless to
 	# install first — it just reports pg_up=0 until the secret/role exist.
-	$(KDO) helm upgrade --install prometheus-postgres-exporter prometheus-community/prometheus-postgres-exporter -n monitoring -f $(ROOT_DIR)/platform/postgres-exporter-values.yaml
+	$(KDO) helm upgrade --install prometheus-postgres-exporter prometheus-community/prometheus-postgres-exporter -n monitoring -f $(PLATFORM_DIR)/postgres-exporter-values.yaml
 	# Alert rules + custom dashboard + Tempo datasource.
-	$(KDO) kubectl apply -f $(ROOT_DIR)/platform/alerting-rules.yaml
-	$(KDO) kubectl apply -f $(ROOT_DIR)/platform/grafana-dashboard.yaml
-	$(KDO) kubectl apply -f $(ROOT_DIR)/platform/grafana-tempo-datasource.yaml
-	@ELK_PRIVATE_IP=$$(cd $(DO_TF_DIR) && terraform output -raw elk_private_ip) envsubst < $(ROOT_DIR)/platform/fluent-bit-values.yaml | \
+	$(KDO) kubectl apply -f $(PLATFORM_DIR)/alerting-rules.yaml
+	$(KDO) kubectl apply -f $(PLATFORM_DIR)/grafana-dashboard.yaml
+	$(KDO) kubectl apply -f $(PLATFORM_DIR)/grafana-tempo-datasource.yaml
+	@ELK_PRIVATE_IP=$$(cd $(DO_TF_DIR) && terraform output -raw elk_private_ip) envsubst < $(PLATFORM_DIR)/fluent-bit-values.yaml | \
 		$(KDO) helm upgrade --install fluent-bit fluent/fluent-bit -n logging --create-namespace -f -
-	@ACME_EMAIL=$(ACME_EMAIL) envsubst < $(ROOT_DIR)/platform/clusterissuer.yaml | $(KDO) kubectl apply -f -
+	@ACME_EMAIL=$(ACME_EMAIL) envsubst < $(PLATFORM_DIR)/clusterissuer.yaml | $(KDO) kubectl apply -f -
 
 do-deploy:          ## Apply the warsaw app manifests (managed DB, no in-cluster PG)
-	$(KDO) kubectl apply -f $(BACKEND_DIR)/k8s/00-namespace.yml
-	$(KDO) kubectl apply -f $(BACKEND_DIR)/k8s/secret.yml
-	$(KDO) kubectl apply -f $(BACKEND_DIR)/k8s/45-networkpolicies.yml
-	$(KDO) kubectl apply -f $(BACKEND_DIR)/k8s/20-redis.yml
-	GITHUB_USER=$(GITHUB_USER) IMAGE_TAG=$(IMAGE_TAG) envsubst < $(BACKEND_DIR)/k8s/30-api.yml | $(KDO) kubectl apply -f -
-	$(KDO) kubectl apply -f $(BACKEND_DIR)/k8s/35-pdb.yml
-	GITHUB_USER=$(GITHUB_USER) IMAGE_TAG=$(IMAGE_TAG) envsubst < $(BACKEND_DIR)/k8s/50-cronjobs.yml | $(KDO) kubectl apply -f -
-	GITHUB_USER=$(GITHUB_USER) IMAGE_TAG=$(IMAGE_TAG) envsubst < $(FRONTEND_DIR)/k8s/web.yml | $(KDO) kubectl apply -f -
-	WARSAW_DOMAIN=$(WARSAW_DOMAIN) envsubst < $(BACKEND_DIR)/k8s/40-ingress.yml | $(KDO) kubectl apply -f -
+	$(KDO) kubectl apply -f $(K8S_DIR)/00-namespace.yml
+	$(KDO) kubectl apply -f $(K8S_DIR)/secret.yml
+	$(KDO) kubectl apply -f $(K8S_DIR)/45-networkpolicies.yml
+	$(KDO) kubectl apply -f $(K8S_DIR)/20-redis.yml
+	GITHUB_USER=$(GITHUB_USER) IMAGE_TAG=$(IMAGE_TAG) envsubst < $(K8S_DIR)/30-api.yml | $(KDO) kubectl apply -f -
+	$(KDO) kubectl apply -f $(K8S_DIR)/35-pdb.yml
+	GITHUB_USER=$(GITHUB_USER) IMAGE_TAG=$(IMAGE_TAG) envsubst < $(K8S_DIR)/50-cronjobs.yml | $(KDO) kubectl apply -f -
+	GITHUB_USER=$(GITHUB_USER) IMAGE_TAG=$(IMAGE_TAG) envsubst < $(K8S_DIR)/web.yml | $(KDO) kubectl apply -f -
+	WARSAW_DOMAIN=$(WARSAW_DOMAIN) envsubst < $(K8S_DIR)/40-ingress.yml | $(KDO) kubectl apply -f -
 
 do-elk:             ## Provision the ELK droplet with Ansible
 	@PUB=$$(cd $(DO_TF_DIR) && terraform output -raw elk_public_ip); \

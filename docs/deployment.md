@@ -2,7 +2,7 @@
 
 The app ships as **one Docker image** used by both the API (uvicorn) and the
 ingestion CronJobs (`python -m app.ingestion.runner --source=X`); only the
-command differs. Manifests live in [`backend/k8s/`](../backend/k8s) and target a
+command differs. Manifests live in [`deploy/cloud/k8s/`](../deploy/cloud/k8s) and target a
 dedicated `warsaw` namespace. The platform they run on (DOKS) is documented in
 [hosting-digitalocean.md](hosting-digitalocean.md).
 
@@ -20,7 +20,7 @@ repo convention. Variables used: `GITHUB_USER`, `IMAGE_TAG`, `WARSAW_DOMAIN`.
 | `40-ingress.yml` | nginx ingress + cert-manager TLS; SSE-safe (`proxy-buffering: off`, long timeouts) |
 | `50-cronjobs.yml` | One CronJob per source — places weekly, facebook_events every 6h |
 | `secret.example.yml` | Template for the `warsaw-secrets` Secret (real one gitignored) |
-| `frontend/k8s/web.yml` | Next.js frontend Deployment (2 replicas) + Service `web` |
+| `deploy/cloud/k8s/web.yml` | Next.js frontend Deployment (2 replicas) + Service `web` |
 
 The `40-ingress.yml` ingress serves the whole app on one domain: `/` → the
 `web` frontend, `/search` and `/health` → the `api`. Same origin, so the
@@ -83,7 +83,7 @@ GITHUB_USER=$GITHUB_USER IMAGE_TAG=$IMAGE_TAG envsubst < k8s/30-api.yml | kubect
 GITHUB_USER=$GITHUB_USER IMAGE_TAG=$IMAGE_TAG envsubst < k8s/50-cronjobs.yml | kubectl apply -f -
 
 # frontend (same namespace)
-GITHUB_USER=$GITHUB_USER IMAGE_TAG=$IMAGE_TAG envsubst < ../frontend/k8s/web.yml | kubectl apply -f -
+GITHUB_USER=$GITHUB_USER IMAGE_TAG=$IMAGE_TAG envsubst < ../deploy/cloud/k8s/web.yml | kubectl apply -f -
 
 # ingress last — routes the domain to web + api
 WARSAW_DOMAIN=$WARSAW_DOMAIN envsubst < k8s/40-ingress.yml | kubectl apply -f -

@@ -1,6 +1,6 @@
-# cert-manager issuer used by backend/k8s/40-ingress.yml
+# cert-manager issuer used by deploy/cloud/k8s/40-ingress.yml
 # (annotation cert-manager.io/cluster-issuer: letsencrypt-prod).
-# Apply after installing cert-manager:  envsubst < platform/clusterissuer.yaml | kubectl apply -f -
+# Apply after installing cert-manager:  envsubst < deploy/cloud/platform/clusterissuer.yaml | kubectl apply -f -
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:

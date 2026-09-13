@@ -64,9 +64,9 @@ Platform:   DigitalOcean DOKS · managed Postgres · ELK logs · Prometheus/Graf
 |---|---|
 | `backend/` | Warsaw-events FastAPI app — API, LLM layer, retrieval, ingestion ([docs](docs/backend.md)) |
 | `frontend/` | Next.js UI, "Pure"-style ([docs](docs/frontend.md)) |
-| `backend/k8s/` | Kubernetes manifests for the app, namespace `warsaw` ([deploy docs](docs/deployment.md)) |
-| `infrastructure/digitalocean/` | Terraform for DigitalOcean prod (DOKS + managed Postgres + ELK) |
-| `infrastructure/ansible/` | Ansible role that provisions the ELK droplet |
+| `deploy/cloud/k8s/` | Kubernetes manifests for the app, namespace `warsaw` ([deploy docs](docs/deployment.md)) |
+| `deploy/cloud/terraform/` | Terraform for DigitalOcean prod (DOKS + managed Postgres + ELK) |
+| `deploy/cloud/ansible/` | Ansible role that provisions the ELK droplet |
 | `platform/` | DOKS Helm values + manifests (monitoring, ingress, cert-manager) |
 | `docs/` | Project documentation (see below) |
 

@@ -7,14 +7,14 @@
 # Install (folded into `make do-platform`):
 #   helm upgrade --install prometheus-postgres-exporter \
 #     prometheus-community/prometheus-postgres-exporter -n monitoring \
-#     -f platform/postgres-exporter-values.yaml
+#     -f deploy/cloud/platform/postgres-exporter-values.yaml
 #
 # Prometheus scrapes it via additionalScrapeConfigs (job_name: postgres) in
 # kube-prometheus-stack-values.yaml — consistent with how warsaw-api and the
 # otel-collector are scraped, so no ServiceMonitor is needed.
 
 # The connection string is supplied out-of-band via a manually-created secret
-# (kept out of git, like backend/k8s/secret.yml). The secret must hold a libpq
+# (kept out of git, like deploy/cloud/k8s/secret.yml). The secret must hold a libpq
 # DSN under key DATA_SOURCE_NAME, e.g.
 #   postgresql://warsaw_monitor:<PG_MONITOR_PASSWORD>@<host>:<port>/events?sslmode=require
 # Create it with (see the runbook):

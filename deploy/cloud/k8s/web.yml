@@ -1,7 +1,7 @@
 # Next.js frontend. Lives in the same `warsaw` namespace as the API
-# (namespace + secret come from backend/k8s). The combined ingress that routes
+# (namespace + secret come from deploy/cloud/k8s). The combined ingress that routes
 # the domain to this `web` service and /search,/health to the API is in
-# backend/k8s/40-ingress.yml.
+# deploy/cloud/k8s/40-ingress.yml.
 apiVersion: v1
 kind: Service
 metadata:
