@@ -33,3 +33,13 @@ scrape_configs:
   - job_name: postgres
     static_configs:
       - targets: ["postgres-exporter:9187"]
+
+  # Host VM resources (CPU/RAM/disk/network/load) — node-exporter.
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  # Per-container resources (CPU/RAM/network per container) — cAdvisor.
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]

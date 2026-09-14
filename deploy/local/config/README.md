@@ -29,10 +29,15 @@ without it.
 | http://localhost:5601 | **Kibana** (logs) | — |
 | http://localhost:3200 | Tempo (traces API; use via Grafana) | — |
 | http://localhost:9200 | Elasticsearch | — |
+| http://localhost:9100 | node-exporter (host metrics) | — |
+| http://localhost:8081 | cAdvisor (per-container metrics + UI) | — |
 
-- **Metrics:** Prometheus scrapes `warsaw-api`, `postgres-exporter`, and the
-  otel-collector; Grafana ships with two dashboards (*App Overview* — live app
-  metrics; *Search Analytics* — the intent_logs dashboard over Postgres).
+- **Metrics:** Prometheus scrapes `warsaw-api`, `postgres-exporter`, the
+  otel-collector, **node-exporter** (host VM), and **cAdvisor** (per container).
+  Grafana ships with four dashboards: *App Overview* (live app metrics),
+  *Search Analytics* (intent_logs over Postgres), *Host / VM* (CPU/RAM/disk of the
+  machine), and *Containers* (CPU/RAM per container). node-exporter/cAdvisor read
+  the host, so they report real numbers on Linux (and the Docker Desktop VM on Mac).
 - **Logs:** every container logs via the Docker `fluentd` driver → Fluent Bit →
   Logstash → Elasticsearch → Kibana (index `warsaw-logs-*`). Create that index
   pattern in Kibana on first use.
