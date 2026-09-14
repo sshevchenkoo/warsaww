@@ -233,10 +233,15 @@ services:
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.49.1
     privileged: true
+    # On cgroup v2 Docker runs containers in a PRIVATE cgroup namespace, so from
+    # its own container cAdvisor can't see sibling containers' cgroups. Give it the
+    # host cgroup namespace + the host cgroup fs so it enumerates every container.
+    cgroup: host
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
       - /sys:/sys:ro
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
     devices:
