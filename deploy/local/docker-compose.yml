@@ -208,7 +208,7 @@ services:
       logstash:
         condition: service_started
 
-  # ─── Host & container resources: node-exporter + cAdvisor ─────────────────────
+  # ─── Host resources: node-exporter ───────────────────────────────────────────
   # node-exporter: metrics about the whole host VM (CPU/RAM/disk/network/load).
   # Reads the host's /proc, /sys and root fs (mounted read-only) so it reports the
   # machine, not the container. On Linux only — on Docker Desktop it sees the VM.
@@ -226,28 +226,6 @@ services:
     pid: host
     ports:
       - "9100:9100"
-    restart: unless-stopped
-
-  # cAdvisor: per-container resource usage (CPU/RAM/network/disk for each
-  # container). Needs privileged + host mounts to read cgroups & the Docker state.
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.49.1
-    privileged: true
-    # On cgroup v2 Docker runs containers in a PRIVATE cgroup namespace, so from
-    # its own container cAdvisor can't see sibling containers' cgroups. Give it the
-    # host cgroup namespace + the host cgroup fs so it enumerates every container.
-    cgroup: host
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /sys/fs/cgroup:/sys/fs/cgroup:ro
-      - /var/lib/docker/:/var/lib/docker:ro
-      - /dev/disk/:/dev/disk:ro
-    devices:
-      - /dev/kmsg
-    ports:
-      - "8081:8080"   # cAdvisor UI/metrics on host :8081 (8080 kept free)
     restart: unless-stopped
 
 volumes:
