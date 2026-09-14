@@ -66,7 +66,13 @@ services:
         tag: "warsaw.api"
 
   web:
-    build: ../../frontend
+    build:
+      context: ../../frontend
+      args:
+        # next.config rewrites are baked at BUILD time, so the API upstream must
+        # be passed as a build-arg (a runtime env is too late — Next would keep
+        # the image's default localhost:8000 and fail to proxy /auth, /search…).
+        BACKEND_INTERNAL_URL: http://api:8000
     environment:
       BACKEND_INTERNAL_URL: http://api:8000
     ports:
