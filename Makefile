@@ -150,7 +150,7 @@ app-down:
 # Heavy (~4-6 GB RAM); stop with `make stack-down` when done.
 stack-up:              ## Start the whole stack (app + Grafana/Prometheus/Tempo + ELK)
 	@echo "$(GREEN)Building + starting the full local stack (this pulls several images)...$(NC)"
-	$(STACK) up -d --build
+	$(STACK) up -d --build --remove-orphans
 	@echo "$(GREEN)Up:$(NC) web http://localhost:3000 · api http://localhost:8000"
 	@echo "  Grafana http://localhost:3001 (admin/admin) · Prometheus :9090 · Kibana :5601 · Alertmanager :9093"
 	@echo "  Next: $(YELLOW)make stack-init$(NC) (first run: also loads demo data) or $(YELLOW)make stack-seed$(NC)"
@@ -183,7 +183,7 @@ stack-logs:            ## Follow all stack logs
 	$(STACK) logs -f
 
 stack-down:            ## Stop the full stack (named volumes are kept)
-	$(STACK) down
+	$(STACK) down --remove-orphans
 	@echo "$(GREEN)Full stack stopped (data kept in named volumes)$(NC)"
 
 # ─── DigitalOcean prod (DOKS) ─────────────────────────────────────────────────
