@@ -1,6 +1,6 @@
 .PHONY: help keys check-keys \
         dev app-up app-down app-logs app-seed web web-bg web-logs \
-        stack-up stack-init stack-seed seed-fixtures stack-down stack-logs \
+        stack-up stack-init stack-seed seed-fixtures seed-users stack-down stack-logs \
         do-infra-up do-infra-plan do-infra-down do-kubeconfig do-db-init \
         do-images do-platform do-deploy do-elk
 
@@ -64,6 +64,7 @@ help:
 	@echo "    make stack-init      — FIRST RUN: start the stack + load 100 [TEST] demo events"
 	@echo "    make stack-up        — app + Grafana/Prometheus/Tempo + ELK (~4-6 GB RAM)"
 	@echo "    make seed-fixtures   — load the 100 [TEST] demo events (no API keys)"
+	@echo "    make seed-users      — create test users (user1@test.com / user2@test.com · pw 1234)"
 	@echo "    make stack-seed      — demo fixtures + real Warsaw sources"
 	@echo "    make stack-logs      — follow all stack logs"
 	@echo "    make stack-down      — stop the whole stack (volumes kept)"
@@ -163,10 +164,14 @@ stack-init: stack-up  ## First run: start the stack + wait + load the demo datas
 	  sleep 2; \
 	done
 	$(MAKE) seed-fixtures
-	@echo "$(GREEN)Ready:$(NC) 100 [TEST] demo events loaded — open http://localhost:3000"
+	$(MAKE) seed-users
+	@echo "$(GREEN)Ready:$(NC) 100 [TEST] demo events + test users loaded — open http://localhost:3000"
 
 seed-fixtures:         ## Load the bundled 100 [TEST] demo events (no API keys needed)
 	$(STACK) exec api python -m app.ingestion.runner --source=fixtures
+
+seed-users:            ## Create pre-verified test users (user1@test.com / user2@test.com, pw 1234)
+	$(STACK) exec api python -m app.seed_users
 
 # Full seed: demo fixtures (always) + real sources (places is keyless; Ticketmaster
 # and facebook_events need their API keys — they log and skip cleanly without them).
