@@ -114,3 +114,4 @@ over, and how it fails.
 | [SEARCH](docs/SEARCH.md) | One `/search` request end to end — ordering, connection lifecycle, the degradation ladder |
 | [INGESTION](docs/INGESTION.md) | The adapter contract, the four sources, the pipeline stages, adding a fifth |
 | [SECURITY](docs/SECURITY.md) | Identity, sessions, RLS, rate limits, uploads, secrets — and what none of it covers |
+| [MODULES](docs/MODULES.md) | Subject module scoring: what we can claim today, what is one step away |
