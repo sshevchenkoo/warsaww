@@ -102,3 +102,15 @@ the full platform runbook in [docs/hosting-digitalocean.md](docs/hosting-digital
 | [Deployment](docs/deployment.md) | Docker image, k8s manifests, CronJobs |
 | [Local development](docs/local-development.md) | Running and testing locally |
 | [Hosting (DigitalOcean)](docs/hosting-digitalocean.md) | Prod on DOKS — Terraform, Helm, ELK |
+
+### Deep dives
+
+Long-form companions to the reference docs above — how each part actually works, what it was chosen
+over, and how it fails.
+
+| Doc | Topic |
+|---|---|
+| [ALGORITHMS](docs/ALGORITHMS.md) | Every algorithm in the search path: intent, embeddings, the two retrieval legs and RRF, re-ranking, dedup |
+| [SEARCH](docs/SEARCH.md) | One `/search` request end to end — ordering, connection lifecycle, the degradation ladder |
+| [INGESTION](docs/INGESTION.md) | The adapter contract, the four sources, the pipeline stages, adding a fifth |
+| [SECURITY](docs/SECURITY.md) | Identity, sessions, RLS, rate limits, uploads, secrets — and what none of it covers |
