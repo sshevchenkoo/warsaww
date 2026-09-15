@@ -1,5 +1,8 @@
 # Architecture
 
+> Deep dives: [ALGORITHMS.md](ALGORITHMS.md), [SEARCH.md](SEARCH.md), [INGESTION.md](INGESTION.md),
+> [SECURITY.md](SECURITY.md).
+
 ## Approach
 
 The backend is a **modular monolith + an ingestion pipeline**. The core (the

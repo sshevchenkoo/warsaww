@@ -1,5 +1,8 @@
 # Search & LLM
 
+> Deep dives: [ALGORITHMS.md](ALGORITHMS.md) — every algorithm and why it is that one;
+> [SEARCH.md](SEARCH.md) — one `/search` request end to end, including how it degrades.
+
 Three models, orchestrated by plain code (no agent framework) — two Claude LLMs
 and one embedding model. SDK: the official `anthropic` package for Python.
 
