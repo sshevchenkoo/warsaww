@@ -40,7 +40,7 @@ export function Header() {
                   {(user.name ?? user.email ?? "?").charAt(0).toUpperCase()}
                 </span>
               )}
-              <span className="hidden sm:inline">saved</span>
+              <span className="hidden sm:inline">profile</span>
             </Link>
             <button
               type="button"
