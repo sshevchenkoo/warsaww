@@ -3,17 +3,47 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import { Avatar } from "@/components/Avatar";
+import { CardSkeleton } from "@/components/CardSkeleton";
+import { EmptyState } from "@/components/EmptyState";
 import { EventCard } from "@/components/EventCard";
+import { SectionHeading } from "@/components/SectionHeading";
 import { useUser } from "@/components/UserContext";
 import { VerifyPanel } from "@/components/VerifyPanel";
 import type { Card } from "@/lib/api";
 import { getSaved, uploadAvatar } from "@/lib/auth";
-import { dismissShared, listShared, type SharedEvent } from "@/lib/social";
+import {
+  dismissShared,
+  listFriends,
+  listShared,
+  type PublicUser,
+  type SharedEvent,
+} from "@/lib/social";
+
+/** One number + its label in the hero's stat strip. */
+function Stat({ value, label, href }: { value: number; label: string; href?: string }) {
+  const inner = (
+    <>
+      <dt className="text-2xl font-black tabular-nums tracking-tighter sm:text-3xl">{value}</dt>
+      <dd className="mt-0.5 font-mono text-[10px] uppercase tracking-widest text-muted">
+        {label}
+      </dd>
+    </>
+  );
+  return href ? (
+    <Link href={href} className="group block transition-colors hover:text-accent">
+      {inner}
+    </Link>
+  ) : (
+    <div>{inner}</div>
+  );
+}
 
 export default function Profile() {
   const { user, loading, savedIds, updateUser } = useUser();
   const [cards, setCards] = useState<Card[]>([]);
   const [shared, setShared] = useState<SharedEvent[]>([]);
+  const [friends, setFriends] = useState<PublicUser[]>([]);
   const [busy, setBusy] = useState(true);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
@@ -42,6 +72,7 @@ export default function Profile() {
       setBusy(false);
     });
     listShared().then(setShared);
+    listFriends().then(setFriends);
   }, [user]);
 
   function dismiss(shareId: string) {
@@ -53,14 +84,20 @@ export default function Profile() {
 
   if (!user) {
     return (
-      <main className="mx-auto w-full max-w-6xl px-5 pb-24 pt-16">
-        <h1 className="text-4xl font-black tracking-tighter sm:text-5xl">your saved</h1>
-        <p className="mt-3 max-w-md font-mono text-sm text-muted">
-          sign in to keep the events &amp; places you like.
+      <main className="mx-auto grid w-full max-w-6xl place-items-center px-5 pb-24 pt-24 text-center">
+        <span aria-hidden className="text-4xl text-muted/40">
+          ♡
+        </span>
+        <h1 className="mt-4 text-4xl font-black tracking-tighter sm:text-5xl">
+          your saved<span className="text-accent">.</span>
+        </h1>
+        <p className="mt-3 max-w-sm font-mono text-sm leading-relaxed text-muted">
+          sign in to keep the events &amp; places you like — and to see what friends
+          send your way.
         </p>
         <Link
           href="/login"
-          className="mt-6 inline-block rounded-full bg-accent px-4 py-2 font-mono text-sm font-bold text-accent-ink transition-transform hover:scale-105 active:scale-95"
+          className="mt-7 rounded-full bg-accent px-5 py-2.5 font-mono text-sm font-bold text-accent-ink transition-transform hover:scale-105 active:scale-95"
         >
           sign in
         </Link>
@@ -70,89 +107,150 @@ export default function Profile() {
 
   // Reflect un-hearting live: only show cards still in savedIds.
   const visible = cards.filter((c) => savedIds.has(c.id));
+  const displayName = user.name ?? user.email?.split("@")[0] ?? "you";
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-5 pb-24 pt-10 sm:pt-14">
-      <header className="mb-8 flex items-center gap-4">
-        <button
-          type="button"
-          onClick={() => fileInput.current?.click()}
-          disabled={avatarBusy}
-          className="group relative h-14 w-14 shrink-0 rounded-full"
-          aria-label="Change profile photo"
-          title="Change profile photo"
-        >
-          {user.avatar_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={user.avatar_url}
-              alt=""
-              width={56}
-              height={56}
-              className="h-14 w-14 rounded-full border border-line object-cover"
-            />
-          ) : (
-            <span className="grid h-14 w-14 place-items-center rounded-full bg-accent text-2xl font-black text-accent-ink">
-              {(user.name ?? user.email ?? "?").charAt(0).toUpperCase()}
-            </span>
-          )}
-          <span className="absolute inset-0 grid place-items-center rounded-full bg-black/50 font-mono text-[9px] uppercase tracking-wide text-white opacity-0 transition-opacity group-hover:opacity-100">
-            {avatarBusy ? "…" : "edit"}
-          </span>
-        </button>
-        <input
-          ref={fileInput}
-          type="file"
-          accept="image/png,image/jpeg,image/webp,image/gif"
-          className="hidden"
-          onChange={onPickAvatar}
+    <main className="mx-auto w-full max-w-6xl px-5 pb-24 pt-6 sm:pt-10">
+      {/* ─── Hero ─────────────────────────────────────────────────────────── */}
+      <section className="relative overflow-hidden rounded-3xl border border-line bg-card">
+        {/* Accent wash: a soft radial bloom behind the avatar, so the hero reads
+            as a band without introducing a second color to the palette. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.16]"
+          style={{
+            background:
+              "radial-gradient(60% 120% at 12% 0%, var(--color-accent) 0%, transparent 62%)",
+          }}
         />
-        <div className="min-w-0">
-          <h1 className="truncate text-3xl font-black tracking-tighter sm:text-4xl">
-            {user.name ?? "your saved"}
-          </h1>
-          {user.email && (
-            <p className="font-mono text-xs tracking-wide text-muted">{user.email}</p>
-          )}
-          {avatarError && (
-            <p className="mt-1 font-mono text-xs text-red-500">{avatarError}</p>
-          )}
+
+        <div className="relative flex flex-col gap-6 p-6 sm:p-8">
+          <div className="flex items-start gap-5">
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => fileInput.current?.click()}
+                disabled={avatarBusy}
+                className="group relative block rounded-full"
+                aria-label="Change profile photo"
+                title="Change profile photo"
+              >
+                <Avatar src={user.avatar_url} name={displayName} size={88} ring />
+                <span className="absolute inset-0 grid place-items-center rounded-full bg-black/55 font-mono text-[10px] uppercase tracking-widest text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                  {avatarBusy ? "…" : "change"}
+                </span>
+              </button>
+              {/* A visible affordance as well as the hover overlay — on touch
+                  there is no hover, so the overlay alone is undiscoverable. */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute -bottom-0.5 -right-0.5 grid h-7 w-7 place-items-center rounded-full border-2 border-card bg-accent text-xs text-accent-ink"
+              >
+                {avatarBusy ? "…" : "✎"}
+              </span>
+            </div>
+
+            <div className="min-w-0 flex-1 pt-1">
+              <h1 className="truncate text-3xl font-black tracking-tighter sm:text-4xl">
+                {displayName}
+              </h1>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                {user.email && (
+                  <span className="truncate font-mono text-xs tracking-wide text-muted">
+                    {user.email}
+                  </span>
+                )}
+                <span
+                  className={`rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest ${
+                    user.email_verified
+                      ? "bg-accent/15 text-accent"
+                      : "border border-line text-muted"
+                  }`}
+                >
+                  {user.email_verified ? "verified ✓" : "unverified"}
+                </span>
+              </div>
+              {avatarError && (
+                <p role="alert" className="mt-2 font-mono text-xs text-red-500">
+                  {avatarError}
+                </p>
+              )}
+            </div>
+
+            <Link
+              href="/people"
+              className="ml-auto hidden shrink-0 rounded-full border border-line px-4 py-2 font-mono text-xs tracking-wide text-muted transition-colors hover:border-accent hover:text-fg sm:block"
+            >
+              people →
+            </Link>
+          </div>
+
+          <input
+            ref={fileInput}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            className="hidden"
+            onChange={onPickAvatar}
+          />
+
+          {/* ─── Stats ──────────────────────────────────────────────────── */}
+          <dl className="grid grid-cols-3 divide-x divide-line border-t border-line pt-5">
+            <div className="pr-4">
+              <Stat value={visible.length} label="saved" />
+            </div>
+            <div className="px-4">
+              <Stat value={friends.length} label="friends" href="/people" />
+            </div>
+            <div className="pl-4">
+              <Stat value={shared.length} label="shared with you" />
+            </div>
+          </dl>
         </div>
-        <Link
-          href="/people"
-          className="ml-auto shrink-0 rounded-full border border-line px-3.5 py-1.5 font-mono text-xs tracking-wide text-muted transition-colors hover:border-accent hover:text-fg"
-        >
-          people →
-        </Link>
-      </header>
+      </section>
 
       {/* Unconfirmed email: the code-entry form lives here so a user who left the
           signup page can still verify (and unlock search) from their profile. */}
       {!user.email_verified && (
-        <section className="mb-10">
+        <section className="mt-8">
           <VerifyPanel />
         </section>
       )}
 
       {shared.length > 0 && (
-        <section className="mb-10">
-          <h2 className="mb-4 font-mono text-[11px] uppercase tracking-widest text-accent">
-            shared with you
-          </h2>
+        <section className="mt-10">
+          <SectionHeading label="shared with you" count={shared.length} accent />
           <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
             {shared.map((s, i) => (
-              <div key={s.id}>
-                <p className="mb-1 flex items-center justify-between gap-2 font-mono text-[10px] tracking-wide text-muted">
-                  <span className="truncate">from {s.from_user.name ?? "a friend"}</span>
+              <div key={s.id} className="group/share">
+                <div className="mb-2 flex items-center gap-2">
+                  <Link
+                    href={`/u/${s.from_user.id}`}
+                    className="flex min-w-0 flex-1 items-center gap-2 transition-colors hover:text-accent"
+                  >
+                    <Avatar
+                      src={s.from_user.avatar_url}
+                      name={s.from_user.name}
+                      size={20}
+                    />
+                    <span className="truncate font-mono text-[10px] tracking-wide text-muted">
+                      {s.from_user.name ?? "a friend"}
+                    </span>
+                  </Link>
                   <button
                     type="button"
                     onClick={() => dismiss(s.id)}
-                    className="shrink-0 transition-colors hover:text-accent"
-                    aria-label="Dismiss"
+                    className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-muted opacity-0 transition-all hover:bg-line hover:text-accent focus-visible:opacity-100 group-hover/share:opacity-100"
+                    aria-label={`Dismiss ${s.item.name}`}
+                    title="Dismiss"
                   >
                     ✕
                   </button>
-                </p>
+                </div>
+                {s.message && (
+                  <p className="mb-2 line-clamp-2 border-l-2 border-accent/50 pl-2 font-mono text-[11px] leading-relaxed text-muted">
+                    {s.message}
+                  </p>
+                )}
                 <EventCard card={s.item} index={i} />
               </div>
             ))}
@@ -160,25 +258,26 @@ export default function Profile() {
         </section>
       )}
 
-      <h2 className="mb-4 font-mono text-[11px] uppercase tracking-widest text-muted">
-        your saved
-      </h2>
-      {busy ? (
-        <p className="flex items-center gap-2 font-mono text-sm text-muted">
-          <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-          loading your saved…
-        </p>
-      ) : visible.length === 0 ? (
-        <p className="font-mono text-sm text-muted">
-          nothing saved yet — tap the ♡ on a card to keep it here.
-        </p>
-      ) : (
-        <section className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
-          {visible.map((card, i) => (
-            <EventCard key={card.id} card={card} index={i} />
-          ))}
-        </section>
-      )}
+      <section className="mt-10">
+        <SectionHeading label="your saved" count={busy ? undefined : visible.length} />
+        {busy ? (
+          <CardSkeleton />
+        ) : visible.length === 0 ? (
+          <EmptyState
+            glyph="♡"
+            title="nothing saved yet"
+            body="tap the heart on any card and it lands here, ready for the weekend."
+            href="/"
+            cta="find something →"
+          />
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+            {visible.map((card, i) => (
+              <EventCard key={card.id} card={card} index={i} />
+            ))}
+          </div>
+        )}
+      </section>
     </main>
   );
 }
