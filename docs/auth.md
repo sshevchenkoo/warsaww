@@ -1,7 +1,11 @@
 # Auth & user profiles
 
-Users sign in with Google to keep a list of **saved items** (favorited events and
-places). The app never handles passwords — identity comes from Google.
+Users sign in to keep a list of **saved items** (favorited events and places).
+There are two doors into the same account, joined on the email address: Google
+OAuth, and email + password (bcrypt, with email verification by code).
+
+> Deep dive: [SECURITY.md](SECURITY.md) — password handling, the account
+> pre-hijacking guard on OAuth linking, verification codes, sessions and RLS.
 
 ## How it works
 

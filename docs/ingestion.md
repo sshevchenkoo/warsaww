@@ -1,5 +1,9 @@
 # Ingestion
 
+> Deep dive: [INGESTION.md](INGESTION.md) — the adapter contract, each source's filters and quirks,
+> the pipeline stages, and the checklist for adding a source. Dedup itself is
+> [ALGORITHMS.md](ALGORITHMS.md) §6.
+
 The catalog is filled by an ingestion pipeline with one adapter per source. The
 pipeline is shared; only `fetch()` differs between sources. Run it with:
 
