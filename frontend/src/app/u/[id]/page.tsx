@@ -4,7 +4,10 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { Avatar } from "@/components/Avatar";
+import { EmptyState } from "@/components/EmptyState";
 import { EventCard } from "@/components/EventCard";
+import { SectionHeading } from "@/components/SectionHeading";
 import { useUser } from "@/components/UserContext";
 import type { Card } from "@/lib/api";
 import {
@@ -48,7 +51,7 @@ export default function Profile() {
   if (meLoading || person === undefined) {
     return (
       <main className="mx-auto w-full max-w-6xl px-5 pt-10">
-        <p className="font-mono text-sm text-muted">loading…</p>
+        <div className="h-40 animate-pulse rounded-3xl border border-line bg-card" />
       </main>
     );
   }
@@ -87,81 +90,89 @@ export default function Profile() {
     }
   }
 
-  const initial = (person.name ?? "?").charAt(0).toUpperCase();
-
   return (
-    <main className="mx-auto w-full max-w-6xl px-5 pb-24 pt-10 sm:pt-14">
-      <Link href="/people" className="font-mono text-xs tracking-wide text-muted transition-colors hover:text-fg">
+    <main className="mx-auto w-full max-w-6xl px-5 pb-24 pt-6 sm:pt-10">
+      <Link
+        href="/people"
+        className="font-mono text-xs tracking-wide text-muted transition-colors hover:text-fg"
+      >
         ← people
       </Link>
 
-      <header className="mb-8 mt-5 flex items-center gap-4">
-        {person.avatar_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+      {/* Same hero band as /profile, so a profile looks like a profile whoever
+          is looking at it. */}
+      <section className="relative mt-4 overflow-hidden rounded-3xl border border-line bg-card">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.16]"
+          style={{
+            background:
+              "radial-gradient(60% 120% at 12% 0%, var(--color-accent) 0%, transparent 62%)",
+          }}
+        />
+        <div className="relative flex flex-wrap items-center gap-5 p-6 sm:p-8">
+          <Avatar
             src={person.avatar_url}
-            alt=""
-            width={64}
-            height={64}
-            className="h-16 w-16 rounded-full border border-line object-cover"
+            name={person.name}
+            size={88}
+            online={person.online}
+            ring
           />
-        ) : (
-          <span className="grid h-16 w-16 place-items-center rounded-full bg-accent text-2xl font-black text-accent-ink">
-            {initial}
-          </span>
-        )}
-        <div className="flex-1">
-          <h1 className="text-3xl font-black tracking-tighter sm:text-4xl">
-            {person.name ?? "user"}
-          </h1>
-          <p className="mt-1 flex items-center gap-1.5 font-mono text-xs text-muted">
-            <span
-              className={`inline-block h-2 w-2 rounded-full ${
-                person.online ? "bg-green-500" : "bg-muted/40"
-              }`}
-            />
-            {person.online ? "online" : "offline"}
-          </p>
-        </div>
-
-        {rel !== "self" && (
-          <div className="flex items-center gap-2">
-            {rel === "none" && (
-              <button type="button" disabled={busy} onClick={() => act(() => sendRequest(person.id), "request_sent")} className={`${btn} bg-accent font-bold text-accent-ink hover:opacity-90`}>
-                add friend
-              </button>
-            )}
-            {rel === "request_sent" && (
-              <button type="button" disabled={busy} onClick={() => act(() => removeFriend(person.id), "none")} className={`${btn} border border-line text-muted hover:text-fg`}>
-                requested · cancel
-              </button>
-            )}
-            {rel === "request_received" && (
-              <>
-                <button type="button" disabled={busy} onClick={() => act(() => acceptRequest(person.id), "friends")} className={`${btn} bg-accent font-bold text-accent-ink hover:opacity-90`}>
-                  accept
-                </button>
-                <button type="button" disabled={busy} onClick={() => act(() => declineRequest(person.id), "none")} className={`${btn} border border-line text-muted hover:text-accent`}>
-                  decline
-                </button>
-              </>
-            )}
-            {rel === "friends" && (
-              <button type="button" disabled={busy} onClick={() => act(() => removeFriend(person.id), "none")} className={`${btn} border border-line text-muted hover:text-accent`}>
-                friends ✓
-              </button>
-            )}
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-3xl font-black tracking-tighter sm:text-4xl">
+              {person.name ?? "user"}
+            </h1>
+            <p className="mt-1.5 flex items-center gap-1.5 font-mono text-xs tracking-wide text-muted">
+              <span
+                className={`inline-block h-2 w-2 rounded-full ${
+                  person.online ? "bg-green-500" : "bg-muted/40"
+                }`}
+              />
+              {person.online ? "online" : "offline"}
+            </p>
           </div>
-        )}
-      </header>
+
+          {rel !== "self" && (
+            <div className="flex items-center gap-2">
+              {rel === "none" && (
+                <button type="button" disabled={busy} onClick={() => act(() => sendRequest(person.id), "request_sent")} className={`${btn} bg-accent font-bold text-accent-ink hover:opacity-90`}>
+                  add friend
+                </button>
+              )}
+              {rel === "request_sent" && (
+                <button type="button" disabled={busy} onClick={() => act(() => removeFriend(person.id), "none")} className={`${btn} border border-line text-muted hover:text-fg`}>
+                  requested · cancel
+                </button>
+              )}
+              {rel === "request_received" && (
+                <>
+                  <button type="button" disabled={busy} onClick={() => act(() => acceptRequest(person.id), "friends")} className={`${btn} bg-accent font-bold text-accent-ink hover:opacity-90`}>
+                    accept
+                  </button>
+                  <button type="button" disabled={busy} onClick={() => act(() => declineRequest(person.id), "none")} className={`${btn} border border-line text-muted hover:text-accent`}>
+                    decline
+                  </button>
+                </>
+              )}
+              {rel === "friends" && (
+                <button type="button" disabled={busy} onClick={() => act(() => removeFriend(person.id), "none")} className={`${btn} border border-line text-muted hover:text-accent`}>
+                  friends ✓
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
 
       {rel === "friends" || rel === "self" ? (
-        <section>
-          <h2 className="mb-4 font-mono text-[11px] uppercase tracking-widest text-muted">
-            saved ({saved.length})
-          </h2>
+        <section className="mt-10">
+          <SectionHeading label="saved" count={saved.length} />
           {saved.length === 0 ? (
-            <p className="font-mono text-sm text-muted">nothing saved yet.</p>
+            <EmptyState
+              glyph="♡"
+              title="nothing saved yet"
+              body={`${person.name ?? "this user"} hasn't kept anything here so far.`}
+            />
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
               {saved.map((card, i) => (
@@ -171,9 +182,13 @@ export default function Profile() {
           )}
         </section>
       ) : (
-        <p className="font-mono text-sm text-muted">
-          add {person.name ?? "this user"} as a friend to see their saved events.
-        </p>
+        <section className="mt-10">
+          <EmptyState
+            glyph="🔒"
+            title="saved list is private"
+            body={`add ${person.name ?? "this user"} as a friend to see the events and places they keep.`}
+          />
+        </section>
       )}
     </main>
   );
