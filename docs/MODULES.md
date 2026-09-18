@@ -26,7 +26,7 @@ code that exists on `main` today. "Almost" is worth zero, and is therefore in §
 | 6 | Complete RAG system | AI | Major | 2 | Voyage embeddings + pgvector/pg_trgm hybrid retrieval → grounded blurbs |
 | 7 | Complete LLM system interface | AI | Major | 2 | Intent + re-rank, SSE streaming, error handling, rate limiting |
 | 8 | ELK log management | DevOps | Major | 2 | Elasticsearch + Logstash + Kibana, Fluent Bit shipping, ILM retention, basic auth |
-| 9 | Prometheus + Grafana monitoring | DevOps | Major | 2 | kube-prometheus-stack, 3 exporters, 3 dashboards, 13 alert rules, password-protected |
+| 9 | Prometheus + Grafana monitoring | DevOps | Major | 2 | kube-prometheus-stack, 3 exporters, 2 dashboards on the cluster (3 in the local stack), 13 alert rules, password-protected |
 | | **Total** | | | **14** | |
 
 **14 is exactly the pass mark, with zero margin.** The subject says it plainly: *"aiming for more than
@@ -89,7 +89,7 @@ Each of these is mostly built. The column that matters is the last one.
 | **File upload and management** | Minor | +1 | Multi-format accept, client + server validation, decompression-bomb guard, `DELETE /me/avatar` | Two bullets: a real progress indicator (we show `…`), and a delete control in the UI — the endpoint exists but nothing calls it. |
 | **Advanced search** | Minor | +1 | Filters already derived from the prompt and applied in SQL ([ALGORITHMS.md](ALGORITHMS.md) §4.4) | The module means *user-facing*: filter controls, a sort option, pagination. The backend is ready; this is UI. |
 | **GDPR compliance** | Minor | +1 | Privacy Policy and Terms pages | All four functional bullets: request your data, delete with confirmation, export in a readable format, confirmation emails. Note the Terms page already promises account deletion "from your profile" — which does not exist. That is a live inconsistency, not just a missing module. |
-| **Health check + backups + DR** | Minor | +1 | `GET /health` with a real DB query, gating container startup | A status page, automated backups, and a written disaster-recovery procedure. Nothing in `Makefile`, `docs/` or Terraform covers backup or restore today. |
+| **Health check + backups + DR** | Minor | +1 | `GET /health` returns a static `ok` with no DB round-trip (`api/routes.py`); both k8s probes point at it | A readiness check that actually queries the DB, a status page, automated backups, and a written disaster-recovery procedure. DO managed Postgres does daily backups + 7-day PITR by default, but nothing in `Makefile`, `docs/` or Terraform names it, and nothing covers restore. |
 | **Multiple languages (3+)** | Minor | +1 | The product is already multilingual where it counts: prompts in RU/PL/EN, blurbs returned in the user's language | The **UI chrome** is English-only. Needs an i18n system, three complete translations, and a switcher. |
 | **Public API** | Major | +2 | 32 endpoints, rate limiting, auto-generated docs at `/docs` | An API-key auth path (today: session cookies only) and a `PUT` endpoint — the subject names `PUT /api/{something}` explicitly and we have zero PUT/PATCH routes. |
 | **User interaction (chat/profile/friends)** | Major | +2 | Profile system ✅, friends system ✅ | A basic chat. There is no chat anywhere in the codebase. Sharing an item with a message is not one. |
