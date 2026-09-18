@@ -14,7 +14,7 @@ export
 # ─── Paths ────────────────────────────────────────────────────────────────────
 ROOT_DIR    := $(shell pwd)
 SSH_DIR     := $(ROOT_DIR)/.ssh
-# Override SSH_KEY in .env to reuse an existing private key (e.g. ~/.ssh/hetzner_warsaw).
+# Override SSH_KEY in .env to reuse an existing private key (e.g. ~/.ssh/id_ed25519).
 SSH_KEY     ?= $(SSH_DIR)/id_ed25519
 SSH_KEY_PUB := $(SSH_KEY).pub
 BACKEND_DIR  := $(ROOT_DIR)/backend
