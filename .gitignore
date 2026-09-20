@@ -43,3 +43,6 @@ Thumbs.db
 # Obsidian notes (local only — may be a directory or a symlink)
 notes
 notes/
+
+# gstack / browse-skill startup logs
+.gstack/
