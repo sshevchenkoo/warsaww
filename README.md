@@ -67,7 +67,7 @@ Platform:   DigitalOcean DOKS · managed Postgres · ELK logs · Prometheus/Graf
 | `deploy/cloud/k8s/` | Kubernetes manifests for the app, namespace `warsaw` ([deploy docs](docs/deployment.md)) |
 | `deploy/cloud/terraform/` | Terraform for DigitalOcean prod (DOKS + managed Postgres + ELK) |
 | `deploy/cloud/ansible/` | Ansible role that provisions the ELK droplet |
-| `platform/` | DOKS Helm values + manifests (monitoring, ingress, cert-manager) |
+| `deploy/cloud/platform/` | DOKS Helm values + manifests (monitoring, ingress, cert-manager) |
 | `docs/` | Project documentation (see below) |
 
 ## Quick start (local)
