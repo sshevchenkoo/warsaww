@@ -16,7 +16,6 @@ below are what it runs.
 | File | Resource |
 |---|---|
 | `00-namespace.yml` | `warsaw` namespace |
-| `10-postgres.yml` | **Optional** in-cluster Postgres + pgvector StatefulSet (5Gi PVC) — prod uses DigitalOcean managed Postgres instead, so `make do-deploy` does not apply this file |
 | `20-redis.yml` | Redis Deployment + Service — backs the per-session search quota and the per-IP auth rate limit (`app/ratelimit.py`) |
 | `30-api.yml` | API Deployment (2 replicas, `DB_BOOTSTRAP=false`) + Service + HPA (2–5, CPU 70%) |
 | `35-pdb.yml` | PodDisruptionBudgets `api` and `web` (`minAvailable: 1`) so node drains keep one pod of each up |
@@ -25,6 +24,7 @@ below are what it runs.
 | `50-cronjobs.yml` | One CronJob per source — `ingest-places` Mondays 04:00, `ingest-facebook-events` every 6 h, `ingest-ticketmaster` every 12 h |
 | `web.yml` | Next.js frontend Deployment (2 replicas) + Service `web` |
 | `secret.example.yml` | Template for the `warsaw-secrets` Secret (the filled `secret.yml` is gitignored) |
+| `optional/10-postgres.yml` | In-cluster Postgres + pgvector StatefulSet (5Gi PVC), **not applied by `make do-deploy`** — prod uses DigitalOcean managed Postgres |
 
 The `40-ingress.yml` ingress serves the whole app on one domain. API prefixes go
 to the `api` Service — `/search`, `/health`, `/auth`, `/me`, `/upcoming`,
@@ -62,7 +62,7 @@ environment (`deploy/cloud/k8s/secret.example.yml` lists each key with a comment
 | Key | Used by |
 |---|---|
 | `DATABASE_URL` | API + CronJobs. In prod: the managed-Postgres URI from `terraform output`, with the least-privilege `warsaw_app` role (see the runbook) |
-| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Only the optional in-cluster `10-postgres.yml` |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Only the in-cluster `optional/10-postgres.yml` |
 | `ANTHROPIC_API_KEY` | Intent, re-rank, dedup adjudication |
 | `VOYAGE_API_KEY` | Embeddings |
 | `APIFY_TOKEN`, `TICKETMASTER_API_KEY` | Facebook and Ticketmaster adapters — a missing key fails that adapter with a clear `RuntimeError`; since each source is its own CronJob, only that job fails |
@@ -125,6 +125,6 @@ kubectl -n warsaw logs -f job/first-places
   `ingest-places` runs (the code already retries with backoff).
 - **Postgres**: prod uses DigitalOcean managed Postgres provisioned by Terraform
   (`deploy/cloud/terraform/`); `make do-db-init` enables `vector` + `pg_trgm`.
-  `10-postgres.yml` remains for clusters without a managed database — apply it by
+  `optional/10-postgres.yml` remains for clusters without a managed database — apply it by
   hand, set the `POSTGRES_*` keys, and point `DATABASE_URL` at
   `postgres.warsaw.svc.cluster.local`.
