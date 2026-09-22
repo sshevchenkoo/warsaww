@@ -4,8 +4,7 @@
 #
 # Usage:  ./setup.sh
 #
-# Installs: terraform, ansible, kubectl, helm, docker (info), envsubst,
-#           python hcloud lib, ansible-galaxy: hetzner.hcloud
+# Installs: terraform, ansible, kubectl, helm, docker (info), envsubst
 
 set -euo pipefail
 
@@ -115,15 +114,6 @@ if [[ "$PKG" == "apt" ]]; then
         warn "  https://docs.docker.com/engine/install/ubuntu/"
     fi
 fi
-
-# ─── Shared: Python deps for the hcloud inventory plugin ──────────────────────
-log "Installing Python libraries for the Ansible hcloud inventory..."
-pip3 install --user --upgrade hcloud requests 2>/dev/null || \
-    pip3 install --user --break-system-packages --upgrade hcloud requests
-
-# ─── Shared: Ansible Galaxy collections ───────────────────────────────────────
-log "Installing the Ansible Galaxy collection hetzner.hcloud..."
-ansible-galaxy collection install hetzner.hcloud
 
 # ─── Verification ─────────────────────────────────────────────────────────────
 echo ""
