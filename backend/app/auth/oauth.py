@@ -1,5 +1,6 @@
-"""Google OAuth client (authlib). Identity comes from Google's OIDC endpoint;
-we never see or store passwords."""
+"""Google OAuth client (authlib). Identity comes from Google's OIDC endpoint, so
+a Google sign-in never reaches us as a password. Email+password accounts are a
+separate path and do store a bcrypt hash — see app/auth/passwords.py."""
 
 from authlib.integrations.starlette_client import OAuth
 
