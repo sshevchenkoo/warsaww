@@ -1,7 +1,7 @@
-"""Re-rank the top hybrid-search candidates with Claude Opus.
+"""Re-rank the top hybrid-search candidates with Claude (`settings.rerank_model`).
 
 Vector search returns up to 30 candidates ordered by raw similarity.
-Opus reads the actual query and the cards, keeps the ones that genuinely
+The model reads the actual query and the cards, keeps the ones that genuinely
 fit, reorders them, and writes a one-line pitch ("blurb") for each in the
 user's own language. Output is streamed card-by-card (one JSON object per
 line) so the API can push results to the frontend as they are produced.
@@ -52,7 +52,7 @@ def _candidate_block(items: list[Item]) -> str:
 
 
 def rerank_stream(prompt: str, items: list[Item], limit: int = 10) -> Iterator[tuple[Item, str]]:
-    """Yield (item, blurb) pairs ordered best-to-worst as Opus produces them."""
+    """Yield (item, blurb) pairs ordered best-to-worst as the model produces them."""
     if not items:
         return
 

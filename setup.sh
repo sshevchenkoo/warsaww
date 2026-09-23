@@ -4,8 +4,7 @@
 #
 # Usage:  ./setup.sh
 #
-# Installs: terraform, ansible, kubectl, helm, docker (info), envsubst,
-#           python hcloud lib, ansible-galaxy: hetzner.hcloud
+# Installs: terraform, ansible, kubectl, helm, docker (info), envsubst
 
 set -euo pipefail
 
@@ -84,13 +83,22 @@ if [[ "$PKG" == "apt" ]]; then
         sudo apt-get install -y terraform
     fi
 
-    # kubectl — Kubernetes apt repo (stable v1.29)
+    # kubectl — Kubernetes apt repo. DOKS runs the newest version DigitalOcean
+    # offers (deploy/cloud/terraform/main.tf: `latest_version`), so track the
+    # current upstream stable minor. Override for an older cluster:
+    #   KUBECTL_MINOR=v1.30 ./setup.sh
     if ! command -v kubectl >/dev/null 2>&1; then
-        log "Installing kubectl..."
+        KUBECTL_MINOR="${KUBECTL_MINOR:-$(curl -fsSL https://dl.k8s.io/release/stable.txt | cut -d. -f1,2 || true)}"
+        if [[ -z "$KUBECTL_MINOR" ]]; then
+            err "Could not resolve the current kubectl minor from dl.k8s.io."
+            err "Set it by hand, e.g.: KUBECTL_MINOR=v1.30 ./setup.sh"
+            exit 1
+        fi
+        log "Installing kubectl ($KUBECTL_MINOR)..."
         sudo mkdir -p /etc/apt/keyrings
-        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key \
+        curl -fsSL "https://pkgs.k8s.io/core:/stable:/$KUBECTL_MINOR/deb/Release.key" \
             | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-archive-keyring.gpg
-        echo "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /" \
+        echo "deb [signed-by=/etc/apt/keyrings/kubernetes-archive-keyring.gpg] https://pkgs.k8s.io/core:/stable:/$KUBECTL_MINOR/deb/ /" \
             | sudo tee /etc/apt/sources.list.d/kubernetes.list >/dev/null
         sudo apt-get update
         sudo apt-get install -y kubectl
@@ -115,15 +123,6 @@ if [[ "$PKG" == "apt" ]]; then
         warn "  https://docs.docker.com/engine/install/ubuntu/"
     fi
 fi
-
-# ─── Shared: Python deps for the hcloud inventory plugin ──────────────────────
-log "Installing Python libraries for the Ansible hcloud inventory..."
-pip3 install --user --upgrade hcloud requests 2>/dev/null || \
-    pip3 install --user --break-system-packages --upgrade hcloud requests
-
-# ─── Shared: Ansible Galaxy collections ───────────────────────────────────────
-log "Installing the Ansible Galaxy collection hetzner.hcloud..."
-ansible-galaxy collection install hetzner.hcloud
 
 # ─── Verification ─────────────────────────────────────────────────────────────
 echo ""

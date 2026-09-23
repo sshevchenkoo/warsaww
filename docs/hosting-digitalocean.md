@@ -43,7 +43,7 @@ make do-platform
 
 # 5. App secret: fill deploy/cloud/k8s/secret.yml from secret.example.yml.
 #    DATABASE_URL = terraform -chdir=deploy/cloud/terraform output -raw database_url
-#    (managed DB; you do NOT apply 10-postgres.yml). Keep ANTHROPIC/VOYAGE/APIFY/
+#    (managed DB; you do NOT apply optional/10-postgres.yml). Keep ANTHROPIC/VOYAGE/APIFY/
 #    TICKETMASTER/GOOGLE_*/SESSION_SECRET. Then:
 make do-deploy
 
