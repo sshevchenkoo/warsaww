@@ -1,5 +1,7 @@
-# Secrets — never commit
-.env
+# Secrets — never commit. Any .env variant (.env.local, a stray `.env.`, …);
+# only the templates are tracked.
+.env*
+!.env.example
 .ssh/
 .kube/
 # filled-in k8s Secret (keep only secret.example.yml)
