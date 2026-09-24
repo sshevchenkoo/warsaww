@@ -3,8 +3,9 @@
 - Google OAuth: /auth/login/google → Google consent → /auth/callback.
 - Email + password: /auth/register, /auth/login.
 
-Plus /auth/logout and the /me probe. Accounts are keyed by email, so signing up
-by password and later using Google with the same email is one account.
+Plus /auth/logout, the /me probe and PATCH /me (profile edit). Accounts are keyed
+by email, so signing up by password and later using Google with the same email is
+one account.
 """
 
 import logging
@@ -14,6 +15,7 @@ from authlib.integrations.starlette_client import OAuthError
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth.deps import current_user
@@ -55,14 +57,17 @@ def _user_payload(user: User) -> dict:
         "name": user.name,
         "avatar_url": user.avatar_url,
         "email_verified": user.email_verified,
+        "pending_email": user.pending_email,
     }
 
 
 def _issue_verification(user: User, session: Session) -> None:
     """Generate a fresh verification code for `user`, store its keyed hash + expiry
-    (resetting the attempt counter), and email the code. No-op if the account is
-    already verified or has no email."""
-    if not user.email or user.email_verified:
+    (resetting the attempt counter), and email the code. It goes to the pending
+    address while an email change is in flight, otherwise to the account's own
+    email if that is still unverified; no-op when there is nothing to verify."""
+    target = user.pending_email or (None if user.email_verified else user.email)
+    if not target:
         return
     code = generate_code()
     user.email_verify_code_hash = hash_code(code)
@@ -71,7 +76,15 @@ def _issue_verification(user: User, session: Session) -> None:
     )
     user.email_verify_attempts = 0
     session.commit()
-    send_verification_email(user.email, code)
+    send_verification_email(target, code)
+
+
+def _email_taken(session: Session, email: str, user: User) -> bool:
+    """True if another account already uses `email` as its login."""
+    return (
+        session.query(User).filter(User.email == email, User.id != user.id).first()
+        is not None
+    )
 
 
 class RegisterRequest(BaseModel):
@@ -191,9 +204,10 @@ def verify_email(
 ) -> dict:
     """Confirm the logged-in user's email with the code we emailed. Wrong codes
     are counted and capped; an expired or exhausted code needs a fresh resend.
+    With an email change pending, a correct code swaps the new address in.
     Returns the updated user payload (email_verified flips to true on success)."""
     _rate_limit_auth(request)
-    if user.email_verified:
+    if user.email_verified and not user.pending_email:
         return _user_payload(user)
     now = datetime.now(timezone.utc)
     if (
@@ -212,12 +226,32 @@ def verify_email(
         user.email_verify_attempts += 1
         session.commit()
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid code.")
+    if user.pending_email:
+        # The code proved ownership of the new address. Another account may have
+        # claimed it since the change was requested — then drop the request so
+        # the user can pick a different address.
+        if _email_taken(session, user.pending_email, user):
+            user.pending_email = None
+            _clear_code(user)
+            session.commit()
+            raise HTTPException(status.HTTP_409_CONFLICT, "Email already registered")
+        user.email = user.pending_email
+        user.pending_email = None
     user.email_verified = True
+    _clear_code(user)
+    try:
+        session.commit()
+    except IntegrityError:
+        # Lost a race with another account claiming the same address.
+        session.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "Email already registered") from None
+    return _user_payload(user)
+
+
+def _clear_code(user: User) -> None:
     user.email_verify_code_hash = None
     user.email_verify_code_expires_at = None
     user.email_verify_attempts = 0
-    session.commit()
-    return _user_payload(user)
 
 
 @router.post("/auth/resend")
@@ -229,7 +263,7 @@ def resend_verification(
     """Re-send a fresh verification code to the logged-in user (rate-limited to
     prevent using it as an email-spam relay)."""
     _rate_limit_auth(request)
-    if user.email_verified:
+    if user.email_verified and not user.pending_email:
         return {"status": "already_verified"}
     _issue_verification(user, session)
     return {"status": "sent"}
@@ -243,4 +277,59 @@ async def logout(request: Request) -> dict:
 
 @router.get("/me")
 def me(user: User = Depends(current_user)) -> dict:
+    return _user_payload(user)
+
+
+class UpdateMeRequest(BaseModel):
+    """Omitted fields stay unchanged; `name` set to null or blank clears it."""
+
+    name: str | None = Field(default=None, max_length=100)
+    email: EmailStr | None = None
+    # Needed to change a password account's email, so a hijacked session alone
+    # can't move the account to an address the attacker controls.
+    current_password: str | None = Field(default=None, max_length=MAX_PASSWORD_BYTES)
+
+
+@router.patch("/me")
+def update_me(
+    req: UpdateMeRequest,
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(current_user),
+) -> dict:
+    """Edit the profile. A name change applies at once. An email change is only
+    requested: the new address lands in `pending_email` and gets a verification
+    code, and POST /auth/verify swaps it in. Until then the old email keeps
+    working for login, so a typo can't lock the user out, and search stays open.
+    Sending the current email again cancels a pending change."""
+    new_email = str(req.email) if req.email is not None else None
+    changing_email = new_email is not None and new_email != user.email
+    # Validate everything before touching the row, so a refused email change
+    # doesn't half-apply a name change.
+    if changing_email:
+        if user.google_sub:
+            # auth_callback rewrites user.email from Google on every login, so a
+            # change made here would silently revert.
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN, "This account's email is managed by Google."
+            )
+        _rate_limit_auth(request)  # current_password is otherwise guessable here
+        if not user.password_hash or not verify_password(
+            req.current_password or "", user.password_hash
+        ):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Current password is incorrect.")
+        if _email_taken(session, new_email, user):
+            raise HTTPException(status.HTTP_409_CONFLICT, "Email already registered")
+
+    if "name" in req.model_fields_set:
+        user.name = (req.name or "").strip() or None
+
+    if changing_email:
+        user.pending_email = new_email
+        _issue_verification(user, session)  # commits
+    else:
+        if new_email is not None and user.pending_email:
+            user.pending_email = None
+            _clear_code(user)
+        session.commit()
     return _user_payload(user)

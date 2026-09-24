@@ -126,6 +126,7 @@ CREATE TABLE users (
     email_verify_code_hash       text,
     email_verify_code_expires_at timestamptz,
     email_verify_attempts        int NOT NULL DEFAULT 0,
+    pending_email                text,                 -- requested new email (PATCH /me), swapped in once its code is confirmed
     name                         text,
     avatar_url                   text,                 -- Google photo URL or /avatars/{user_id}
     last_seen_at                 timestamptz,          -- refreshed by the /me/ping heartbeat
