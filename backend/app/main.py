@@ -119,6 +119,10 @@ def _ensure_columns(eng=engine) -> None:
                 "email_verify_attempts integer NOT NULL DEFAULT 0"
             )
         )
+        # Email change awaiting confirmation (PATCH /me).
+        conn.execute(
+            text("ALTER TABLE users ADD COLUMN IF NOT EXISTS pending_email text")
+        )
         # Presence timestamp (added after the account columns shipped) — stamped
         # by the /me/ping heartbeat and read back as an online/offline flag.
         conn.execute(

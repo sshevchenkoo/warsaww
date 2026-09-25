@@ -117,6 +117,11 @@ class User(Base):
     email_verify_attempts: Mapped[int] = mapped_column(
         Integer, server_default=text("0"), nullable=False
     )
+    # Requested new email (PATCH /me), not yet proven. The verification code goes
+    # here, and `email` is swapped only once it is confirmed — until then the old
+    # address keeps working for login. Not UNIQUE: a taken address is refused at
+    # request time and re-checked at confirm time.
+    pending_email: Mapped[str | None] = mapped_column(Text)
     name: Mapped[str | None] = mapped_column(Text)
     avatar_url: Mapped[str | None] = mapped_column(Text)
     # Presence: refreshed by the /me/ping heartbeat. A user counts as "online"

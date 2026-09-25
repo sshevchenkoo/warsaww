@@ -34,6 +34,7 @@ Identity is handled by `authlib` against Google's OIDC discovery endpoint
 | GET | `/auth/callback` | OAuth redirect URI; sets the session, bounces to the frontend |
 | POST | `/auth/logout` | Clears the session |
 | GET | `/me` | Current user, or 401 |
+| PATCH | `/me` | Edit `name` (applies at once) and/or `email`. An email change needs `current_password`, goes to `pending_email` and is confirmed by a code via `POST /auth/verify`; the old email keeps working until then. 409 if the email is taken, 403 for Google accounts (Google owns their email). Sending the current email cancels a pending change |
 | GET | `/me/saved` | The user's saved items (`ItemOut[]`) |
 | GET | `/me/saved/ids` | Saved item ids (to mark hearts on the search page) |
 | POST | `/me/saved/{item_id}` | Save (idempotent); 404 if the item is unknown |
