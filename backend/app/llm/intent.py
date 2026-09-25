@@ -14,7 +14,7 @@ The user writes free-form text in Russian, Polish or English.
 Extract a structured intent:
 - on_topic: true if this is a genuine request to find events or places in the \
 city; false for gibberish, random characters, spam, or off-topic questions \
-(e.g. "asdfgh", "what is 2+2"). When false, the other fields can be empty.
+(e.g. "asdfgh", "what is 2+2"). When false, make the other fields empty.
 - categories: matching ones from: concert, party, exhibition, theatre, museum, \
 castle, walk, food, family. Empty list = any category.
 - date_from / date_to: time window in ISO 8601. Today is {today}. \
