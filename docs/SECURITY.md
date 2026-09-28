@@ -248,11 +248,14 @@ social layer.
 ```python
 if self.session_https_only:              # our "this is production" signal
     if self.session_secret == INSECURE_SESSION_SECRET: raise ValueError(...)
+    if len(self.session_secret) < MIN_SESSION_SECRET_LENGTH: raise ValueError(...)  # 32
     if "*" in self.cors_origins:         raise ValueError(...)
 ```
 
 The dev default signing key is public knowledge — it is in the repo. A production deploy still
-carrying it has forgeable session cookies, and a wildcard CORS origin next to credentialed requests
+carrying it has forgeable session cookies. The same goes for a short key, such as the `"..."`
+placeholder from `secret.example.yml` copied without filling it in, so anything under 32 characters
+is refused too, and a wildcard CORS origin next to credentialed requests
 is the other half of the same hole. Both are silent failures: everything works, and the security
 property is simply absent. Refusing to start turns a silent hole into an obvious crash loop.
 
