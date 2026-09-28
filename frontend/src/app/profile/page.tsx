@@ -7,6 +7,7 @@ import { Avatar } from "@/components/Avatar";
 import { CardSkeleton } from "@/components/CardSkeleton";
 import { EmptyState } from "@/components/EmptyState";
 import { EventCard } from "@/components/EventCard";
+import { ProfileEditForm } from "@/components/ProfileEditForm";
 import { SectionHeading } from "@/components/SectionHeading";
 import { useUser } from "@/components/UserContext";
 import { VerifyPanel } from "@/components/VerifyPanel";
@@ -49,6 +50,7 @@ export default function Profile() {
   const [avatarError, setAvatarError] = useState<string | null>(null);
   // Upload progress 0–100 while the bytes go up; null when not uploading.
   const [avatarProgress, setAvatarProgress] = useState<number | null>(null);
+  const [editing, setEditing] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   async function onPickAvatar(e: React.ChangeEvent<HTMLInputElement>) {
@@ -200,25 +202,40 @@ export default function Profile() {
             </div>
 
             <div className="min-w-0 flex-1 pt-1">
-              <h1 className="truncate text-3xl font-black tracking-tighter sm:text-4xl">
-                {displayName}
-              </h1>
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                {user.email && (
-                  <span className="truncate font-mono text-xs tracking-wide text-muted">
-                    {user.email}
-                  </span>
-                )}
-                <span
-                  className={`rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest ${
-                    user.email_verified
-                      ? "bg-accent/15 text-accent"
-                      : "border border-line text-muted"
-                  }`}
-                >
-                  {user.email_verified ? "verified ✓" : "unverified"}
-                </span>
-              </div>
+              {editing ? (
+                <ProfileEditForm user={user} onDone={() => setEditing(false)} />
+              ) : (
+                <>
+                  <h1 className="truncate text-3xl font-black tracking-tighter sm:text-4xl">
+                    {displayName}
+                  </h1>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                    {user.email && (
+                      <span className="truncate font-mono text-xs tracking-wide text-muted">
+                        {user.email}
+                      </span>
+                    )}
+                    <span
+                      className={`rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest ${
+                        user.email_verified
+                          ? "bg-accent/15 text-accent"
+                          : "border border-line text-muted"
+                      }`}
+                    >
+                      {user.email_verified ? "verified ✓" : "unverified"}
+                    </span>
+                  </div>
+                  {/* In the name column rather than beside "people →", which is
+                      hidden on phones — editing has to work there too. */}
+                  <button
+                    type="button"
+                    onClick={() => setEditing(true)}
+                    className="mt-3 rounded-full border border-line px-3 py-1 font-mono text-[10px] uppercase tracking-widest text-muted transition-colors hover:border-accent hover:text-fg"
+                  >
+                    edit profile
+                  </button>
+                </>
+              )}
               {avatarError && (
                 <p role="alert" className="mt-2 font-mono text-xs text-red-500">
                   {avatarError}
@@ -258,8 +275,9 @@ export default function Profile() {
       </section>
 
       {/* Unconfirmed email: the code-entry form lives here so a user who left the
-          signup page can still verify (and unlock search) from their profile. */}
-      {!user.email_verified && (
+          signup page can still verify (and unlock search) from their profile.
+          The same panel confirms a pending email change from the edit form. */}
+      {(!user.email_verified || user.pending_email) && (
         <section className="mt-8">
           <VerifyPanel />
         </section>

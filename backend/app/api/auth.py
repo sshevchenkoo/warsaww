@@ -58,6 +58,10 @@ def _user_payload(user: User) -> dict:
         "avatar_url": user.avatar_url,
         "email_verified": user.email_verified,
         "pending_email": user.pending_email,
+        # Only password accounts can change their email through PATCH /me (it
+        # needs current_password; a Google account's email follows Google), so
+        # the profile form shows the email field only when this is true.
+        "has_password": user.password_hash is not None,
     }
 
 

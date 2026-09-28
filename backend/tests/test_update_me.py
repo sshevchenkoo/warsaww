@@ -178,6 +178,13 @@ def test_google_account_can_still_change_name():
     assert u.name == "New Name"
 
 
+def test_payload_tells_the_form_whether_email_can_change():
+    # The profile form hides the email field unless has_password: only a
+    # password account can pass the current_password check.
+    assert _patch(_User())["has_password"] is True
+    assert _patch(_User(google=True))["has_password"] is False
+
+
 def test_resubmitting_current_email_cancels_the_pending_change(sent):
     u = _User(pending="new@example.com")
     u.email_verify_code_hash = hash_code("123456")
