@@ -11,7 +11,7 @@ import { SectionHeading } from "@/components/SectionHeading";
 import { useUser } from "@/components/UserContext";
 import { VerifyPanel } from "@/components/VerifyPanel";
 import type { Card } from "@/lib/api";
-import { getSaved, uploadAvatar } from "@/lib/auth";
+import { deleteAvatar, getSaved, uploadAvatar } from "@/lib/auth";
 import {
   dismissShared,
   listFriends,
@@ -47,6 +47,8 @@ export default function Profile() {
   const [busy, setBusy] = useState(true);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
+  // Upload progress 0–100 while the bytes go up; null when not uploading.
+  const [avatarProgress, setAvatarProgress] = useState<number | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   async function onPickAvatar(e: React.ChangeEvent<HTMLInputElement>) {
@@ -55,15 +57,35 @@ export default function Profile() {
     if (!file) return;
     setAvatarError(null);
     setAvatarBusy(true);
+    setAvatarProgress(0);
     try {
-      const url = await uploadAvatar(file);
+      const url = await uploadAvatar(file, setAvatarProgress);
       updateUser({ avatar_url: url });
     } catch (err) {
       setAvatarError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setAvatarBusy(false);
+      setAvatarProgress(null);
     }
   }
+
+  async function onRemoveAvatar() {
+    setAvatarError(null);
+    setAvatarBusy(true);
+    try {
+      await deleteAvatar();
+      updateUser({ avatar_url: null });
+    } catch (err) {
+      setAvatarError(err instanceof Error ? err.message : "Couldn't remove the photo");
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
+
+  // While uploading: the percentage, then "…" once the bytes are up and the
+  // server is still re-encoding. Also "…" while a remove is in flight.
+  const avatarBusyLabel =
+    avatarProgress !== null && avatarProgress < 100 ? `${avatarProgress}%` : "…";
 
   useEffect(() => {
     if (!user) return; // logged-out renders the sign-in prompt; busy is unused there
@@ -126,28 +148,55 @@ export default function Profile() {
 
         <div className="relative flex flex-col gap-6 p-6 sm:p-8">
           <div className="flex items-start gap-5">
-            <div className="relative shrink-0">
-              <button
-                type="button"
-                onClick={() => fileInput.current?.click()}
-                disabled={avatarBusy}
-                className="group relative block rounded-full"
-                aria-label="Change profile photo"
-                title="Change profile photo"
-              >
-                <Avatar src={user.avatar_url} name={displayName} size={88} ring />
-                <span className="absolute inset-0 grid place-items-center rounded-full bg-black/55 font-mono text-[10px] uppercase tracking-widest text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-                  {avatarBusy ? "…" : "change"}
+            <div className="flex shrink-0 flex-col items-center gap-2">
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => fileInput.current?.click()}
+                  disabled={avatarBusy}
+                  className="group relative block rounded-full"
+                  aria-label="Change profile photo"
+                  title="Change profile photo"
+                >
+                  <Avatar src={user.avatar_url} name={displayName} size={88} ring />
+                  {/* Always visible while busy, so the progress can be seen
+                      without hovering. */}
+                  <span
+                    className={`absolute inset-0 grid place-items-center rounded-full bg-black/55 font-mono text-[10px] uppercase tracking-widest tabular-nums text-white transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 ${
+                      avatarBusy ? "opacity-100" : "opacity-0"
+                    }`}
+                  >
+                    {avatarBusy ? avatarBusyLabel : "change"}
+                  </span>
+                </button>
+                {/* A visible affordance as well as the hover overlay — on touch
+                    there is no hover, so the overlay alone is undiscoverable. */}
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute -bottom-0.5 -right-0.5 grid h-7 w-7 place-items-center rounded-full border-2 border-card bg-accent text-xs text-accent-ink"
+                >
+                  {avatarBusy ? "…" : "✎"}
                 </span>
-              </button>
-              {/* A visible affordance as well as the hover overlay — on touch
-                  there is no hover, so the overlay alone is undiscoverable. */}
-              <span
-                aria-hidden
-                className="pointer-events-none absolute -bottom-0.5 -right-0.5 grid h-7 w-7 place-items-center rounded-full border-2 border-card bg-accent text-xs text-accent-ink"
-              >
-                {avatarBusy ? "…" : "✎"}
+              </div>
+              {/* Rendered always: a live region must exist before its text
+                  changes, or screen readers skip the first announcement. */}
+              <span role="status" className="sr-only">
+                {avatarProgress === null
+                  ? ""
+                  : avatarProgress < 100
+                    ? `Uploading ${avatarProgress}%`
+                    : "Processing photo"}
               </span>
+              {user.avatar_url && (
+                <button
+                  type="button"
+                  onClick={onRemoveAvatar}
+                  disabled={avatarBusy}
+                  className="font-mono text-[10px] uppercase tracking-widest text-muted transition-colors hover:text-accent disabled:opacity-50"
+                >
+                  remove photo
+                </button>
+              )}
             </div>
 
             <div className="min-w-0 flex-1 pt-1">
