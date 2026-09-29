@@ -30,10 +30,14 @@ export function Avatar({
   return (
     <span className={`relative inline-block shrink-0 ${className}`} style={box}>
       {src ? (
+        // no-referrer: Google's profile-photo host (lh3.googleusercontent.com)
+        // refuses the image when the browser sends our page as Referer, so
+        // Google accounts would show a broken avatar.
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={src}
           alt=""
+          referrerPolicy="no-referrer"
           width={size}
           height={size}
           style={box}
