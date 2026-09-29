@@ -87,23 +87,34 @@ export function logout() {
 
 // Upload a new avatar (multipart). Returns the new cache-busted avatar_url, or
 // throws with the API's error message (e.g. too large / not an image).
-export async function uploadAvatar(file: File): Promise<string> {
+// XMLHttpRequest, not fetch: fetch has no upload-progress event. onProgress
+// gets 0–100 while the bytes go up; the server then still re-encodes the image.
+export function uploadAvatar(file: File, onProgress?: (percent: number) => void): Promise<string> {
   const form = new FormData();
   form.append("file", file);
-  const res = await req("/me/avatar", { method: "POST", body: form });
-  if (!res.ok) {
-    let msg = "Upload failed. Try a smaller image.";
-    try {
-      const data = await res.json();
-      if (typeof data.detail === "string") msg = data.detail;
-    } catch {
-      /* non-JSON error body */
-    }
-    throw new Error(msg);
-  }
-  return (await res.json()).avatar_url as string;
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/me/avatar");
+    xhr.withCredentials = true;
+    xhr.responseType = "json";
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress?.(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300 && xhr.response?.avatar_url) {
+        resolve(xhr.response.avatar_url as string);
+        return;
+      }
+      const detail = xhr.response?.detail; // null when the error body isn't JSON
+      reject(new Error(typeof detail === "string" ? detail : "Upload failed. Try a smaller image."));
+    };
+    xhr.onerror = () => reject(new Error("Upload failed. Check your connection."));
+    xhr.send(form);
+  });
 }
 
-export function deleteAvatar() {
-  return req("/me/avatar", { method: "DELETE" });
+// Remove the uploaded avatar (the UI falls back to the initial placeholder).
+export async function deleteAvatar(): Promise<void> {
+  const res = await req("/me/avatar", { method: "DELETE" });
+  if (!res.ok) throw new Error("Couldn't remove the photo. Try again.");
 }
