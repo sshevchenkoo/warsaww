@@ -58,6 +58,76 @@ Platform:   DigitalOcean DOKS · managed Postgres · ELK logs · Prometheus/Graf
 | Ingestion | httpx adapters, rapidfuzz dedup, k8s CronJobs |
 | Platform | DigitalOcean DOKS, Terraform, managed Postgres, ELK, Prometheus/Grafana/Tempo |
 
+## Modules
+
+Scored against the ft_transcendence subject v21.1, section IV (Major = 2 points, Minor = 1,
+14 required). The working inventory, with the risks attached and the modules we ruled out, is
+[docs/MODULES.md](docs/MODULES.md).
+
+| # | Module | Category | Type | Pts | Implemented by | Where |
+|---|---|---|---|---|---|---|
+| 1 | Framework for both frontend and backend | Web | Major | 2 | stefandawid, yagruda, tbogus | Next.js 16 App Router in `frontend/`, FastAPI in `backend/app/` |
+| 2 | Use an ORM | Web | Minor | 1 | yagruda, tbogus | SQLAlchemy 2 typed models, `backend/app/catalog/models.py` ([ORM.md](docs/ORM.md)) |
+| 3 | Server-Side Rendering | Web | Minor | 1 | stefandawid | `/item/[id]` is rendered on the server with its own metadata, `frontend/src/app/item/[id]/page.tsx` |
+| 4 | Custom design system | Web | Minor | 1 | stefandawid | Palette and type tokens in `frontend/src/app/globals.css`, an SVG icon set in `frontend/src/components/Icon.tsx`, 15 reusable components in `frontend/src/components/` |
+| 5 | Standard user management | User Management | Major | 2 | tbogus, yagruda | Profile edit (`PATCH /me`), avatar upload with a default, friends with online status — `backend/app/api/`, `frontend/src/app/profile/` |
+| 6 | OAuth 2.0 remote authentication | User Management | Minor | 1 | tbogus | Google OIDC via authlib, `backend/app/auth/oauth.py` |
+| 7 | Complete RAG system | AI | Major | 2 | tbogus, yagruda | Voyage embeddings + pgvector/pg_trgm hybrid retrieval, blurbs grounded in the retrieved cards — `backend/app/retrieval/` |
+| 8 | Complete LLM system interface | AI | Major | 2 | tbogus, yagruda | Intent extraction (Haiku) and re-rank (Sonnet) streamed over SSE, with error handling and a daily quota — `backend/app/llm/` |
+| 9 | File upload and management | User Management | Minor | 1 | yagruda, tbogus | Avatar upload: type and size checks on both sides, upload progress, delete — `backend/app/api/avatars.py` |
+| 10 | ELK log management | DevOps | Major | 2 | sshevchenkoo | Elasticsearch + Logstash + Kibana, Fluent Bit shipping, ILM retention — `deploy/cloud/ansible/`, `deploy/cloud/platform/` |
+| 11 | Prometheus + Grafana monitoring | DevOps | Major | 2 | sshevchenkoo | kube-prometheus-stack, exporters, dashboards, alert rules — `deploy/cloud/platform/` |
+| 12 | Custom module: multi-source ingestion pipeline | Module of choice | Major | 2 | tbogus, yagruda | `backend/app/ingestion/` ([INGESTION.md](docs/INGESTION.md)) — justified below |
+| | **Total** | | | **19** | | |
+
+Two notes on how these are counted:
+
+- **#1 is the Major on its own.** The subject lists "frontend framework" and "backend framework" as
+  separate Minors and "both" as a Major. They are alternatives, so #1 is worth 2 points, not 2 + 1 + 1.
+- **#7 and #8 are two modules, demonstrated separately**, even though both run inside `/search`.
+  The LLM interface (#8) is the prompt → Haiku structured output → Sonnet streaming into SSE, with
+  the degradation ladder in [SEARCH.md](docs/SEARCH.md) §5. The RAG system (#7) is the catalog as
+  the dataset, hybrid retrieval as the context step ([ALGORITHMS.md](docs/ALGORITHMS.md) §4), and
+  blurbs that can only describe cards the retrieval returned.
+
+### Custom module: multi-source ingestion pipeline (Major, 2 pts)
+
+**Why we chose it.** The product is only as good as its catalog: a search engine for "what to do in
+Warsaw tonight" is useless if half the concerts are missing or the same museum shows up three
+times. No single source covers both events and places, so the catalog is built from four
+([INGESTION.md](docs/INGESTION.md) §3): OpenStreetMap enriched with Wikidata for places, Facebook
+events through Apify, the Ticketmaster Discovery API, and a keyless fixture set for demos. Keeping
+those sources in sync, without duplicates and without breaking search, is the module.
+
+**Technical challenges it addresses.**
+
+- **Four heterogeneous sources behind one contract.** Every source implements a single method,
+  `fetch() -> list[RawItem]` (§2). Normalisation, deduplication, embedding and upsert are shared,
+  so adding a fifth source is one adapter class, one registry line and one CronJob (§5).
+- **Cross-source deduplication in three tiers** (§4.3). Candidates are blocked first, then scored
+  with rapidfuzz: 90 and above is the same entity, below 75 is not. Only the ambiguous 75–89 band
+  goes to Claude Haiku for a yes/no decision, so the LLM is paid for a handful of pairs, not the
+  whole catalog. Without an Anthropic key the band counts as "not a match" and ingestion still runs.
+  Dedup runs before embedding, so nobody pays to embed a duplicate.
+- **Failure isolation at every level** (§4.1–4.4). A source that is down aborts only its own run
+  (each source is its own CronJob); a malformed record is skipped without losing the other 99;
+  a failed embedding batch of 16 is logged and the rest still get vectors.
+- **The embedding-erasure trap** (§4.5). The upsert's `ON CONFLICT DO UPDATE` refreshes the
+  `embedding` column only when this run actually computed one. Without that split, one run without
+  a Voyage key would overwrite every stored vector with `NULL` and silently switch off semantic
+  search for the whole catalog.
+
+**How it adds value.** Every search result the user sees comes out of this pipeline. It is what
+lets the RAG module (#7) retrieve from a real, current, de-duplicated catalog instead of a static
+seed file, and it keeps running unattended: in production each source is a Kubernetes CronJob, and
+locally `make scheduler-up` runs the same schedule.
+
+**Why it deserves Major status.** It is a complete subsystem with its own architecture, not a
+feature of another module: a pluggable adapter layer, a staged pipeline with per-stage failure
+handling, fuzzy and LLM-assisted entity resolution, batched embedding, idempotent upserts keyed on
+`(source, source_url)`, and scheduled execution in two environments. It is documented end to end
+in [INGESTION.md](docs/INGESTION.md), including the cost of a run (§6) and how to add a source (§5).
+
 ## Repository layout
 
 | Path | What |
