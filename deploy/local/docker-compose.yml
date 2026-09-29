@@ -64,6 +64,19 @@ services:
         fluentd-address: "localhost:24224"
         fluentd-async: "true"
         tag: "warsaw.api"
+    # Periodic ingestion — the local mirror of the cloud k8s CronJobs
+    # (deploy/cloud/k8s/50-cronjobs.yml). The `ofelia` scheduler reads these
+    # labels and `docker exec`s the runner in this container on schedule. Only
+    # active when ofelia runs (opt-in: `make scheduler-up`). Same 6-field cron
+    # as the cloud (leading 0 = seconds). Shorten to e.g. "@every 2m" to test.
+    labels:
+      ofelia.enabled: "true"
+      ofelia.job-exec.ingest-places.schedule: "0 0 4 * * 1"        # Mondays 04:00
+      ofelia.job-exec.ingest-places.command: "python -m app.ingestion.runner --source=places"
+      ofelia.job-exec.ingest-facebook.schedule: "0 0 */6 * * *"    # every 6h
+      ofelia.job-exec.ingest-facebook.command: "python -m app.ingestion.runner --source=facebook_events"
+      ofelia.job-exec.ingest-ticketmaster.schedule: "0 0 */12 * * *"  # every 12h
+      ofelia.job-exec.ingest-ticketmaster.command: "python -m app.ingestion.runner --source=ticketmaster"
 
   web:
     build:
@@ -240,6 +253,20 @@ services:
       - kibana
       - prometheus
       - alertmanager
+
+  # ─── Scheduler: periodic ingestion (mirrors the cloud k8s CronJobs) ───────────
+  # Reads the ofelia.* labels on the `api` service and runs the ingestion runner
+  # inside it on schedule. Opt-in via a compose profile so a plain `make stack-up`
+  # doesn't quietly start hitting external APIs — enable with `make scheduler-up`.
+  ofelia:
+    image: mcuadros/ofelia:latest
+    command: daemon --docker
+    profiles: ["scheduler"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - api
+    restart: unless-stopped
 
 volumes:
   pgdata:

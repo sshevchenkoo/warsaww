@@ -1,6 +1,7 @@
 .PHONY: help keys check-keys \
         dev app-up app-down app-logs app-seed web web-bg web-logs \
         stack-up stack-init stack-seed seed-fixtures seed-users stack-down stack-logs infra-auth \
+        scheduler-up scheduler-down \
         do-infra-up do-infra-plan do-infra-down do-kubeconfig do-db-init \
         do-images do-platform do-deploy do-elk
 
@@ -68,6 +69,7 @@ help:
 	@echo "    make seed-users      — create test users (user1@test.com / user2@test.com · pw 1234)"
 	@echo "    make stack-seed      — demo fixtures + real Warsaw sources"
 	@echo "    make stack-logs      — follow all stack logs"
+	@echo "    make scheduler-up    — periodic ingestion (ofelia, like the cloud CronJobs) / scheduler-down"
 	@echo "    make stack-down      — stop the whole stack (volumes kept)"
 	@echo ""
 	@echo "  $(YELLOW)DigitalOcean prod (DOKS) — full runbook: docs/hosting-digitalocean.md:$(NC)"
@@ -195,6 +197,19 @@ stack-logs:            ## Follow all stack logs
 stack-down:            ## Stop the full stack (named volumes are kept)
 	$(STACK) down --remove-orphans
 	@echo "$(GREEN)Full stack stopped (data kept in named volumes)$(NC)"
+
+# Periodic ingestion (ofelia) — the local mirror of the cloud k8s CronJobs.
+# Runs places (Mon 04:00), facebook_events (6h), ticketmaster (12h) via docker exec
+# in the api container. NOTE: with real API keys set these hit external APIs on a
+# schedule (Apify/Ticketmaster/Voyage) — that can cost money. places is keyless;
+# sources without their key log-and-skip. Edit the ofelia.* labels on `api` to tune.
+scheduler-up:          ## Start periodic ingestion (ofelia — mirrors the cloud CronJobs)
+	$(STACK) --profile scheduler up -d ofelia
+	@echo "$(GREEN)Scheduler on.$(NC) Jobs: places(Mon 04:00) · facebook(6h) · ticketmaster(12h). Logs: $(YELLOW)$(STACK) logs -f ofelia$(NC)"
+
+scheduler-down:        ## Stop periodic ingestion
+	$(STACK) --profile scheduler rm -sf ofelia
+	@echo "$(GREEN)Scheduler off.$(NC)"
 
 # ─── DigitalOcean prod (DOKS) ─────────────────────────────────────────────────
 # Prereqs: terraform, kubectl, helm, ansible, envsubst, psql, doctl/ssh.
