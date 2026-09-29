@@ -9,6 +9,11 @@ export type User = {
   name: string | null;
   avatar_url: string | null;
   email_verified: boolean;
+  // Requested new email (PATCH /me) not yet confirmed by code; `email` keeps
+  // working for login until then.
+  pending_email: string | null;
+  // Only password accounts can change their email (Google manages the rest).
+  has_password: boolean;
 };
 
 export const LOGIN_URL = "/auth/login/google";
@@ -22,10 +27,10 @@ export async function getMe(): Promise<User | null> {
   return res.ok ? res.json() : null;
 }
 
-// POST credentials; on failure throw with the API's error message.
-async function authPost(path: string, body: object): Promise<User> {
+// Send JSON (POST by default); on failure throw with the API's error message.
+async function authPost(path: string, body: object, method = "POST"): Promise<User> {
   const res = await req(path, {
-    method: "POST",
+    method,
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
@@ -56,6 +61,17 @@ export function login(email: string, password: string): Promise<User> {
 // code or too many attempts.
 export function verifyEmail(code: string): Promise<User> {
   return authPost("/auth/verify", { code });
+}
+
+// Edit the profile. Omitted fields stay unchanged; `name: null` clears it. A new
+// `email` needs `current_password` and only lands in `pending_email` until the
+// mailed code confirms it; sending the current email cancels a pending change.
+export function updateMe(patch: {
+  name?: string | null;
+  email?: string;
+  current_password?: string;
+}): Promise<User> {
+  return authPost("/me", patch, "PATCH");
 }
 
 // Ask the API to email a fresh verification code to the logged-in user.

@@ -3,12 +3,16 @@
 import { useState } from "react";
 
 import { useUser } from "@/components/UserContext";
+import { updateMe } from "@/lib/auth";
 
 // Shown in place of the search box when the logged-in user hasn't confirmed
 // their email yet. They enter the 6-digit code we mailed; on success the context
 // user flips to verified and the page re-renders with search unlocked.
+// Also confirms an email change from the profile form: then the code went to
+// pending_email, and a correct one swaps it in as the account's email.
 export function VerifyPanel() {
-  const { user, verify, resendVerification } = useUser();
+  const { user, verify, resendVerification, updateUser } = useUser();
+  const pending = user?.pending_email ?? null;
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -40,14 +44,28 @@ export function VerifyPanel() {
     }
   }
 
+  // Sending the current email back cancels the pending change.
+  async function cancelChange() {
+    if (!user?.email) return;
+    setError(null);
+    setNote(null);
+    try {
+      updateUser(await updateMe({ email: user.email }));
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
   return (
     <div className="rounded-2xl border border-line p-5 sm:p-6">
       <h2 className="text-xl font-black tracking-tight">
-        confirm your email<span className="text-accent">.</span>
+        {pending ? "confirm your new email" : "confirm your email"}
+        <span className="text-accent">.</span>
       </h2>
       <p className="mt-1 font-mono text-xs tracking-wide text-muted">
-        we sent a 6-digit code to {user?.email ?? "your email"}. enter it to start
-        searching.
+        {pending
+          ? `we sent a 6-digit code to ${pending}. until you enter it, sign in with ${user?.email}.`
+          : `we sent a 6-digit code to ${user?.email ?? "your email"}. enter it to start searching.`}
       </p>
 
       <form onSubmit={submit} className="mt-4 flex flex-col gap-3 sm:flex-row">
@@ -80,6 +98,15 @@ export function VerifyPanel() {
       >
         didn&apos;t get it? resend code
       </button>
+      {pending && (
+        <button
+          type="button"
+          onClick={cancelChange}
+          className="ml-5 mt-4 font-mono text-xs tracking-wide text-muted transition-colors hover:text-fg"
+        >
+          cancel email change
+        </button>
+      )}
     </div>
   );
 }
