@@ -1,7 +1,8 @@
 # Data model
 
 > Deep dive: [SECURITY.md](SECURITY.md) §5 covers the Row-Level Security policies on
-> `saved_items`, `friendships` and `shared_events`.
+> `saved_items`, `friendships` and `shared_events`. [ORM.md](ORM.md) follows one request
+> through the SQLAlchemy session down to the SQL it sends.
 
 Events and places are **one entity** (`items`) with a `kind`, not separate
 tables. That makes "what's on this Saturday evening" a single query: events in
