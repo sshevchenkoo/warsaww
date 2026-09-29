@@ -49,6 +49,7 @@ class _User:
         self.email_verify_code_expires_at = expires_at
         self.email_verify_attempts = attempts
         self.pending_email = None
+        self.password_hash = None
 
 
 def _patch_sessionlocal(monkeypatch, user):

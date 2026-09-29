@@ -33,7 +33,7 @@ Identity is handled by `authlib` against Google's OIDC discovery endpoint
 | GET | `/auth/login/google` | Redirects to Google consent |
 | GET | `/auth/callback` | OAuth redirect URI; sets the session, bounces to the frontend |
 | POST | `/auth/logout` | Clears the session |
-| GET | `/me` | Current user, or 401 |
+| GET | `/me` | Current user, or 401. Includes `pending_email` and `has_password` (true only for password accounts, the ones that can change their email) |
 | PATCH | `/me` | Edit `name` (applies at once) and/or `email`. An email change needs `current_password`, goes to `pending_email` and is confirmed by a code via `POST /auth/verify`; the old email keeps working until then. 409 if the email is taken, 403 for Google accounts (Google owns their email). Sending the current email cancels a pending change |
 | GET | `/me/saved` | The user's saved items (`ItemOut[]`) |
 | GET | `/me/saved/ids` | Saved item ids (to mark hearts on the search page) |
