@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { Avatar } from "@/components/Avatar";
 import { EmptyState } from "@/components/EmptyState";
 import { EventCard } from "@/components/EventCard";
+import { Icon } from "@/components/Icon";
 import { SectionHeading } from "@/components/SectionHeading";
 import { useUser } from "@/components/UserContext";
 import type { Card } from "@/lib/api";
@@ -60,8 +61,9 @@ export default function Profile() {
     return (
       <main className="mx-auto w-full max-w-6xl px-5 pt-16">
         <p className="font-mono text-sm text-muted">sign in to view profiles.</p>
-        <Link href="/login" className="mt-4 inline-block font-mono text-xs text-accent">
-          sign in →
+        <Link href="/login" className="mt-4 inline-flex items-center gap-1 font-mono text-xs text-accent">
+          sign in
+          <Icon name="arrow-right" size={12} />
         </Link>
       </main>
     );
@@ -71,8 +73,9 @@ export default function Profile() {
     return (
       <main className="mx-auto w-full max-w-6xl px-5 pt-16">
         <h1 className="text-3xl font-black tracking-tighter">user not found</h1>
-        <Link href="/people" className="mt-4 inline-block font-mono text-xs text-accent">
-          ← back to people
+        <Link href="/people" className="mt-4 inline-flex items-center gap-1 font-mono text-xs text-accent">
+          <Icon name="arrow-left" size={12} />
+          back to people
         </Link>
       </main>
     );
@@ -94,9 +97,10 @@ export default function Profile() {
     <main className="mx-auto w-full max-w-6xl px-5 pb-24 pt-6 sm:pt-10">
       <Link
         href="/people"
-        className="font-mono text-xs tracking-wide text-muted transition-colors hover:text-fg"
+        className="inline-flex items-center gap-1 font-mono text-xs tracking-wide text-muted transition-colors hover:text-fg"
       >
-        ← people
+        <Icon name="arrow-left" size={12} />
+        people
       </Link>
 
       {/* Same hero band as /profile, so a profile looks like a profile whoever
@@ -155,8 +159,8 @@ export default function Profile() {
                 </>
               )}
               {rel === "friends" && (
-                <button type="button" disabled={busy} onClick={() => act(() => removeFriend(person.id), "none")} className={`${btn} border border-line text-muted hover:text-accent`}>
-                  friends ✓
+                <button type="button" disabled={busy} onClick={() => act(() => removeFriend(person.id), "none")} className={`${btn} inline-flex items-center gap-1 border border-line text-muted hover:text-accent`}>
+                  friends <Icon name="check" size={14} />
                 </button>
               )}
             </div>
@@ -169,7 +173,7 @@ export default function Profile() {
           <SectionHeading label="saved" count={saved.length} />
           {saved.length === 0 ? (
             <EmptyState
-              glyph="♡"
+              icon="heart"
               title="nothing saved yet"
               body={`${person.name ?? "this user"} hasn't kept anything here so far.`}
             />
@@ -184,7 +188,7 @@ export default function Profile() {
       ) : (
         <section className="mt-10">
           <EmptyState
-            glyph="🔒"
+            icon="lock"
             title="saved list is private"
             body={`add ${person.name ?? "this user"} as a friend to see the events and places they keep.`}
           />

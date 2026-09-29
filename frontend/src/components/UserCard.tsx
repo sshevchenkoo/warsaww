@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { Avatar } from "@/components/Avatar";
+import { Icon } from "@/components/Icon";
 import {
   acceptRequest,
   declineRequest,
@@ -39,34 +41,10 @@ export function UserCard({
     }
   }
 
-  const initial = (person.name ?? "?").charAt(0).toUpperCase();
-
   return (
     <div className="flex items-center gap-3 border-b border-line py-3">
       <Link href={`/u/${person.id}`} className="flex min-w-0 flex-1 items-center gap-3">
-        <span className="relative shrink-0">
-          {person.avatar_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={person.avatar_url}
-              alt=""
-              width={36}
-              height={36}
-              className="h-9 w-9 rounded-full border border-line object-cover"
-            />
-          ) : (
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-accent text-sm font-black text-accent-ink">
-              {initial}
-            </span>
-          )}
-          {person.online && (
-            <span
-              className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-bg bg-green-500"
-              title="Online"
-              aria-label="Online"
-            />
-          )}
-        </span>
+        <Avatar src={person.avatar_url} name={person.name} size={36} online={person.online} />
         <span className="truncate font-bold tracking-tight">{person.name ?? "user"}</span>
       </Link>
 
@@ -116,10 +94,10 @@ export function UserCard({
             type="button"
             disabled={busy}
             onClick={() => act(() => removeFriend(person.id), "none")}
-            className={`${ringBtn} border border-line text-muted hover:text-accent`}
+            className={`${ringBtn} inline-flex items-center gap-1 border border-line text-muted hover:text-accent`}
             title="Remove friend"
           >
-            friends ✓
+            friends <Icon name="check" size={12} />
           </button>
         )}
       </div>

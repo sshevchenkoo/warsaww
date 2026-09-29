@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import type { Card } from "@/lib/api";
+import { Icon } from "@/components/Icon";
 import { ShareButton } from "@/components/ShareButton";
 import { useUser } from "@/components/UserContext";
 import { categoryLabel, fallbackHue, formatPrice, formatWhen } from "@/lib/format";
@@ -71,7 +72,8 @@ export function EventCard({ card, index }: { card: Card; index: number }) {
           <p className="mt-2 line-clamp-3 text-sm leading-snug text-fg/75">{card.blurb}</p>
         )}
         <span className="mt-3 inline-flex items-center gap-1 font-mono text-[11px] tracking-wide text-muted transition-colors group-hover:text-fg">
-          {card.source} →
+          {card.source}
+          <Icon name="arrow-right" size={12} />
         </span>
       </div>
     </article>
@@ -94,7 +96,11 @@ export function EventCard({ card, index }: { card: Card; index: number }) {
             aria-pressed={saved}
             className="grid h-9 w-9 place-items-center rounded-full border border-white/25 bg-black/40 text-lg backdrop-blur-sm transition-transform hover:scale-110 active:scale-90"
           >
-            <span className={saved ? "text-accent" : "text-fg"}>{saved ? "♥" : "♡"}</span>
+            <Icon
+              name={saved ? "heart-filled" : "heart"}
+              size={18}
+              className={saved ? "text-accent" : "text-fg"}
+            />
           </button>
         </div>
       )}

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
+
 export const metadata: Metadata = {
   title: "Privacy Policy · warsaw,",
   description:
@@ -23,9 +25,10 @@ export default function PrivacyPage() {
     <main className="mx-auto w-full max-w-3xl px-5 pb-24 pt-10">
       <Link
         href="/"
-        className="font-mono text-xs tracking-wide text-muted transition-colors hover:text-fg"
+        className="inline-flex items-center gap-1 font-mono text-xs tracking-wide text-muted transition-colors hover:text-fg"
       >
-        ← back
+        <Icon name="arrow-left" size={12} />
+        back
       </Link>
 
       <h1 className="mt-5 text-balance text-4xl font-black tracking-tighter">

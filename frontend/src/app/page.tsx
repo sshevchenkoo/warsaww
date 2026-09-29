@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { EventCard } from "@/components/EventCard";
+import { Icon, Spinner } from "@/components/Icon";
 import { useUser } from "@/components/UserContext";
 import { getUpcoming, streamSearch, type Card, type Intent } from "@/lib/api";
 
@@ -140,7 +141,7 @@ export default function Home() {
               disabled={busy}
               className="absolute bottom-2.5 right-0 grid h-11 w-11 place-items-center rounded-full bg-accent text-accent-ink transition-transform hover:scale-105 active:scale-95 disabled:opacity-50 sm:h-12 sm:w-12"
             >
-              <span className="text-xl font-black">{busy ? "·" : "→"}</span>
+              {busy ? <Spinner size={20} /> : <Icon name="arrow-right" size={20} strokeWidth={2.5} />}
             </button>
           </form>
 
@@ -191,16 +192,17 @@ export default function Home() {
               {placeholder}
             </div>
             <div className="absolute bottom-2.5 right-0 grid h-11 w-11 place-items-center rounded-full bg-accent text-accent-ink sm:h-12 sm:w-12">
-              <span className="text-xl font-black">→</span>
+              <Icon name="arrow-right" size={20} strokeWidth={2.5} />
             </div>
           </div>
           <p className="mt-4 font-mono text-xs tracking-wide text-muted">
             Please confirm your email to search.{" "}
             <Link
               href="/profile"
-              className="text-accent underline-offset-2 hover:underline"
+              className="inline-flex items-center gap-1 text-accent underline-offset-2 hover:underline"
             >
-              enter your code →
+              enter your code
+              <Icon name="arrow-right" size={12} />
             </Link>
           </p>
         </div>

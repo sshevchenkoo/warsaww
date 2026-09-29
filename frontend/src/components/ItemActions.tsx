@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/components/Icon";
 import { ShareButton } from "@/components/ShareButton";
 import { useUser } from "@/components/UserContext";
 
@@ -21,7 +22,11 @@ export function ItemActions({ itemId }: { itemId: string }) {
         aria-pressed={saved}
         className="grid h-10 w-10 place-items-center rounded-full border border-white/25 bg-black/40 text-xl backdrop-blur-sm transition-transform hover:scale-110 active:scale-90"
       >
-        <span className={saved ? "text-accent" : "text-fg"}>{saved ? "♥" : "♡"}</span>
+        <Icon
+          name={saved ? "heart-filled" : "heart"}
+          size={20}
+          className={saved ? "text-accent" : "text-fg"}
+        />
       </button>
     </div>
   );

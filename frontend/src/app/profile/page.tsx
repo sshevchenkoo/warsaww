@@ -7,6 +7,7 @@ import { Avatar } from "@/components/Avatar";
 import { CardSkeleton } from "@/components/CardSkeleton";
 import { EmptyState } from "@/components/EmptyState";
 import { EventCard } from "@/components/EventCard";
+import { Icon, Spinner } from "@/components/Icon";
 import { ProfileEditForm } from "@/components/ProfileEditForm";
 import { SectionHeading } from "@/components/SectionHeading";
 import { useUser } from "@/components/UserContext";
@@ -84,10 +85,10 @@ export default function Profile() {
     }
   }
 
-  // While uploading: the percentage, then "…" once the bytes are up and the
-  // server is still re-encoding. Also "…" while a remove is in flight.
+  // While uploading: the percentage, then a spinner once the bytes are up and
+  // the server is still re-encoding. Also a spinner while a remove is in flight.
   const avatarBusyLabel =
-    avatarProgress !== null && avatarProgress < 100 ? `${avatarProgress}%` : "…";
+    avatarProgress !== null && avatarProgress < 100 ? `${avatarProgress}%` : <Spinner size={18} />;
 
   useEffect(() => {
     if (!user) return; // logged-out renders the sign-in prompt; busy is unused there
@@ -109,9 +110,7 @@ export default function Profile() {
   if (!user) {
     return (
       <main className="mx-auto grid w-full max-w-6xl place-items-center px-5 pb-24 pt-24 text-center">
-        <span aria-hidden className="text-4xl text-muted/40">
-          ♡
-        </span>
+        <Icon name="heart" size={40} className="text-muted/40" />
         <h1 className="mt-4 text-4xl font-black tracking-tighter sm:text-5xl">
           your saved<span className="text-accent">.</span>
         </h1>
@@ -177,7 +176,7 @@ export default function Profile() {
                   aria-hidden
                   className="pointer-events-none absolute -bottom-0.5 -right-0.5 grid h-7 w-7 place-items-center rounded-full border-2 border-card bg-accent text-xs text-accent-ink"
                 >
-                  {avatarBusy ? "…" : "✎"}
+                  {avatarBusy ? <Spinner size={12} /> : <Icon name="pencil" size={12} />}
                 </span>
               </div>
               {/* Rendered always: a live region must exist before its text
@@ -216,16 +215,22 @@ export default function Profile() {
                       </span>
                     )}
                     <span
-                      className={`rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest ${
+                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest ${
                         user.email_verified
                           ? "bg-accent/15 text-accent"
                           : "border border-line text-muted"
                       }`}
                     >
-                      {user.email_verified ? "verified ✓" : "unverified"}
+                      {user.email_verified ? (
+                        <>
+                          verified <Icon name="check" size={10} strokeWidth={3} />
+                        </>
+                      ) : (
+                        "unverified"
+                      )}
                     </span>
                   </div>
-                  {/* In the name column rather than beside "people →", which is
+                  {/* In the name column rather than beside the "people" link, which is
                       hidden on phones — editing has to work there too. */}
                   <button
                     type="button"
@@ -245,9 +250,10 @@ export default function Profile() {
 
             <Link
               href="/people"
-              className="ml-auto hidden shrink-0 rounded-full border border-line px-4 py-2 font-mono text-xs tracking-wide text-muted transition-colors hover:border-accent hover:text-fg sm:block"
+              className="ml-auto hidden shrink-0 rounded-full border border-line px-4 py-2 font-mono text-xs tracking-wide text-muted transition-colors hover:border-accent hover:text-fg sm:flex sm:items-center sm:gap-1"
             >
-              people →
+              people
+              <Icon name="arrow-right" size={12} />
             </Link>
           </div>
 
@@ -310,7 +316,7 @@ export default function Profile() {
                     aria-label={`Dismiss ${s.item.name}`}
                     title="Dismiss"
                   >
-                    ✕
+                    <Icon name="x" size={14} />
                   </button>
                 </div>
                 {s.message && (
@@ -331,11 +337,11 @@ export default function Profile() {
           <CardSkeleton />
         ) : visible.length === 0 ? (
           <EmptyState
-            glyph="♡"
+            icon="heart"
             title="nothing saved yet"
             body="tap the heart on any card and it lands here, ready for the weekend."
             href="/"
-            cta="find something →"
+            cta="find something"
           />
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">

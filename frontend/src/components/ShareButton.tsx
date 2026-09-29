@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { Icon, Spinner } from "@/components/Icon";
 import { useUser } from "@/components/UserContext";
 import { listFriends, shareEvent, type PublicUser } from "@/lib/social";
 
@@ -49,7 +50,8 @@ export function ShareButton({ itemId, compact = false }: { itemId: string; compa
             : "inline-flex items-center gap-1 rounded-full border border-line px-4 py-2.5 font-mono text-sm tracking-wide transition-colors hover:border-accent hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         }
       >
-        {compact ? "↗" : "share ↗"}
+        {!compact && "share"}
+        <Icon name="share" size={compact ? 16 : 14} />
       </button>
 
       {open && (
@@ -58,14 +60,18 @@ export function ShareButton({ itemId, compact = false }: { itemId: string; compa
             share with
           </p>
           {friends === null ? (
-            <p className="px-3 py-3 font-mono text-xs text-muted">loading…</p>
+            <p className="flex items-center gap-2 px-3 py-3 font-mono text-xs text-muted">
+              <Spinner size={12} />
+              loading…
+            </p>
           ) : friends.length === 0 ? (
             <Link
               href="/people"
               onClick={(e) => e.stopPropagation()}
-              className="block px-3 py-3 font-mono text-xs text-accent"
+              className="flex items-center gap-1 px-3 py-3 font-mono text-xs text-accent"
             >
-              add friends to share →
+              add friends to share
+              <Icon name="arrow-right" size={12} />
             </Link>
           ) : (
             <ul className="max-h-60 overflow-y-auto">
@@ -78,8 +84,14 @@ export function ShareButton({ itemId, compact = false }: { itemId: string; compa
                     className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-white/5 disabled:opacity-60"
                   >
                     <span className="truncate">{f.name ?? "user"}</span>
-                    <span className="shrink-0 font-mono text-[11px] text-accent">
-                      {sent.has(f.id) ? "sent ✓" : "send"}
+                    <span className="inline-flex shrink-0 items-center gap-1 font-mono text-[11px] text-accent">
+                      {sent.has(f.id) ? (
+                        <>
+                          sent <Icon name="check" size={12} />
+                        </>
+                      ) : (
+                        "send"
+                      )}
                     </span>
                   </button>
                 </li>

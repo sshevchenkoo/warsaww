@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { Spinner } from "@/components/Icon";
 import { useUser } from "@/components/UserContext";
 import { updateMe, type User } from "@/lib/auth";
 
@@ -105,7 +106,7 @@ export function ProfileEditForm({ user, onDone }: { user: User; onDone: () => vo
           disabled={busy}
           className="rounded-full bg-accent px-5 py-2 font-mono text-xs font-bold tracking-wide text-accent-ink transition-transform hover:scale-[1.02] active:scale-95 disabled:opacity-50"
         >
-          {busy ? "…" : "save"}
+          {busy ? <Spinner size={12} label="saving" /> : "save"}
         </button>
         <button
           type="button"
