@@ -7,11 +7,16 @@ demonstrated on a laptop (the DigitalOcean environment is torn down).
 ## One command
 
 ```bash
+make infra-auth AUTH_USER=admin AUTH_PASS=<password>   # run once: set the infra login
 make stack-up      # build + start the whole stack in the background
 make stack-seed    # (optional) load Warsaw places + events into the DB
 make stack-down    # stop everything (data kept in named volumes)
 make stack-logs    # follow all logs
 ```
+
+`make infra-auth` writes gitignored `deploy/local/.htpasswd` (nginx basic-auth) and
+`deploy/local/secrets.env` (Grafana admin password). `stack-up` refuses to start
+until it exists, so the infra UIs are never left open.
 
 Needs `backend/.env` (API keys) for the API to actually serve — copy
 `backend/.env.example` to `backend/.env`. The observability services start
@@ -19,17 +24,20 @@ without it.
 
 ## What you get
 
-| URL | Service | Login |
-|-----|---------|-------|
-| http://localhost:3000 | Web (Next.js) | — |
-| http://localhost:8000 | API (FastAPI) + `/metrics` | — |
-| http://localhost:3001 | **Grafana** (dashboards, Explore, traces) | admin / admin |
-| http://localhost:9090 | Prometheus (targets, alerts) | — |
-| http://localhost:9093 | Alertmanager | — |
-| http://localhost:5601 | **Kibana** (logs) | — |
-| http://localhost:3200 | Tempo (traces API; use via Grafana) | — |
-| http://localhost:9200 | Elasticsearch | — |
-| http://localhost:9100 | node-exporter (host metrics) | — |
+The infra UIs sit behind an **nginx auth gateway** (basic auth) or Grafana's own
+login — everything requires the credentials from `make infra-auth`. Elasticsearch,
+Tempo, and the exporters are **not exposed to the host at all** (internal docker
+network only), so there is nothing open to protect.
+
+| URL | Service | Auth |
+|-----|---------|------|
+| http://localhost:3000 | Web (Next.js) | app login |
+| http://localhost:8000 | API (FastAPI) + `/metrics` | app login |
+| http://localhost:3001 | **Grafana** (dashboards, Explore, traces) | your infra login |
+| http://localhost:9090 | Prometheus (targets, alerts) — via nginx | your infra login |
+| http://localhost:9093 | Alertmanager — via nginx | your infra login |
+| http://localhost:5601 | **Kibana** (logs) — via nginx | your infra login |
+| _(internal only)_ | Elasticsearch, Tempo, node/pg-exporter, otel-collector | not exposed |
 
 - **Metrics:** Prometheus scrapes `warsaw-api`, `postgres-exporter`, the
   otel-collector, and **node-exporter** (host VM). Grafana ships with three

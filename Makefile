@@ -1,6 +1,6 @@
 .PHONY: help keys check-keys \
         dev app-up app-down app-logs app-seed web web-bg web-logs \
-        stack-up stack-init stack-seed seed-fixtures seed-users stack-down stack-logs \
+        stack-up stack-init stack-seed seed-fixtures seed-users stack-down stack-logs infra-auth \
         do-infra-up do-infra-plan do-infra-down do-kubeconfig do-db-init \
         do-images do-platform do-deploy do-elk
 
@@ -61,6 +61,7 @@ help:
 	@echo "    make web-logs        — follow the frontend logs"
 	@echo ""
 	@echo "  $(YELLOW)Full local stack (app + observability, one command):$(NC)"
+	@echo "    make infra-auth      — set the login for the infra UIs (run once): AUTH_USER=.. AUTH_PASS=.."
 	@echo "    make stack-init      — FIRST RUN: start the stack + load 100 [TEST] demo events"
 	@echo "    make stack-up        — app + Grafana/Prometheus/Tempo + ELK (~4-6 GB RAM)"
 	@echo "    make seed-fixtures   — load the 100 [TEST] demo events (no API keys)"
@@ -149,11 +150,20 @@ app-down:
 # The same observability the cloud runs, on a laptop — see deploy/local/config/README.md.
 # Heavy (~4-6 GB RAM); stop with `make stack-down` when done.
 stack-up:              ## Start the whole stack (app + Grafana/Prometheus/Tempo + ELK)
+	@[ -f deploy/local/.htpasswd ] || { echo "$(RED)Set an infra login first:$(NC) make infra-auth AUTH_USER=admin AUTH_PASS=<password>"; exit 1; }
 	@echo "$(GREEN)Building + starting the full local stack (this pulls several images)...$(NC)"
 	$(STACK) up -d --build --remove-orphans
 	@echo "$(GREEN)Up:$(NC) web http://localhost:3000 · api http://localhost:8000"
-	@echo "  Grafana http://localhost:3001 (admin/admin) · Prometheus :9090 · Kibana :5601 · Alertmanager :9093"
+	@echo "  Grafana http://localhost:3001 · Prometheus :9090 · Kibana :5601 · Alertmanager :9093  (all require login)"
 	@echo "  Next: $(YELLOW)make stack-init$(NC) (first run: also loads demo data) or $(YELLOW)make stack-seed$(NC)"
+
+# Set the login used by the nginx auth gateway (Kibana/Prometheus/Alertmanager)
+# AND Grafana. Writes gitignored deploy/local/.htpasswd + secrets.env. Run once.
+infra-auth:            ## Set infra UI login: make infra-auth AUTH_USER=admin AUTH_PASS=secret
+	@[ -n "$(AUTH_USER)" ] && [ -n "$(AUTH_PASS)" ] || { echo "$(RED)usage:$(NC) make infra-auth AUTH_USER=<user> AUTH_PASS=<pass>"; exit 1; }
+	@docker run --rm httpd:2.4-alpine htpasswd -Bbn "$(AUTH_USER)" "$(AUTH_PASS)" > deploy/local/.htpasswd
+	@printf 'GF_SECURITY_ADMIN_USER=%s\nGF_SECURITY_ADMIN_PASSWORD=%s\n' "$(AUTH_USER)" "$(AUTH_PASS)" > deploy/local/secrets.env
+	@echo "$(GREEN)Infra login set for '$(AUTH_USER)'.$(NC) Apply: $(YELLOW)make stack-up$(NC)"
 
 # First-run one-liner for a fresh machine: start the stack, wait for the API,
 # and load the bundled 100 [TEST] demo events — no API keys required.

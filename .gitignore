@@ -6,6 +6,9 @@
 .kube/
 # filled-in k8s Secret (keep only secret.example.yml)
 **/k8s/secret.yml
+# local infra auth gateway (nginx basic-auth + Grafana admin password) — never commit
+deploy/local/.htpasswd
+deploy/local/secrets.env
 
 # Terraform
 *.tfvars
