@@ -5,6 +5,10 @@ from pydantic_settings import BaseSettings
 # production deploy that still uses it has forgeable session cookies — the
 # validator below refuses to start in that case.
 INSECURE_SESSION_SECRET = "dev-insecure-change-me"
+# Shortest signing key accepted in production. Rejecting only the exact dev
+# default let a copied-but-unfilled placeholder ("..." in secret.example.yml)
+# boot with a guessable key. `openssl rand -hex 32` gives 64 characters.
+MIN_SESSION_SECRET_LENGTH = 32
 
 
 class Settings(BaseSettings):
@@ -141,7 +145,7 @@ class Settings(BaseSettings):
         """Fail fast when a production-shaped deploy still carries dev defaults.
 
         `session_https_only` is our production signal (secure cookies require
-        HTTPS). In that mode a default signing key or wildcard CORS would be a
+        HTTPS). In that mode a default or short signing key or wildcard CORS would be a
         silent security hole, so we refuse to boot rather than ship it."""
         if self.session_https_only:
             if self.session_secret == INSECURE_SESSION_SECRET:
@@ -149,6 +153,12 @@ class Settings(BaseSettings):
                     "session_secret is still the insecure dev default while "
                     "session_https_only is on. Set SESSION_SECRET to a strong "
                     "random value in production (e.g. `openssl rand -hex 32`)."
+                )
+            if len(self.session_secret) < MIN_SESSION_SECRET_LENGTH:
+                raise ValueError(
+                    f"session_secret is shorter than {MIN_SESSION_SECRET_LENGTH} "
+                    "characters while session_https_only is on. Set SESSION_SECRET "
+                    "to a strong random value (e.g. `openssl rand -hex 32`)."
                 )
             if "*" in self.cors_origins:
                 raise ValueError(

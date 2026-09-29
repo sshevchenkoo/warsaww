@@ -48,7 +48,9 @@ Set in `backend/.env` (local) or the `warsaw-secrets` Secret (cluster):
 
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` — an OAuth 2.0 **Web** client from
   console.cloud.google.com.
-- `SESSION_SECRET` — a long random string that signs the session cookie.
+- `SESSION_SECRET` — a long random string that signs the session cookie. With
+  `SESSION_HTTPS_ONLY=true` the API refuses to boot on a key shorter than 32
+  characters; generate one with `openssl rand -hex 32`.
 - `FRONTEND_URL` — where login redirects back to and the base for the OAuth
   redirect URI (`{FRONTEND_URL}/auth/callback`). Defaults to `http://localhost:3000`.
 - `SESSION_HTTPS_ONLY` — `true` in production (Secure cookies), `false` for local http.
