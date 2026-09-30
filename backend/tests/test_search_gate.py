@@ -50,6 +50,7 @@ class _User:
         self.email_verify_attempts = attempts
         self.pending_email = None
         self.password_hash = None
+        self.two_factor_enabled = False
 
 
 def _patch_sessionlocal(monkeypatch, user):

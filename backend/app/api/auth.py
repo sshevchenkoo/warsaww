@@ -1,7 +1,8 @@
 """Auth routes. Two ways to sign in, both ending in the same session cookie:
 
 - Google OAuth: /auth/login/google → Google consent → /auth/callback.
-- Email + password: /auth/register, /auth/login.
+- Email + password: /auth/register, /auth/login — plus, when the account has
+  turned on two-factor sign-in, /auth/login/2fa with a code emailed at login.
 
 Plus /auth/logout, the /me probe and PATCH /me (profile edit). Accounts are keyed
 by email, so signing up by password and later using Google with the same email is
@@ -9,6 +10,7 @@ one account.
 """
 
 import logging
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from authlib.integrations.starlette_client import OAuthError
@@ -19,7 +21,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth.deps import current_user
-from app.auth.email import generate_code, hash_code, send_verification_email, verify_code
+from app.auth.email import (
+    generate_code,
+    hash_code,
+    send_login_code_email,
+    send_verification_email,
+    verify_code,
+)
 from app.auth.oauth import oauth
 from app.auth.passwords import MAX_PASSWORD_BYTES, hash_password, verify_password
 from app.catalog.db import get_session
@@ -62,6 +70,7 @@ def _user_payload(user: User) -> dict:
         # needs current_password; a Google account's email follows Google), so
         # the profile form shows the email field only when this is true.
         "has_password": user.password_hash is not None,
+        "two_factor_enabled": user.two_factor_enabled,
     }
 
 
@@ -81,6 +90,20 @@ def _issue_verification(user: User, session: Session) -> None:
     user.email_verify_attempts = 0
     session.commit()
     send_verification_email(target, code)
+
+
+def _issue_login_code(user: User, session: Session) -> None:
+    """Generate the second-factor code for a password login, store its keyed hash
+    + expiry (resetting the attempt counter) and email it to the account's
+    address. Every password login issues a fresh one, which is also the resend."""
+    code = generate_code()
+    user.login_code_hash = hash_code(code)
+    user.login_code_expires_at = datetime.now(timezone.utc) + timedelta(
+        minutes=settings.email_verify_code_ttl_minutes
+    )
+    user.login_code_attempts = 0
+    session.commit()
+    send_login_code_email(user.email, code)
 
 
 def _check_code(
@@ -151,6 +174,10 @@ async def auth_callback(
         if user is not None and user.password_hash is not None:
             log.info("OAuth link: clearing pre-existing password on account %s", user.id)
             user.password_hash = None
+            # Two-factor sign-in guards the password path, which is now gone;
+            # Google owns the second factor from here on.
+            user.two_factor_enabled = False
+            _clear_login_code(user)
     if user is None:
         user = User()
         session.add(user)
@@ -204,6 +231,14 @@ def login(
             status.HTTP_403_FORBIDDEN,
             "Please verify your email before signing in. Check your inbox or request a new link.",
         )
+    if user.two_factor_enabled:
+        # The password alone is not a session: park the account id, email a
+        # code, and let POST /auth/login/2fa finish the login.
+        request.session.pop("user_id", None)
+        request.session["pending_2fa"] = str(user.id)
+        _issue_login_code(user, session)
+        return {"pending_2fa": True}
+    request.session.pop("pending_2fa", None)
     request.session["user_id"] = str(user.id)
     return _user_payload(user)
 
@@ -262,6 +297,46 @@ def _clear_code(user: User) -> None:
     user.email_verify_code_hash = None
     user.email_verify_code_expires_at = None
     user.email_verify_attempts = 0
+
+
+@router.post("/auth/login/2fa")
+def login_2fa(
+    req: VerifyRequest, request: Request, session: Session = Depends(get_session)
+) -> dict:
+    """Second step of a password login with two-factor sign-in on: the code
+    emailed by POST /auth/login. Same expiry and wrong-attempt cap as email
+    verification; signing in with the password again issues a fresh code.
+    On success the session becomes a normal logged-in one."""
+    _rate_limit_auth(request)
+    user = None
+    try:
+        user = session.get(User, uuid.UUID(request.session.get("pending_2fa") or ""))
+    except (ValueError, TypeError):
+        pass
+    if user is None or not user.two_factor_enabled:
+        request.session.pop("pending_2fa", None)
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sign in again.")
+    if not _check_code(
+        req.code,
+        user.login_code_hash,
+        user.login_code_expires_at,
+        user.login_code_attempts,
+        "Sign in again to get a new code.",
+    ):
+        user.login_code_attempts += 1
+        session.commit()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid code.")
+    _clear_login_code(user)
+    session.commit()
+    request.session.pop("pending_2fa", None)
+    request.session["user_id"] = str(user.id)
+    return _user_payload(user)
+
+
+def _clear_login_code(user: User) -> None:
+    user.login_code_hash = None
+    user.login_code_expires_at = None
+    user.login_code_attempts = 0
 
 
 @router.post("/auth/resend")

@@ -43,6 +43,10 @@ class _User:
         self.email_verify_code_hash = None
         self.email_verify_code_expires_at = None
         self.email_verify_attempts = 0
+        self.two_factor_enabled = False
+        self.login_code_hash = None
+        self.login_code_expires_at = None
+        self.login_code_attempts = 0
 
 
 class _Session:
