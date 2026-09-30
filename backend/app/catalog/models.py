@@ -122,6 +122,18 @@ class User(Base):
     # address keeps working for login. Not UNIQUE: a taken address is refused at
     # request time and re-checked at confirm time.
     pending_email: Mapped[str | None] = mapped_column(Text)
+    # Second factor at password login: a 6-digit code emailed to `email`. Its
+    # hash/expiry/attempts live in their own columns, not the email_verify_*
+    # ones — a login code sent to the old address must never be accepted by
+    # /auth/verify as proof of a pending new one. NULL/0 outside a login.
+    two_factor_enabled: Mapped[bool] = mapped_column(
+        Boolean, server_default=text("false"), nullable=False
+    )
+    login_code_hash: Mapped[str | None] = mapped_column(Text)
+    login_code_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    login_code_attempts: Mapped[int] = mapped_column(
+        Integer, server_default=text("0"), nullable=False
+    )
     name: Mapped[str | None] = mapped_column(Text)
     avatar_url: Mapped[str | None] = mapped_column(Text)
     # Presence: refreshed by the /me/ping heartbeat. A user counts as "online"
