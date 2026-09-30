@@ -149,7 +149,7 @@ app-down:
 	@echo "$(GREEN)App stack stopped (data kept in the pgdata volume)$(NC)"
 
 # ─── Full local stack: app + observability (Grafana/Prometheus/Tempo + ELK) ───
-# The same observability the cloud runs, on a laptop — see deploy/local/config/README.md.
+# The same observability the cloud runs, on a laptop — see deploy/local/README.md.
 # Heavy (~4-6 GB RAM); stop with `make stack-down` when done.
 stack-up:              ## Start the whole stack (app + Grafana/Prometheus/Tempo + ELK)
 	@[ -f deploy/local/.htpasswd ] || { echo "$(RED)Set an infra login first:$(NC) make infra-auth AUTH_USER=admin AUTH_PASS=<password>"; exit 1; }

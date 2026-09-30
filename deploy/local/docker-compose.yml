@@ -9,7 +9,7 @@
 #   - ELK mirrors deploy/cloud/ansible/roles/elk (ES + Logstash + Kibana),
 #     fed by Fluent Bit shipping every container's logs (Docker fluentd driver).
 # k8s-only signals (kube-state-metrics / node-exporter pod & node panels) have no
-# local equivalent and simply stay empty — see deploy/local/config/README.md.
+# local equivalent and simply stay empty — see deploy/local/README.md.
 name: warsaw-stack
 
 services:
