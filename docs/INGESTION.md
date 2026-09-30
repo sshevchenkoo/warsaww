@@ -5,7 +5,7 @@ the pipeline stages are in that order, what each stage is allowed to fail at, an
 adding a fifth source.
 
 [ALGORITHMS.md](ALGORITHMS.md) §6–7 covers the dedup and taxonomy algorithms themselves.
-[ingestion.md](ingestion.md) is the one-page reference version of this document.
+[ingestion-overview.md](ingestion-overview.md) is the one-page reference version of this document.
 
 ---
 

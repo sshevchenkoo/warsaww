@@ -83,7 +83,7 @@ Key columns:
   Nullable: a keyless or rate-limited ingestion run leaves it untouched rather
   than wiping it (see [INGESTION.md](INGESTION.md) §4.5).
 - `sources jsonb` — every source a card was seen at; duplicates don't create new
-  rows, they append their ref here (see [ingestion.md](ingestion.md)).
+  rows, they append their ref here (see [ingestion-overview.md](ingestion-overview.md)).
 - `UNIQUE (source, source_url)` — re-running a source upserts instead of duplicating.
 - `hnsw` index — approximate nearest-neighbour search for the semantic leg of
   hybrid retrieval; without it every query would scan all rows.

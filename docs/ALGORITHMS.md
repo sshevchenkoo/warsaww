@@ -10,7 +10,7 @@ a bug.
 
 Companions: [SEARCH.md](SEARCH.md) follows one request end to end; [INGESTION.md](INGESTION.md)
 covers how the cards being ranked got into the table. The short reference versions are
-[search-and-llm.md](search-and-llm.md) and [ingestion.md](ingestion.md).
+[search-and-llm.md](search-and-llm.md) and [ingestion-overview.md](ingestion-overview.md).
 
 ---
 

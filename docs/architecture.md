@@ -65,7 +65,7 @@ One Docker image with a shared pipeline (`fetch → normalize → dedup → embe
 upsert`) and one adapter class per source. Run as k8s **CronJobs**: one CronJob
 per source, the same image, only the `--source` argument changes. A new source =
 a new adapter class (~50–100 lines) + a line in the registry + a CronJob
-manifest. See [ingestion.md](ingestion.md).
+manifest. See [ingestion-overview.md](ingestion-overview.md).
 
 ## Frontend
 

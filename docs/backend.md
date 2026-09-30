@@ -2,7 +2,7 @@
 
 The app that finds events and places in Warsaw from a free-form user prompt.
 Deeper topics: [architecture](architecture.md), [data model](data-model.md),
-[search & LLM](search-and-llm.md), [ingestion](ingestion.md).
+[search & LLM](search-and-llm.md), [ingestion](ingestion-overview.md).
 
 ## Structure
 

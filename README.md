@@ -100,7 +100,7 @@ app manifests in [docs/deployment.md](docs/deployment.md), full platform runbook
 | [Data model](docs/data-model.md) | `items`, `intent_logs`, `users`, `saved_items` schema |
 | [Search & LLM](docs/search-and-llm.md) | Intent, embeddings, hybrid search, re-rank, cost |
 | [Auth & profiles](docs/auth.md) | Google sign-in, sessions, saved items |
-| [Ingestion](docs/ingestion.md) | Adapters, sources, enrichment, deduplication |
+| [Ingestion](docs/ingestion-overview.md) | Adapters, sources, enrichment, deduplication |
 | [Deployment](docs/deployment.md) | Docker image, k8s manifests, CronJobs |
 | [Local development](docs/local-development.md) | Running and testing locally |
 | [Hosting (DigitalOcean)](docs/hosting-digitalocean.md) | Prod on DOKS — Terraform, Helm, ELK |
