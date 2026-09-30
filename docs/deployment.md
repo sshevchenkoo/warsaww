@@ -1,5 +1,10 @@
 # Deployment (Warsaw-events app)
 
+> Deployment overviews live next to the code: **local** stack →
+> [`deploy/local/README.md`](../deploy/local/README.md), **cloud** →
+> [`deploy/cloud/README.md`](../deploy/cloud/README.md). This doc is the app's k8s
+> manifest reference.
+
 The app ships as **one Docker image** used by both the API (uvicorn) and the
 ingestion CronJobs (`python -m app.ingestion.runner --source=X`); only the
 command differs. Manifests live in [`deploy/cloud/k8s/`](../deploy/cloud/k8s) and target a

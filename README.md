@@ -85,8 +85,10 @@ make app-down    # stop the stack (data kept in the pgdata volume)
 `make help` lists every target. The equivalent manual commands are in
 [docs/local-development.md](docs/local-development.md).
 
-Deploying to prod (DigitalOcean DOKS): app in [docs/deployment.md](docs/deployment.md),
-the full platform runbook in [docs/hosting-digitalocean.md](docs/hosting-digitalocean.md).
+Full local stack (app + observability, one command): [deploy/local/README.md](deploy/local/README.md).
+Cloud deployment (DigitalOcean DOKS): overview in [deploy/cloud/README.md](deploy/cloud/README.md),
+app manifests in [docs/deployment.md](docs/deployment.md), full platform runbook in
+[docs/hosting-digitalocean.md](docs/hosting-digitalocean.md).
 
 ## Documentation
 
@@ -102,6 +104,8 @@ the full platform runbook in [docs/hosting-digitalocean.md](docs/hosting-digital
 | [Deployment](docs/deployment.md) | Docker image, k8s manifests, CronJobs |
 | [Local development](docs/local-development.md) | Running and testing locally |
 | [Hosting (DigitalOcean)](docs/hosting-digitalocean.md) | Prod on DOKS — Terraform, Helm, ELK |
+| [Deploy — local stack](deploy/local/README.md) | Full local stack (app + Grafana/Prometheus/Tempo + ELK) in one command |
+| [Deploy — cloud](deploy/cloud/README.md) | Cloud deployment overview (DOKS + managed Postgres + ELK droplet) |
 
 ### Deep dives
 
