@@ -1,5 +1,5 @@
 """Two-factor sign-in: POST /auth/login parks a password login until the
-emailed code comes back through POST /auth/login/2fa.
+emailed code comes back through POST /auth/login/2fa, and PATCH /me toggles it.
 Pure logic with fakes — no HTTP server, DB, Redis or email."""
 
 import uuid
@@ -11,9 +11,11 @@ from fastapi import HTTPException
 from app.api import auth as authmod
 from app.api.auth import (
     LoginRequest,
+    UpdateMeRequest,
     VerifyRequest,
     login,
     login_2fa,
+    update_me,
     verify_email,
 )
 from app.auth.email import hash_code
@@ -222,3 +224,51 @@ def test_login_code_cannot_confirm_a_pending_email(sent):
     assert u.email == EMAIL
     assert u.email_verify_code_hash == hash_code("999999")  # untouched by the login
 
+
+# ─── PATCH /me toggle ─────────────────────────────────────────────────────────
+def _patch(user, **body):
+    return update_me(UpdateMeRequest(**body), _Req(), _Session(user), user)
+
+
+def test_turning_2fa_on_needs_no_password():
+    u = _User(two_factor=False)
+    out = _patch(u, two_factor_enabled=True)
+    assert u.two_factor_enabled is True
+    assert out["two_factor_enabled"] is True
+
+
+def test_turning_2fa_on_needs_a_verified_email():
+    u = _User(two_factor=False, verified=False)
+    with pytest.raises(HTTPException) as e:
+        _patch(u, two_factor_enabled=True)
+    assert e.value.status_code == 400
+    assert u.two_factor_enabled is False
+
+
+def test_turning_2fa_off_needs_the_current_password():
+    u = _User()
+    with pytest.raises(HTTPException) as e:
+        _patch(u, two_factor_enabled=False, current_password="wrong")
+    assert e.value.status_code == 403
+    assert u.two_factor_enabled is True
+
+
+def test_turning_2fa_off_lets_the_password_alone_sign_in(sent):
+    u = _User()
+    _patch(u, two_factor_enabled=False, current_password=PASSWORD)
+    _, req = _login(u)
+    assert req.session == {"user_id": str(u.id)}
+    assert sent == []
+
+
+def test_google_account_cannot_toggle_2fa():
+    u = _User(two_factor=False, google=True)
+    with pytest.raises(HTTPException) as e:
+        _patch(u, two_factor_enabled=True)
+    assert e.value.status_code == 403
+
+
+def test_sending_the_current_value_is_a_noop():
+    u = _User()
+    _patch(u, two_factor_enabled=True)  # no password needed, nothing changes
+    assert u.two_factor_enabled is True

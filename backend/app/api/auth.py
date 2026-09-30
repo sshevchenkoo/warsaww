@@ -373,6 +373,9 @@ class UpdateMeRequest(BaseModel):
     # Needed to change a password account's email, so a hijacked session alone
     # can't move the account to an address the attacker controls.
     current_password: str | None = Field(default=None, max_length=MAX_PASSWORD_BYTES)
+    # Two-factor sign-in for password logins. Turning it off also needs
+    # current_password, for the same reason as an email change.
+    two_factor_enabled: bool | None = None
 
 
 @router.patch("/me")
@@ -386,28 +389,50 @@ def update_me(
     requested: the new address lands in `pending_email` and gets a verification
     code, and POST /auth/verify swaps it in. Until then the old email keeps
     working for login, so a typo can't lock the user out, and search stays open.
-    Sending the current email again cancels a pending change."""
+    Sending the current email again cancels a pending change.
+    `two_factor_enabled` toggles the login code (password accounts only)."""
     new_email = str(req.email) if req.email is not None else None
     changing_email = new_email is not None and new_email != user.email
+    toggling_2fa = (
+        req.two_factor_enabled is not None
+        and req.two_factor_enabled != user.two_factor_enabled
+    )
     # Validate everything before touching the row, so a refused email change
     # doesn't half-apply a name change.
-    if changing_email:
-        if user.google_sub:
-            # auth_callback rewrites user.email from Google on every login, so a
-            # change made here would silently revert.
+    if changing_email and user.google_sub:
+        # auth_callback rewrites user.email from Google on every login, so a
+        # change made here would silently revert.
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "This account's email is managed by Google."
+        )
+    if toggling_2fa:
+        if user.google_sub or not user.password_hash:
+            # Google sign-in never reaches the password login; the second
+            # factor is whatever the Google account itself enforces.
             raise HTTPException(
-                status.HTTP_403_FORBIDDEN, "This account's email is managed by Google."
+                status.HTTP_403_FORBIDDEN, "Two-factor sign-in for this account is managed by Google."
             )
+        if req.two_factor_enabled and not user.email_verified:
+            # The code goes to `email`; an unproven address could lock the
+            # user out on their next login.
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                "Verify your email before turning on two-factor sign-in.",
+            )
+    if changing_email or (toggling_2fa and not req.two_factor_enabled):
         _rate_limit_auth(request)  # current_password is otherwise guessable here
         if not user.password_hash or not verify_password(
             req.current_password or "", user.password_hash
         ):
             raise HTTPException(status.HTTP_403_FORBIDDEN, "Current password is incorrect.")
-        if _email_taken(session, new_email, user):
-            raise HTTPException(status.HTTP_409_CONFLICT, "Email already registered")
+    if changing_email and _email_taken(session, new_email, user):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Email already registered")
 
     if "name" in req.model_fields_set:
         user.name = (req.name or "").strip() or None
+    if toggling_2fa:
+        user.two_factor_enabled = req.two_factor_enabled
+        _clear_login_code(user)
 
     if changing_email:
         user.pending_email = new_email
