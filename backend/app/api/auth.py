@@ -83,6 +83,19 @@ def _issue_verification(user: User, session: Session) -> None:
     send_verification_email(target, code)
 
 
+def _check_code(
+    code: str, code_hash: str | None, expires_at: datetime | None, attempts: int, renew: str
+) -> bool:
+    """Shared gate for an emailed code: 400 when none is live, 429 once the
+    wrong-attempt cap is reached, otherwise whether `code` matches. The caller
+    counts a miss. `renew` tells the user how to get a fresh code."""
+    if not code_hash or expires_at is None or expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Your code expired. {renew}")
+    if attempts >= settings.email_verify_max_attempts:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, f"Too many attempts. {renew}")
+    return verify_code(code, code_hash)
+
+
 def _email_taken(session: Session, email: str, user: User) -> bool:
     """True if another account already uses `email` as its login."""
     return (
@@ -213,20 +226,13 @@ def verify_email(
     _rate_limit_auth(request)
     if user.email_verified and not user.pending_email:
         return _user_payload(user)
-    now = datetime.now(timezone.utc)
-    if (
-        not user.email_verify_code_hash
-        or user.email_verify_code_expires_at is None
-        or user.email_verify_code_expires_at < now
+    if not _check_code(
+        req.code,
+        user.email_verify_code_hash,
+        user.email_verify_code_expires_at,
+        user.email_verify_attempts,
+        "Request a new one.",
     ):
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "Your code expired. Request a new one."
-        )
-    if user.email_verify_attempts >= settings.email_verify_max_attempts:
-        raise HTTPException(
-            status.HTTP_429_TOO_MANY_REQUESTS, "Too many attempts. Request a new code."
-        )
-    if not verify_code(req.code, user.email_verify_code_hash):
         user.email_verify_attempts += 1
         session.commit()
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid code.")
