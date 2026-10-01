@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { Spinner } from "@/components/Icon";
 import { useUser } from "@/components/UserContext";
 import { updateMe } from "@/lib/auth";
 
@@ -84,7 +85,7 @@ export function VerifyPanel() {
           disabled={busy || code.length < 4}
           className="rounded-full bg-accent px-5 py-2.5 font-bold text-accent-ink transition-transform hover:scale-[1.02] active:scale-95 disabled:opacity-50"
         >
-          {busy ? "…" : "verify"}
+          {busy ? <Spinner label="verifying" /> : "verify"}
         </button>
       </form>
 

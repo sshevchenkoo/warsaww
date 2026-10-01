@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
 import { ItemActions } from "@/components/ItemActions";
 import { ItemImage } from "@/components/ItemImage";
 import type { Card } from "@/lib/api";
@@ -37,8 +38,9 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
     return (
       <main className="mx-auto w-full max-w-3xl px-5 pt-16">
         <h1 className="text-3xl font-black tracking-tighter">not found</h1>
-        <Link href="/" className="mt-4 inline-block font-mono text-xs text-accent">
-          ← back to search
+        <Link href="/" className="mt-4 inline-flex items-center gap-1 font-mono text-xs text-accent">
+          <Icon name="arrow-left" size={12} />
+          back to search
         </Link>
       </main>
     );
@@ -52,9 +54,10 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
     <main className="mx-auto w-full max-w-3xl px-5 pb-24 pt-8">
       <Link
         href="/"
-        className="font-mono text-xs tracking-wide text-muted transition-colors hover:text-fg"
+        className="inline-flex items-center gap-1 font-mono text-xs tracking-wide text-muted transition-colors hover:text-fg"
       >
-        ← back
+        <Icon name="arrow-left" size={12} />
+        back
       </Link>
 
       <div className="relative mt-5 aspect-[16/9] overflow-hidden rounded-2xl border border-line bg-card">
@@ -93,9 +96,10 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
           href={item.source_url}
           target="_blank"
           rel="noreferrer"
-          className="mt-8 inline-block rounded-full bg-accent px-5 py-2.5 font-bold text-accent-ink transition-transform hover:scale-105 active:scale-95"
+          className="mt-8 inline-flex items-center gap-1.5 rounded-full bg-accent px-5 py-2.5 font-bold text-accent-ink transition-transform hover:scale-105 active:scale-95"
         >
-          open on {item.source} ↗
+          open on {item.source}
+          <Icon name="external" size={14} />
         </a>
       )}
     </main>

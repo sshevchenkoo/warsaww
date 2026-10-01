@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { Spinner } from "@/components/Icon";
 import { useUser } from "@/components/UserContext";
 import { VerifyPanel } from "@/components/VerifyPanel";
 
@@ -110,7 +111,7 @@ export default function Login() {
           disabled={busy}
           className="mt-2 rounded-full bg-accent px-4 py-2.5 font-bold text-accent-ink transition-transform hover:scale-[1.02] active:scale-95 disabled:opacity-50"
         >
-          {busy ? "…" : mode === "signup" ? "create account" : "sign in"}
+          {busy ? <Spinner label="working" /> : mode === "signup" ? "create account" : "sign in"}
         </button>
       </form>
 

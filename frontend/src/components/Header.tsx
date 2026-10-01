@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { Avatar } from "@/components/Avatar";
 import { useUser } from "@/components/UserContext";
 
 export function Header() {
@@ -26,20 +27,7 @@ export function Header() {
               href="/profile"
               className="flex items-center gap-2 text-muted transition-colors hover:text-fg"
             >
-              {user.avatar_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={user.avatar_url}
-                  alt=""
-                  width={24}
-                  height={24}
-                  className="h-6 w-6 rounded-full border border-line object-cover"
-                />
-              ) : (
-                <span className="grid h-6 w-6 place-items-center rounded-full bg-accent text-[11px] font-black text-accent-ink">
-                  {(user.name ?? user.email ?? "?").charAt(0).toUpperCase()}
-                </span>
-              )}
+              <Avatar src={user.avatar_url} name={user.name ?? user.email} size={24} />
               <span className="hidden sm:inline">profile</span>
             </Link>
             <button

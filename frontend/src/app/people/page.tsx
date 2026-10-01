@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { Spinner } from "@/components/Icon";
 import { UserCard } from "@/components/UserCard";
 import { useUser } from "@/components/UserContext";
 import {
@@ -83,7 +84,12 @@ export default function People() {
       <div role="status" aria-live="polite">
         {results !== null && (
           <section className="mt-4">
-            {searching && <p className="font-mono text-xs text-muted">searching…</p>}
+            {searching && (
+              <p className="flex items-center gap-2 font-mono text-xs text-muted">
+                <Spinner size={12} />
+                searching…
+              </p>
+            )}
             {!searching && results.length === 0 && (
               <p className="font-mono text-xs text-muted">no one matched “{query.trim()}”.</p>
             )}
