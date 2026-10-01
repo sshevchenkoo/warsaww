@@ -55,7 +55,7 @@ Platform:   DigitalOcean DOKS · managed Postgres · ELK logs · Prometheus/Graf
 | Profile | Hero with stats, inline edit of name and email (email change confirmed by code), avatar upload with progress and delete | tbogus, yhruda, dstefans |
 | Friends and sharing | Friend requests, online status, public profiles, sharing a card with a friend, a "shared with you" inbox | dstefans, yhruda, tbogus |
 | Saved items | Save a card with the heart; friends can see each other's saved lists | yhruda, dstefans |
-| Shared UI components | Palette and type tokens, reusable components and text-glyph icons; the SVG icon set is not yet integrated into this checkout | dstefans, tbogus |
+| Shared UI components | Palette and type tokens, reusable components, shared SVG icons and loading spinners | dstefans, tbogus |
 | Production platform | Terraform for DigitalOcean DOKS + managed Postgres + ELK droplet; Helm for ELK logging, Prometheus/Grafana/Tempo and TLS | yashevch |
 | Local observability stack | The same monitoring and logging on a laptop behind a basic-auth gateway, plus scheduled ingestion | yashevch |
 
@@ -137,18 +137,18 @@ An item can appear in many saves and shares. User and item foreign keys cascade 
 
 Scored against the ft_transcendence subject v21.1, section IV (Major = 2 points, Minor = 1,
 14 required). The chosen inventory totals 7 Major modules × 2 plus 5 Minor modules × 1
-= **19 planned points**. Module #4 still needs its SVG icon set integrated into this
-checkout; excluding that pending point gives **18 claimed points**, subject to demonstration
-and evaluator validation. [docs/MODULES.md](docs/MODULES.md) is an earlier 14-point
-assessment that predates profile editing and avatar management; its design-system
-warning remains relevant. The table below records the current scope and known gap.
+= **19 claimed points**, subject to demonstration and evaluator validation.
+The SVG icon set and loading spinners are integrated into `main`.
+[docs/MODULES.md](docs/MODULES.md) is an earlier 14-point assessment that predates
+profile editing, avatar management and SVG icon integration; the table below is the
+current module inventory.
 
 | # | Module | Category | Type | Pts | Implemented by | Where |
 |---|---|---|---|---|---|---|
 | 1 | Framework for both frontend and backend | Web | Major | 2 | dstefans, yhruda, tbogus | Next.js 16 App Router in `frontend/`, FastAPI in `backend/app/` |
 | 2 | Use an ORM | Web | Minor | 1 | yhruda, tbogus, dstefans | SQLAlchemy 2 typed models, `backend/app/catalog/models.py` ([ORM.md](docs/ORM.md)) |
 | 3 | Server-Side Rendering | Web | Minor | 1 | dstefans | `/item/[id]` is rendered on the server with its own metadata, `frontend/src/app/item/[id]/page.tsx` |
-| 4 | Custom design system (pending icon integration) | Web | Minor | 1 planned | dstefans, tbogus | Palette/type tokens in `frontend/src/app/globals.css` and 14 components in `frontend/src/components/`; SVG icons remain on an unmerged branch |
+| 4 | Custom design system | Web | Minor | 1 | dstefans, tbogus | Palette/type tokens in `frontend/src/app/globals.css`, 15 component files in `frontend/src/components/`, and shared SVG icons and Spinner in `frontend/src/components/Icon.tsx` |
 | 5 | Standard user management | User Management | Major | 2 | tbogus, yhruda, dstefans | Profile edit (`PATCH /me`), avatar upload with a default, friends with online status — `backend/app/api/`, `frontend/src/app/profile/` |
 | 6 | OAuth 2.0 remote authentication | User Management | Minor | 1 | yhruda, tbogus | Google OIDC via authlib, `backend/app/auth/oauth.py` |
 | 7 | Complete RAG system | AI | Major | 2 | tbogus, yhruda | Voyage embeddings + pgvector/pg_trgm hybrid retrieval, blurbs grounded in the retrieved cards — `backend/app/retrieval/` |
@@ -157,7 +157,7 @@ warning remains relevant. The table below records the current scope and known ga
 | 10 | ELK log management | DevOps | Major | 2 | yashevch | Elasticsearch + Logstash + Kibana, Fluent Bit shipping, ILM retention — `deploy/cloud/ansible/`, `deploy/cloud/platform/` |
 | 11 | Prometheus + Grafana monitoring | DevOps | Major | 2 | yashevch | kube-prometheus-stack, exporters, dashboards, alert rules — `deploy/cloud/platform/` |
 | 12 | Custom module: multi-source ingestion pipeline | Module of choice | Major | 2 | tbogus, yhruda | `backend/app/ingestion/` ([INGESTION.md](docs/INGESTION.md)) — justified below |
-| | **Planned total / claimed excluding pending #4** | | | **19 / 18** | | |
+| | **Total** | | | **19** | | |
 
 ### Why these modules were chosen
 
@@ -261,6 +261,7 @@ Built the FastAPI backend and initial catalog/intent scaffold (`0a9824f`), real 
 adapters (`768c36e`, `072e799`), Voyage vector search (`4b84257`), and streamed LLM
 re-ranking (`854f295`, `9eb4c1b`). Added email verification, profile editing, avatar
 removal/upload progress, security tests, the profile UI and the architecture deep dives.
+Added the shared SVG icon set and Spinner component (`1cec7fe`).
 This work supports modules #1, #2, #4–#9 and #12. To handle account ownership securely
 across password and Google sign-in, `cd125d3` invalidates a previously registered
 password when Google proves ownership. Database hardening added least-privilege
@@ -378,7 +379,7 @@ DigitalOcean DOKS: [docs/deployment.md](docs/deployment.md) and
 - Data sources: [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API),
   [Wikidata](https://www.wikidata.org/), [Ticketmaster Discovery API](https://developer.ticketmaster.com/),
   [Apify](https://apify.com/)
-- [Lucide](https://lucide.dev/) — reference for the SVG icon work awaiting integration (ISC licence)
+- [Lucide](https://lucide.dev/) — source of the integrated SVG icon paths (ISC licence)
 - [DigitalOcean Kubernetes](https://docs.digitalocean.com/products/kubernetes/),
   [kube-prometheus-stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack),
   [Elastic Stack](https://www.elastic.co/guide/)
