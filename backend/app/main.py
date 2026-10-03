@@ -128,6 +128,29 @@ def _ensure_columns(eng=engine) -> None:
         conn.execute(
             text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at timestamptz")
         )
+        # Login second factor (opt-in, password accounts): the flag plus the
+        # emailed login code, kept apart from the email_verify_* columns.
+        conn.execute(
+            text(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+                "two_factor_enabled boolean NOT NULL DEFAULT false"
+            )
+        )
+        conn.execute(
+            text("ALTER TABLE users ADD COLUMN IF NOT EXISTS login_code_hash text")
+        )
+        conn.execute(
+            text(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+                "login_code_expires_at timestamptz"
+            )
+        )
+        conn.execute(
+            text(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+                "login_code_attempts integer NOT NULL DEFAULT 0"
+            )
+        )
 
 
 def _ensure_rls(eng=engine) -> None:

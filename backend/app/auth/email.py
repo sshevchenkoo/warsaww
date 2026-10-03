@@ -1,4 +1,4 @@
-"""Email verification via a short numeric code.
+"""Email verification, and the login second factor, via a short numeric code.
 
 Registration emails the user a 6-digit code; they type it back into the app to
 prove they own the address. Only a keyed hash of the code is stored (HMAC-SHA256
@@ -42,19 +42,37 @@ def send_verification_email(to_email: str, code: str) -> None:
     """Email the verification code via Resend. No-op (warning) without an API key,
     and never raises — a provider hiccup must not fail registration (the user can
     request a resend)."""
-    if not settings.resend_api_key:
-        log.warning("RESEND_API_KEY not set — verification code to %s not sent", to_email)
-        return
     minutes = settings.email_verify_code_ttl_minutes
     html = (
         "<p>Your Warsaw Events verification code:</p>"
         f'<p style="font-size:28px;font-weight:700;letter-spacing:4px">{code}</p>'
         f"<p>Enter it in the app to confirm your email. It expires in {minutes} minutes.</p>"
     )
+    _send(to_email, f"{code} is your Warsaw Events verification code", html)
+
+
+def send_login_code_email(to_email: str, code: str) -> None:
+    """Email the second-factor code for a password login. Same delivery and
+    failure rules as `send_verification_email` — a failed send means the user
+    signs in with the password again, which issues a fresh code."""
+    minutes = settings.email_verify_code_ttl_minutes
+    html = (
+        "<p>Your Warsaw Events sign-in code:</p>"
+        f'<p style="font-size:28px;font-weight:700;letter-spacing:4px">{code}</p>'
+        f"<p>Enter it in the app to finish signing in. It expires in {minutes} minutes.</p>"
+        "<p>If you did not just sign in, someone has your password — change it.</p>"
+    )
+    _send(to_email, f"{code} is your Warsaw Events sign-in code", html)
+
+
+def _send(to_email: str, subject: str, html: str) -> None:
+    if not settings.resend_api_key:
+        log.warning("RESEND_API_KEY not set — code to %s not sent", to_email)
+        return
     payload = {
         "from": settings.email_from,
         "to": [to_email],
-        "subject": f"{code} is your Warsaw Events verification code",
+        "subject": subject,
         "html": html,
     }
     if settings.email_reply_to:
@@ -68,4 +86,4 @@ def send_verification_email(to_email: str, code: str) -> None:
         )
         resp.raise_for_status()
     except httpx.HTTPError:
-        log.warning("failed to send verification code to %s", to_email, exc_info=True)
+        log.warning("failed to send code to %s", to_email, exc_info=True)

@@ -1,7 +1,8 @@
 """Auth routes. Two ways to sign in, both ending in the same session cookie:
 
 - Google OAuth: /auth/login/google → Google consent → /auth/callback.
-- Email + password: /auth/register, /auth/login.
+- Email + password: /auth/register, /auth/login — plus, when the account has
+  turned on two-factor sign-in, /auth/login/2fa with a code emailed at login.
 
 Plus /auth/logout, the /me probe and PATCH /me (profile edit). Accounts are keyed
 by email, so signing up by password and later using Google with the same email is
@@ -9,6 +10,7 @@ one account.
 """
 
 import logging
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from authlib.integrations.starlette_client import OAuthError
@@ -19,7 +21,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth.deps import current_user
-from app.auth.email import generate_code, hash_code, send_verification_email, verify_code
+from app.auth.email import (
+    generate_code,
+    hash_code,
+    send_login_code_email,
+    send_verification_email,
+    verify_code,
+)
 from app.auth.oauth import oauth
 from app.auth.passwords import MAX_PASSWORD_BYTES, hash_password, verify_password
 from app.catalog.db import get_session
@@ -62,6 +70,7 @@ def _user_payload(user: User) -> dict:
         # needs current_password; a Google account's email follows Google), so
         # the profile form shows the email field only when this is true.
         "has_password": user.password_hash is not None,
+        "two_factor_enabled": user.two_factor_enabled,
     }
 
 
@@ -81,6 +90,33 @@ def _issue_verification(user: User, session: Session) -> None:
     user.email_verify_attempts = 0
     session.commit()
     send_verification_email(target, code)
+
+
+def _issue_login_code(user: User, session: Session) -> None:
+    """Generate the second-factor code for a password login, store its keyed hash
+    + expiry (resetting the attempt counter) and email it to the account's
+    address. Every password login issues a fresh one, which is also the resend."""
+    code = generate_code()
+    user.login_code_hash = hash_code(code)
+    user.login_code_expires_at = datetime.now(timezone.utc) + timedelta(
+        minutes=settings.email_verify_code_ttl_minutes
+    )
+    user.login_code_attempts = 0
+    session.commit()
+    send_login_code_email(user.email, code)
+
+
+def _check_code(
+    code: str, code_hash: str | None, expires_at: datetime | None, attempts: int, renew: str
+) -> bool:
+    """Shared gate for an emailed code: 400 when none is live, 429 once the
+    wrong-attempt cap is reached, otherwise whether `code` matches. The caller
+    counts a miss. `renew` tells the user how to get a fresh code."""
+    if not code_hash or expires_at is None or expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Your code expired. {renew}")
+    if attempts >= settings.email_verify_max_attempts:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, f"Too many attempts. {renew}")
+    return verify_code(code, code_hash)
 
 
 def _email_taken(session: Session, email: str, user: User) -> bool:
@@ -138,6 +174,10 @@ async def auth_callback(
         if user is not None and user.password_hash is not None:
             log.info("OAuth link: clearing pre-existing password on account %s", user.id)
             user.password_hash = None
+            # Two-factor sign-in guards the password path, which is now gone;
+            # Google owns the second factor from here on.
+            user.two_factor_enabled = False
+            _clear_login_code(user)
     if user is None:
         user = User()
         session.add(user)
@@ -191,6 +231,14 @@ def login(
             status.HTTP_403_FORBIDDEN,
             "Please verify your email before signing in. Check your inbox or request a new link.",
         )
+    if user.two_factor_enabled:
+        # The password alone is not a session: park the account id, email a
+        # code, and let POST /auth/login/2fa finish the login.
+        request.session.pop("user_id", None)
+        request.session["pending_2fa"] = str(user.id)
+        _issue_login_code(user, session)
+        return {"pending_2fa": True}
+    request.session.pop("pending_2fa", None)
     request.session["user_id"] = str(user.id)
     return _user_payload(user)
 
@@ -213,20 +261,13 @@ def verify_email(
     _rate_limit_auth(request)
     if user.email_verified and not user.pending_email:
         return _user_payload(user)
-    now = datetime.now(timezone.utc)
-    if (
-        not user.email_verify_code_hash
-        or user.email_verify_code_expires_at is None
-        or user.email_verify_code_expires_at < now
+    if not _check_code(
+        req.code,
+        user.email_verify_code_hash,
+        user.email_verify_code_expires_at,
+        user.email_verify_attempts,
+        "Request a new one.",
     ):
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "Your code expired. Request a new one."
-        )
-    if user.email_verify_attempts >= settings.email_verify_max_attempts:
-        raise HTTPException(
-            status.HTTP_429_TOO_MANY_REQUESTS, "Too many attempts. Request a new code."
-        )
-    if not verify_code(req.code, user.email_verify_code_hash):
         user.email_verify_attempts += 1
         session.commit()
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid code.")
@@ -256,6 +297,46 @@ def _clear_code(user: User) -> None:
     user.email_verify_code_hash = None
     user.email_verify_code_expires_at = None
     user.email_verify_attempts = 0
+
+
+@router.post("/auth/login/2fa")
+def login_2fa(
+    req: VerifyRequest, request: Request, session: Session = Depends(get_session)
+) -> dict:
+    """Second step of a password login with two-factor sign-in on: the code
+    emailed by POST /auth/login. Same expiry and wrong-attempt cap as email
+    verification; signing in with the password again issues a fresh code.
+    On success the session becomes a normal logged-in one."""
+    _rate_limit_auth(request)
+    user = None
+    try:
+        user = session.get(User, uuid.UUID(request.session.get("pending_2fa") or ""))
+    except (ValueError, TypeError):
+        pass
+    if user is None or not user.two_factor_enabled:
+        request.session.pop("pending_2fa", None)
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sign in again.")
+    if not _check_code(
+        req.code,
+        user.login_code_hash,
+        user.login_code_expires_at,
+        user.login_code_attempts,
+        "Sign in again to get a new code.",
+    ):
+        user.login_code_attempts += 1
+        session.commit()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid code.")
+    _clear_login_code(user)
+    session.commit()
+    request.session.pop("pending_2fa", None)
+    request.session["user_id"] = str(user.id)
+    return _user_payload(user)
+
+
+def _clear_login_code(user: User) -> None:
+    user.login_code_hash = None
+    user.login_code_expires_at = None
+    user.login_code_attempts = 0
 
 
 @router.post("/auth/resend")
@@ -292,6 +373,9 @@ class UpdateMeRequest(BaseModel):
     # Needed to change a password account's email, so a hijacked session alone
     # can't move the account to an address the attacker controls.
     current_password: str | None = Field(default=None, max_length=MAX_PASSWORD_BYTES)
+    # Two-factor sign-in for password logins. Turning it off also needs
+    # current_password, for the same reason as an email change.
+    two_factor_enabled: bool | None = None
 
 
 @router.patch("/me")
@@ -305,28 +389,50 @@ def update_me(
     requested: the new address lands in `pending_email` and gets a verification
     code, and POST /auth/verify swaps it in. Until then the old email keeps
     working for login, so a typo can't lock the user out, and search stays open.
-    Sending the current email again cancels a pending change."""
+    Sending the current email again cancels a pending change.
+    `two_factor_enabled` toggles the login code (password accounts only)."""
     new_email = str(req.email) if req.email is not None else None
     changing_email = new_email is not None and new_email != user.email
+    toggling_2fa = (
+        req.two_factor_enabled is not None
+        and req.two_factor_enabled != user.two_factor_enabled
+    )
     # Validate everything before touching the row, so a refused email change
     # doesn't half-apply a name change.
-    if changing_email:
-        if user.google_sub:
-            # auth_callback rewrites user.email from Google on every login, so a
-            # change made here would silently revert.
+    if changing_email and user.google_sub:
+        # auth_callback rewrites user.email from Google on every login, so a
+        # change made here would silently revert.
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "This account's email is managed by Google."
+        )
+    if toggling_2fa:
+        if user.google_sub or not user.password_hash:
+            # Google sign-in never reaches the password login; the second
+            # factor is whatever the Google account itself enforces.
             raise HTTPException(
-                status.HTTP_403_FORBIDDEN, "This account's email is managed by Google."
+                status.HTTP_403_FORBIDDEN, "Two-factor sign-in for this account is managed by Google."
             )
+        if req.two_factor_enabled and not user.email_verified:
+            # The code goes to `email`; an unproven address could lock the
+            # user out on their next login.
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                "Verify your email before turning on two-factor sign-in.",
+            )
+    if changing_email or (toggling_2fa and not req.two_factor_enabled):
         _rate_limit_auth(request)  # current_password is otherwise guessable here
         if not user.password_hash or not verify_password(
             req.current_password or "", user.password_hash
         ):
             raise HTTPException(status.HTTP_403_FORBIDDEN, "Current password is incorrect.")
-        if _email_taken(session, new_email, user):
-            raise HTTPException(status.HTTP_409_CONFLICT, "Email already registered")
+    if changing_email and _email_taken(session, new_email, user):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Email already registered")
 
     if "name" in req.model_fields_set:
         user.name = (req.name or "").strip() or None
+    if toggling_2fa:
+        user.two_factor_enabled = req.two_factor_enabled
+        _clear_login_code(user)
 
     if changing_email:
         user.pending_email = new_email
