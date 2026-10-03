@@ -1,0 +1,59 @@
+{
+  "title": "Warsaw — Traces (Tempo)",
+  "uid": "warsaw-traces",
+  "tags": ["warsaw", "traces"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "",
+      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "**Traces from the API** (service `warsaw-api`). Click a row's trace ID to open its span waterfall (e.g. a `/search` request → intent → embeddings → retrieval → rerank). For free-form search and filtering, use **Explore → Tempo**. Traces appear only after the app handles requests."
+      }
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Recent traces — warsaw-api",
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 3 },
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "queryType": "traceqlSearch",
+          "tableType": "traces",
+          "limit": 50,
+          "filters": [
+            {
+              "id": "service-name",
+              "scope": "resource",
+              "tag": "service.name",
+              "operator": "=",
+              "value": ["warsaw-api"],
+              "valueType": "string"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "API latency p50 / p95 (context — click a slow spike, then find its trace above)",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 17 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "refId": "p50", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.50, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"warsaw-api\"}[5m])))", "legendFormat": "p50" },
+        { "refId": "p95", "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"warsaw-api\"}[5m])))", "legendFormat": "p95" }
+      ]
+    }
+  ]
+}
