@@ -1,8 +1,8 @@
-.PHONY: help keys check-keys \
+.PHONY: help keys \
         dev app-up app-down app-logs app-seed web web-bg web-logs \
         stack-up stack-init stack-seed seed-fixtures seed-users stack-down stack-logs infra-auth \
         scheduler-up scheduler-down \
-        do-infra-up do-infra-plan do-infra-down do-kubeconfig do-db-init \
+        do-infra-up do-infra-down do-kubeconfig do-db-init \
         do-images do-platform do-deploy do-elk
 
 # ─── Full local stack (app + observability) ───────────────────────────────────
@@ -94,12 +94,6 @@ keys:
 		chmod 600 $(SSH_KEY); \
 		chmod 644 $(SSH_KEY_PUB); \
 		echo "$(GREEN)SSH key created in $(SSH_DIR)$(NC)"; \
-	fi
-
-check-keys:
-	@if [ ! -f "$(SSH_KEY)" ]; then \
-		echo "$(RED)SSH key not found. Run: make keys$(NC)"; \
-		exit 1; \
 	fi
 
 # ─── Local app (Warsaw events) ────────────────────────────────────────────────
@@ -222,9 +216,6 @@ KDO := KUBECONFIG=$(KUBECONFIG_DO)
 do-infra-up:        ## Terraform: VPC + DOKS + managed Postgres + ELK droplet
 	cd $(DO_TF_DIR) && terraform init -upgrade && terraform apply -auto-approve
 	@$(MAKE) do-kubeconfig
-
-do-infra-plan:
-	cd $(DO_TF_DIR) && terraform init -upgrade && terraform plan
 
 do-infra-down:      ## Destroy the whole DO prod env (stop the bill)
 	cd $(DO_TF_DIR) && terraform destroy -auto-approve
