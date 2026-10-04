@@ -148,12 +148,16 @@ def search(req: SearchRequest, request: Request) -> StreamingResponse:
     if settings.require_verified_email_to_search:
         _require_verified_user(request)
     # Per-session daily quota (the only costly endpoint). Anonymous visitors get
-    # a session id so the limit follows them too.
+    # a session id so the limit follows them too. Authenticated users are keyed
+    # by user_id so logout/login doesn't reset the quota.
+    user_id = request.session.get("user_id")
     sid = request.session.get("sid")
     if not sid:
         sid = uuid.uuid4().hex
         request.session["sid"] = sid
-    allowed, remaining = check_search_quota(sid)
+    quota_key = user_id if user_id else sid
+    
+    allowed, remaining = check_search_quota(quota_key)
     if not allowed:
         raise HTTPException(
             status_code=429,
