@@ -99,12 +99,13 @@ def search_users(
     user: User = Depends(current_user),
     session: Session = Depends(get_session),
 ) -> list[PublicUser]:
-    """Find users by name (substring) or exact email, excluding yourself."""
+    """Find users by name (substring), excluding yourself."""
     term = q.strip()
+    escaped_term = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     found = (
         session.query(User)
         .filter(User.id != user.id)
-        .filter(or_(User.name.ilike(f"%{term}%"), User.email == term))
+        .filter(User.name.ilike(f"%{escaped_term}%", escape="\\"))
         .order_by(User.name.asc())
         .limit(20)
         .all()
