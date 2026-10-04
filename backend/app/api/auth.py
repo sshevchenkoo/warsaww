@@ -210,7 +210,11 @@ def register(
         password_hash=hash_password(req.password),
     )
     session.add(user)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "Email already registered")
     request.session["user_id"] = str(user.id)
     _issue_verification(user, session)
     return _user_payload(user)
