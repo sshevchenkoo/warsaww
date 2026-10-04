@@ -3,7 +3,7 @@ from dataclasses import asdict
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from app.catalog.db import Base, SessionLocal, engine
 from app.catalog.models import Item
@@ -140,7 +140,7 @@ def run(source: str) -> None:
     # Drop duplicates against the existing catalog and within this batch;
     # a duplicate's source ref is folded into the canonical card instead.
     with SessionLocal() as session:
-        existing = list(session.scalars(select(Item)))
+        existing = list(session.scalars(select(Item).options(defer(Item.embedding))))
         canonical, merges = deduplicate(items, existing, make_haiku_adjudicator())
         _apply_merges(session, merges)
         session.commit()
