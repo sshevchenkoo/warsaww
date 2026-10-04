@@ -48,7 +48,7 @@ def send_verification_email(to_email: str, code: str) -> None:
         f'<p style="font-size:28px;font-weight:700;letter-spacing:4px">{code}</p>'
         f"<p>Enter it in the app to confirm your email. It expires in {minutes} minutes.</p>"
     )
-    _send(to_email, f"{code} is your Warsaw Events verification code", html)
+    send_email(to_email, f"{code} is your Warsaw Events verification code", html)
 
 
 def send_login_code_email(to_email: str, code: str) -> None:
@@ -62,12 +62,12 @@ def send_login_code_email(to_email: str, code: str) -> None:
         f"<p>Enter it in the app to finish signing in. It expires in {minutes} minutes.</p>"
         "<p>If you did not just sign in, someone has your password — change it.</p>"
     )
-    _send(to_email, f"{code} is your Warsaw Events sign-in code", html)
+    send_email(to_email, f"{code} is your Warsaw Events sign-in code", html)
 
 
-def _send(to_email: str, subject: str, html: str) -> None:
+def send_email(to_email: str, subject: str, html: str) -> None:
     if not settings.resend_api_key:
-        log.warning("RESEND_API_KEY not set — code to %s not sent", to_email)
+        log.warning("RESEND_API_KEY not set — email to %s not sent", to_email)
         return
     payload = {
         "from": settings.email_from,

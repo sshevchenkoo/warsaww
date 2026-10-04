@@ -14,7 +14,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from authlib.integrations.starlette_client import OAuthError
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Response
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.exc import IntegrityError
@@ -26,12 +26,13 @@ from app.auth.email import (
     hash_code,
     send_login_code_email,
     send_verification_email,
+    send_email,
     verify_code,
 )
 from app.auth.oauth import oauth
 from app.auth.passwords import MAX_PASSWORD_BYTES, hash_password, verify_password
 from app.catalog.db import get_session
-from app.catalog.models import User
+from app.catalog.models import User, SavedItem, Friendship, SharedEvent
 from app.config import settings
 from app.ratelimit import check_auth_rate
 
@@ -363,6 +364,72 @@ async def logout(request: Request) -> dict:
 @router.get("/me")
 def me(user: User = Depends(current_user)) -> dict:
     return _user_payload(user)
+
+
+@router.get("/me/export")
+def export_me(
+    user: User = Depends(current_user),
+    session: Session = Depends(get_session)
+) -> Response:
+    import json
+    payload = _user_payload(user)
+    
+    saved_rows = session.query(SavedItem).filter(SavedItem.user_id == user.id).all()
+    payload["saved_items"] = [{"item_id": str(r.item_id), "created_at": r.created_at.isoformat()} for r in saved_rows]
+    
+    friend_rows = session.query(Friendship).filter(
+        (Friendship.requester_id == user.id) | (Friendship.addressee_id == user.id)
+    ).all()
+    payload["friendships"] = [{
+        "requester_id": str(r.requester_id), 
+        "addressee_id": str(r.addressee_id),
+        "status": r.status,
+        "created_at": r.created_at.isoformat()
+    } for r in friend_rows]
+    
+    shared_rows = session.query(SharedEvent).filter(
+        (SharedEvent.from_user_id == user.id) | (SharedEvent.to_user_id == user.id)
+    ).all()
+    payload["shared_events"] = [{
+        "from_user_id": str(r.from_user_id),
+        "to_user_id": str(r.to_user_id),
+        "item_id": str(r.item_id),
+        "created_at": r.created_at.isoformat()
+    } for r in shared_rows]
+    
+    return Response(
+        content=json.dumps(payload, indent=2),
+        media_type="application/json",
+        headers={"Content-Disposition": 'attachment; filename="warsaw-events-data.json"'}
+    )
+
+
+class DeleteMeRequest(BaseModel):
+    current_password: str | None = None
+
+
+@router.delete("/me")
+def delete_me(
+    request: Request,
+    req: DeleteMeRequest | None = None,
+    user: User = Depends(current_user),
+    session: Session = Depends(get_session)
+) -> dict:
+    if user.password_hash:
+        if not req or not req.current_password:
+            raise HTTPException(400, "Password required to delete account")
+        if not verify_password(req.current_password, user.password_hash):
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect password")
+            
+    email = user.email
+    session.delete(user)
+    session.commit()
+    request.session.clear()
+    
+    html = "<p>Your Warsaw Events account and all associated data have been permanently deleted.</p>"
+    send_email(email, "Account deleted", html)
+    
+    return {"status": "deleted"}
 
 
 class UpdateMeRequest(BaseModel):
