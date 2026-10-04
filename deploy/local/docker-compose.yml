@@ -58,6 +58,11 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     logging:
       driver: fluentd
       options:
@@ -92,7 +97,7 @@ services:
       - "3000:3000"
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
     logging:
       driver: fluentd
       options:

@@ -50,3 +50,9 @@ def check_auth_rate(client_ip: str) -> bool:
     except redis.RedisError:
         return True  # fail-open
     return used <= settings.auth_attempts_per_minute
+
+def ping_redis() -> bool:
+    try:
+        return _redis.ping()
+    except redis.RedisError:
+        return False

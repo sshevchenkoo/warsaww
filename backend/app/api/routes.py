@@ -17,8 +17,9 @@ from app.config import settings
 from app.llm.embeddings import embed_query
 from app.llm.intent import ClaudeIntentExtractor
 from app.llm.rerank import rerank_stream
-from app.ratelimit import check_search_quota
+from app.ratelimit import check_search_quota, ping_redis
 from app.retrieval.search import search_items
+from sqlalchemy import text
 
 router = APIRouter()
 
@@ -86,6 +87,25 @@ def _require_verified_user(request: Request) -> None:
 @router.get("/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+@router.get("/ready")
+def ready(session: Session = Depends(get_session)) -> dict:
+    db_ok = False
+    try:
+        session.execute(text("SELECT 1"))
+        db_ok = True
+    except Exception as e:
+        log.error(f"DB readiness check failed: {e}")
+
+    redis_ok = ping_redis()
+
+    if not (db_ok and redis_ok):
+        raise HTTPException(
+            status_code=503,
+            detail={"status": "error", "db": db_ok, "redis": redis_ok}
+        )
+    return {"status": "ok", "db": db_ok, "redis": redis_ok}
 
 
 @router.get("/upcoming")

@@ -76,6 +76,8 @@ help:
 	@echo "    make keys            — generate the SSH key in .ssh/ (used by do-elk)"
 	@echo "    make do-infra-up     — Terraform: VPC + DOKS + managed Postgres + ELK droplet"
 	@echo "    make do-db-init      — enable pgvector on the managed DB (once)"
+	@echo "    make do-db-backup    — backup managed DB to local file"
+	@echo "    make do-db-restore   — restore managed DB from local file (FILE=...)"
 	@echo "    make do-images       — build + push warsaw-events / warsaw-web to ghcr.io"
 	@echo "    make do-platform     — Helm: ingress-nginx, cert-manager, monitoring, fluent-bit"
 	@echo "    make do-deploy       — apply the warsaw app manifests"
@@ -232,6 +234,15 @@ do-db-init:         ## Enable pgvector + pg_trgm on the managed DB (run once, ne
 	# vector → semantic search; pg_trgm → lexical leg of hybrid search.
 	@URL=$$(cd $(DO_TF_DIR) && terraform output -raw database_admin_uri | sed 's#/defaultdb#/events#'); \
 	 psql "$$URL" -c 'CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS pg_trgm;' && echo "$(GREEN)pgvector + pg_trgm enabled$(NC)"
+
+do-db-backup:       ## Backup the managed Postgres database to a local file
+	@URL=$$(cd $(DO_TF_DIR) && terraform output -raw database_admin_uri | sed 's#/defaultdb#/events#'); \
+	 pg_dump "$$URL" -F c -f "backup_$$(date +%Y%m%d_%H%M%S).dump" && echo "$(GREEN)Database backed up$(NC)"
+
+do-db-restore:      ## Restore the managed Postgres database from a local file (make do-db-restore FILE=...)
+	@[ -n "$(FILE)" ] || (echo "$(RED)FILE not specified. Usage: make do-db-restore FILE=backup.dump$(NC)" && exit 1)
+	@URL=$$(cd $(DO_TF_DIR) && terraform output -raw database_admin_uri | sed 's#/defaultdb#/events#'); \
+	 pg_restore -d "$$URL" -c -O -x --if-exists "$(FILE)" && echo "$(GREEN)Database restored from $(FILE)$(NC)"
 
 do-db-role:         ## Create/rotate the least-privilege app DB role (admin, idempotent)
 	# Least-privilege DML-only role so the app no longer runs as `doadmin`
