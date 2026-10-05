@@ -1,6 +1,6 @@
 .PHONY: help keys \
         dev app-up app-down app-logs app-seed web web-bg web-logs \
-        stack-up stack-init stack-seed seed-fixtures seed-users stack-down stack-logs infra-auth \
+        stack-up stack-init stack-seed seed-fixtures seed-users stack-down stack-logs infra-auth local-tls \
         scheduler-up scheduler-down \
         do-infra-up do-infra-down do-kubeconfig do-db-init \
         do-images do-platform do-deploy do-elk
@@ -63,6 +63,7 @@ help:
 	@echo ""
 	@echo "  $(YELLOW)Full local stack (app + observability, one command):$(NC)"
 	@echo "    make infra-auth      — set the login for the infra UIs (run once): AUTH_USER=.. AUTH_PASS=.."
+	@echo "    make local-tls       — generate the self-signed cert for https://localhost (auto-run by stack-up)"
 	@echo "    make stack-init      — FIRST RUN: start the stack + load 100 [TEST] demo events"
 	@echo "    make stack-up        — app + Grafana/Prometheus/Tempo + ELK (~4-6 GB RAM)"
 	@echo "    make seed-fixtures   — load the 100 [TEST] demo events (no API keys)"
@@ -149,11 +150,24 @@ app-down:
 # Heavy (~4-6 GB RAM); stop with `make stack-down` when done.
 stack-up:              ## Start the whole stack (app + Grafana/Prometheus/Tempo + ELK)
 	@[ -f deploy/local/.htpasswd ] || { echo "$(RED)Set an infra login first:$(NC) make infra-auth AUTH_USER=admin AUTH_PASS=<password>"; exit 1; }
+	@[ -f deploy/local/certs/localhost.crt ] || $(MAKE) local-tls
 	@echo "$(GREEN)Building + starting the full local stack (this pulls several images)...$(NC)"
 	$(STACK) up -d --build --remove-orphans
-	@echo "$(GREEN)Up:$(NC) web http://localhost:3000 · api http://localhost:8000"
+	@echo "$(GREEN)Up:$(NC) site https://localhost · api http://localhost:8000"
 	@echo "  Grafana http://localhost:3001 · Prometheus :9090 · Kibana :5601 · Alertmanager :9093  (all require login)"
 	@echo "  Next: $(YELLOW)make stack-init$(NC) (first run: also loads demo data) or $(YELLOW)make stack-seed$(NC)"
+
+# Self-signed TLS cert for the local HTTPS front (nginx :443 → web). Per-machine,
+# gitignored. The browser shows a one-time "not secure" warning — click through.
+# For a trusted cert with no warning, install mkcert and run it here instead.
+local-tls:             ## Generate the self-signed cert for https://localhost
+	@mkdir -p deploy/local/certs
+	@openssl req -x509 -newkey rsa:2048 -nodes -days 825 \
+	  -keyout deploy/local/certs/localhost.key \
+	  -out deploy/local/certs/localhost.crt \
+	  -subj "/CN=localhost" \
+	  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:::1" 2>/dev/null
+	@echo "$(GREEN)TLS cert written to deploy/local/certs/ (self-signed; browser will warn once)$(NC)"
 
 # Set the login used by the nginx auth gateway (Kibana/Prometheus/Alertmanager)
 # AND Grafana. Writes gitignored deploy/local/.htpasswd + secrets.env. Run once.

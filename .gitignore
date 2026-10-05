@@ -9,6 +9,8 @@
 # local infra auth gateway (nginx basic-auth + Grafana admin password) — never commit
 deploy/local/.htpasswd
 deploy/local/secrets.env
+# local TLS cert for https://localhost (self-signed, per-machine) — never commit
+deploy/local/certs/
 
 # Terraform
 *.tfvars

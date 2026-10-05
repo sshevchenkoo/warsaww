@@ -51,6 +51,11 @@ services:
       # app/observability.py; only needs this endpoint set).
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       OTEL_SERVICE_NAME: warsaw-api
+      # The site is served over HTTPS by the nginx front (https://localhost); the
+      # Google OAuth redirect URI is built from this. TLS-only mode, so
+      # SESSION_HTTPS_ONLY stays off (cookies aren't marked Secure) and opening
+      # http://localhost:3000 directly still works.
+      FRONTEND_URL: https://localhost
     ports:
       - "8000:8000"
     depends_on:
@@ -245,16 +250,24 @@ services:
   # Kibana / Prometheus / Alertmanager are not exposed directly — only through this
   # reverse proxy, which requires a login (deploy/local/.htpasswd, from `make
   # infra-auth`). Mirrors the cloud nginx+basic-auth that fronts Kibana.
+  #
+  # It ALSO terminates TLS for the site itself on :443 (→ web:3000), mirroring
+  # the cloud's ingress-nginx + cert-manager. The self-signed cert lives in
+  # deploy/local/certs (regenerate with `make local-tls`).
   nginx:
     image: nginx:1.27-alpine
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./.htpasswd:/etc/nginx/.htpasswd:ro
+      - ./certs:/etc/nginx/certs:ro
     ports:
+      - "443:443"      # → web (the site, HTTPS)
+      - "80:80"        # → redirect to HTTPS
       - "5601:5601"    # → Kibana        (login required)
       - "9090:9090"    # → Prometheus    (login required)
       - "9093:9093"    # → Alertmanager  (login required)
     depends_on:
+      - web
       - kibana
       - prometheus
       - alertmanager
