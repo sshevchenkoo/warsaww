@@ -16,15 +16,20 @@ the DigitalOcean environment stays torn down.
 Everything is a container in one Compose project (`warsaw-stack`), on one private
 Docker network. Each row is a separate container.
 
+All browser-facing services are reached only through the nginx HTTPS gateway — the
+app/API/Grafana containers publish no host port, so every browser↔backend connection
+is HTTPS (the subject's rule; internal container hops stay plain HTTP).
+
 | Group | Service | Purpose | Exposed on host |
 |-------|---------|---------|-----------------|
-| **App** | `web` | Next.js frontend | http://localhost:3000 |
-| | `api` | FastAPI backend (`/metrics`, `/health`) | http://localhost:8000 |
+| **Gateway** | `nginx` | HTTPS termination for all UIs (self-signed cert) | — |
+| **App** | `web` | Next.js frontend | via nginx → **https://localhost** |
+| | `api` | FastAPI backend (`/metrics`, `/health`) | internal only (proxied by `web`) |
 | | `db` | Postgres + pgvector | `localhost:5432` |
 | | `redis` | cache / rate-limit | `localhost:6379` |
-| **Metrics** | `prometheus` | scrapes & stores metrics (TSDB) | via nginx → :9090 🔒 |
-| | `alertmanager` | routes fired alerts | via nginx → :9093 🔒 |
-| | `grafana` | dashboards, Explore, traces | http://localhost:3001 🔒 |
+| **Metrics** | `prometheus` | scrapes & stores metrics (TSDB) | via nginx → https://localhost:9090 🔒 |
+| | `alertmanager` | routes fired alerts | via nginx → https://localhost:9093 🔒 |
+| | `grafana` | dashboards, Explore, traces | via nginx → https://localhost:3001 🔒 |
 | | `postgres-exporter` | Postgres metrics (`pg_*`) | internal only |
 | | `node-exporter` | host VM metrics (`node_*`) | internal only |
 | **Traces** | `otel-collector` | receives OTLP spans, fans out | internal only |
@@ -32,8 +37,7 @@ Docker network. Each row is a separate container.
 | **Logs** | `fluent-bit` | log shipper (Docker fluentd driver) | `:24224` (intake) |
 | | `logstash` | log pipeline → Elasticsearch | internal only |
 | | `elasticsearch` | log store / search | internal only |
-| | `kibana` | log UI | via nginx → :5601 🔒 |
-| **Gateway** | `nginx` | basic-auth in front of the infra UIs | :5601 / :9090 / :9093 |
+| | `kibana` | log UI | via nginx → https://localhost:5601 🔒 |
 | **Scheduler** | `ofelia` | periodic ingestion (opt-in) | — |
 
 🔒 = requires the login set by `make infra-auth`.
@@ -102,7 +106,7 @@ make infra-auth AUTH_USER=admin AUTH_PASS=<password>
 # 2. first run: build, start everything, load 100 [TEST] demo events + test users
 make stack-init
 
-# open http://localhost:3000  · Grafana http://localhost:3001 (your login)
+# open https://localhost  (accept the one-time self-signed warning)  · Grafana https://localhost:3001 (your login)
 ```
 
 Already initialized? `make stack-up`. Stop with `make stack-down` (data kept).

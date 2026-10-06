@@ -40,7 +40,9 @@ Core API (FastAPI, modular monolith)
         └─ ticketmaster      Ticketmaster Discovery API
 
 Embeddings: Voyage voyage-3.5 (same model for cards and queries)
-Platform:   DigitalOcean DOKS · managed Postgres · ELK logs · Prometheus/Grafana · cert-manager TLS
+Runtime:    One command locally via Docker Compose — nginx (HTTPS) · Postgres · Redis ·
+            ELK logs · Prometheus/Grafana/Tempo. The same stack optionally deploys to
+            DigitalOcean DOKS (see deploy/cloud — reference only, not required to run or grade).
 ```
 
 ## Features
@@ -57,7 +59,8 @@ Platform:   DigitalOcean DOKS · managed Postgres · ELK logs · Prometheus/Graf
 | Saved items | Save a card with the heart; friends can see each other's saved lists | yhruda, dstefans |
 | Shared UI components | Palette and type tokens, reusable components, shared SVG icons and loading spinners | dstefans, tbogus |
 | Production platform | Terraform for DigitalOcean DOKS + managed Postgres + ELK droplet; Helm for ELK logging, Prometheus/Grafana/Tempo and TLS | yashevch |
-| Local observability stack | The same monitoring and logging on a laptop behind a basic-auth gateway, plus scheduled ingestion | yashevch |
+| Local observability stack | The same monitoring and logging on a laptop behind an HTTPS + basic-auth nginx gateway, plus scheduled ingestion — the stack used for evaluation | yashevch |
+| HTTPS everywhere | Every browser-facing endpoint — the site and the Grafana/Kibana/Prometheus/Alertmanager UIs — is served over HTTPS by the nginx front; app/API/Grafana publish no host port, so browser↔backend is always encrypted (internal container hops stay plain, as the subject allows) | yashevch |
 
 | Upcoming events and item details | Browse upcoming events without an LLM request; open server-rendered detail pages with metadata and image fallbacks | dstefans |
 | Privacy and terms | Dedicated Privacy Policy and Terms of Service pages linked from the footer | dstefans |
@@ -154,8 +157,8 @@ current module inventory.
 | 7 | Complete RAG system | AI | Major | 2 | tbogus, yhruda | Voyage embeddings + pgvector/pg_trgm hybrid retrieval, blurbs grounded in the retrieved cards — `backend/app/retrieval/` |
 | 8 | Complete LLM system interface | AI | Major | 2 | tbogus, yhruda | Intent extraction (Haiku) and re-rank (Sonnet) streamed over SSE, with error handling and a daily quota — `backend/app/llm/` |
 | 9 | File upload and management | User Management | Minor | 1 | yhruda, tbogus | Avatar upload: type and size checks on both sides, upload progress, delete — `backend/app/api/avatars.py` |
-| 10 | ELK log management | DevOps | Major | 2 | yashevch | Elasticsearch + Logstash + Kibana, Fluent Bit shipping, ILM retention — `deploy/cloud/ansible/`, `deploy/cloud/platform/` |
-| 11 | Prometheus + Grafana monitoring | DevOps | Major | 2 | yashevch | kube-prometheus-stack, exporters, dashboards, alert rules — `deploy/cloud/platform/` |
+| 10 | ELK log management | DevOps | Major | 2 | yashevch | Elasticsearch + Logstash + Kibana, Fluent Bit shipping, retention — demonstrated locally via `deploy/local/` (cloud equivalent: `deploy/cloud/ansible/`, `deploy/cloud/platform/`) |
+| 11 | Prometheus + Grafana monitoring | DevOps | Major | 2 | yashevch | Prometheus + Grafana + Alertmanager, exporters, dashboards, alert rules — demonstrated locally via `deploy/local/` (cloud equivalent: `deploy/cloud/platform/`) |
 | 12 | Custom module: multi-source ingestion pipeline | Module of choice | Major | 2 | tbogus, yhruda | `backend/app/ingestion/` ([INGESTION.md](docs/INGESTION.md)) — justified below |
 | | **Total** | | | **19** | | |
 
@@ -310,10 +313,8 @@ teammates' changes into `main`.
 |---|---|
 | `backend/` | Warsaw-events FastAPI app — API, LLM layer, retrieval, ingestion ([docs](docs/backend.md)) |
 | `frontend/` | Next.js UI, "Pure"-style ([docs](docs/frontend.md)) |
-| `deploy/cloud/k8s/` | Kubernetes manifests for the app, namespace `warsaw` ([deploy docs](docs/deployment.md)) |
-| `deploy/cloud/terraform/` | Terraform for DigitalOcean prod (DOKS + managed Postgres + ELK) |
-| `deploy/cloud/ansible/` | Ansible role that provisions the ELK droplet |
-| `deploy/cloud/platform/` | DOKS Helm values + manifests (monitoring, ingress, cert-manager) |
+| `deploy/local/` | **The stack used to run and evaluate the project** — full app + observability in one command ([guide](deploy/local/README.md)) |
+| `deploy/cloud/` | *Optional / reference:* cloud deployment (Terraform + k8s + Ansible + Helm) — not required to run or grade ([overview](deploy/cloud/README.md)) |
 | `docs/` | Project documentation (see below) |
 
 ## Instructions
@@ -352,8 +353,13 @@ make infra-auth AUTH_USER=admin AUTH_PASS='replace-with-your-password'   # once:
 make stack-init   # build + start everything, load 100 demo events and two test users
 ```
 
-Then open http://localhost:3000 and sign in as `user1@test.com` / `1234`. Grafana is on
-http://localhost:3001, Kibana on :5601, Prometheus on :9090.
+`stack-init` also generates a self-signed TLS certificate, so **every browser-facing
+endpoint is served over HTTPS** — the site and all infra UIs. Nothing is exposed over
+plain HTTP; the app/API/Grafana containers publish no host port and are reached only
+through the nginx HTTPS gateway. Open **https://localhost** (accept the one-time
+self-signed warning) and sign in as `user1@test.com` / `1234`. Infra UIs, behind the
+login from `make infra-auth`: Grafana **https://localhost:3001**, Kibana
+**https://localhost:5601**, Prometheus **https://localhost:9090**.
 
 | Command | What |
 |---|---|
@@ -363,12 +369,13 @@ http://localhost:3001, Kibana on :5601, Prometheus on :9090.
 | `make app-up` + `make web` | Lighter setup: API, Postgres and Redis only, frontend on the host |
 | `make help` | Every target |
 
-Full local stack guide: [deploy/local/README.md](deploy/local/README.md).
-Cloud deployment overview: [deploy/cloud/README.md](deploy/cloud/README.md).
+Full local stack guide (how the project is run and evaluated):
+[deploy/local/README.md](deploy/local/README.md). Manual commands and tests:
+[docs/local-development.md](docs/local-development.md).
 
-Manual commands and tests: [docs/local-development.md](docs/local-development.md). Production on
-DigitalOcean DOKS: [docs/deployment.md](docs/deployment.md) and
-[docs/hosting-digitalocean.md](docs/hosting-digitalocean.md).
+*Optional — cloud deployment is not required to run or grade the project.* The same stack
+can be deployed to DigitalOcean DOKS for reference: [deploy/cloud/README.md](deploy/cloud/README.md),
+[docs/deployment.md](docs/deployment.md), [docs/hosting-digitalocean.md](docs/hosting-digitalocean.md).
 
 ## Resources
 

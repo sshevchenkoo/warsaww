@@ -153,8 +153,8 @@ stack-up:              ## Start the whole stack (app + Grafana/Prometheus/Tempo 
 	@[ -f deploy/local/certs/localhost.crt ] || $(MAKE) local-tls
 	@echo "$(GREEN)Building + starting the full local stack (this pulls several images)...$(NC)"
 	$(STACK) up -d --build --remove-orphans
-	@echo "$(GREEN)Up:$(NC) site https://localhost · api http://localhost:8000"
-	@echo "  Grafana http://localhost:3001 · Prometheus :9090 · Kibana :5601 · Alertmanager :9093  (all require login)"
+	@echo "$(GREEN)Up:$(NC) site https://localhost  (HTTPS; API is proxied internally, no host port)"
+	@echo "  Grafana https://localhost:3001 · Prometheus :9090 · Kibana :5601 · Alertmanager :9093  (HTTPS, all require login)"
 	@echo "  Next: $(YELLOW)make stack-init$(NC) (first run: also loads demo data) or $(YELLOW)make stack-seed$(NC)"
 
 # Self-signed TLS cert for the local HTTPS front (nginx :443 → web). Per-machine,

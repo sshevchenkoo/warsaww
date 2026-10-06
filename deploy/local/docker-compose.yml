@@ -56,8 +56,9 @@ services:
       # SESSION_HTTPS_ONLY stays off (cookies aren't marked Secure) and opening
       # http://localhost:3000 directly still works.
       FRONTEND_URL: https://localhost
-    ports:
-      - "8000:8000"
+    # No host port: the API is reached only through the nginx HTTPS front (the
+    # browser talks to the app at https://localhost, which proxies to the API
+    # internally). Keeps every browser↔backend hop on HTTPS, per the subject.
     depends_on:
       db:
         condition: service_healthy
@@ -98,8 +99,8 @@ services:
         BACKEND_INTERNAL_URL: http://api:8000
     environment:
       BACKEND_INTERNAL_URL: http://api:8000
-    ports:
-      - "3000:3000"
+    # No host port: the site is served only via the nginx HTTPS front on :443
+    # (https://localhost). nginx reaches this container over the docker network.
     depends_on:
       api:
         condition: service_healthy
@@ -149,12 +150,14 @@ services:
         required: false
     environment:
       GF_USERS_ALLOW_SIGN_UP: "false"
+      # Served over HTTPS through the nginx front on :3001 — tell Grafana so its
+      # redirects/absolute links use https://localhost:3001 (not http://…:3000).
+      GF_SERVER_ROOT_URL: "https://localhost:3001/"
     volumes:
       - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
-    ports:
-      - "3001:3000"
+    # No host port: reached via the nginx HTTPS front (https://localhost:3001).
     depends_on:
       prometheus:
         condition: service_started
@@ -246,14 +249,14 @@ services:
     # Internal only: scraped by Prometheus at node-exporter:9100 over the docker net.
     restart: unless-stopped
 
-  # ─── Auth gateway: nginx basic-auth in front of the infra UIs ─────────────────
-  # Kibana / Prometheus / Alertmanager are not exposed directly — only through this
-  # reverse proxy, which requires a login (deploy/local/.htpasswd, from `make
-  # infra-auth`). Mirrors the cloud nginx+basic-auth that fronts Kibana.
-  #
-  # It ALSO terminates TLS for the site itself on :443 (→ web:3000), mirroring
-  # the cloud's ingress-nginx + cert-manager. The self-signed cert lives in
-  # deploy/local/certs (regenerate with `make local-tls`).
+  # ─── HTTPS gateway: the only way in from the host ─────────────────────────────
+  # Terminates TLS for everything browser-facing — the site on :443 (→ web) and
+  # the infra UIs Grafana/Kibana/Prometheus/Alertmanager on their own HTTPS ports
+  # (the infra UIs also require a login from deploy/local/.htpasswd, `make
+  # infra-auth`). None of web/api/grafana publish a host port, so every
+  # browser↔backend hop is HTTPS — per the subject. Mirrors the cloud's
+  # ingress-nginx + cert-manager. Self-signed cert in deploy/local/certs
+  # (regenerate with `make local-tls`).
   nginx:
     image: nginx:1.27-alpine
     volumes:
@@ -263,11 +266,13 @@ services:
     ports:
       - "443:443"      # → web (the site, HTTPS)
       - "80:80"        # → redirect to HTTPS
-      - "5601:5601"    # → Kibana        (login required)
-      - "9090:9090"    # → Prometheus    (login required)
-      - "9093:9093"    # → Alertmanager  (login required)
+      - "3001:3001"    # → Grafana       (HTTPS, Grafana login)
+      - "5601:5601"    # → Kibana        (HTTPS, login required)
+      - "9090:9090"    # → Prometheus    (HTTPS, login required)
+      - "9093:9093"    # → Alertmanager  (HTTPS, login required)
     depends_on:
       - web
+      - grafana
       - kibana
       - prometheus
       - alertmanager
