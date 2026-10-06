@@ -20,8 +20,8 @@ services:
       POSTGRES_USER: app
       POSTGRES_PASSWORD: app
       POSTGRES_DB: events
-    ports:
-      - "5432:5432"
+    # No host port: reached only by other containers over the docker network.
+    # Use `docker compose exec db psql -U app -d events` for a shell / dumps.
     volumes:
       - ../../backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql
       - pgdata:/var/lib/postgresql/data
@@ -33,8 +33,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    # No host port: internal only (used by api for quotas / rate limits).
 
   api:
     build: ../../backend

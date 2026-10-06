@@ -25,8 +25,8 @@ is HTTPS (the subject's rule; internal container hops stay plain HTTP).
 | **Gateway** | `nginx` | HTTPS termination for all UIs (self-signed cert) | — |
 | **App** | `web` | Next.js frontend | via nginx → **https://localhost** |
 | | `api` | FastAPI backend (`/metrics`, `/health`) | internal only (proxied by `web`) |
-| | `db` | Postgres + pgvector | `localhost:5432` |
-| | `redis` | cache / rate-limit | `localhost:6379` |
+| | `db` | Postgres + pgvector | internal only |
+| | `redis` | cache / rate-limit | internal only |
 | **Metrics** | `prometheus` | scrapes & stores metrics (TSDB) | via nginx → https://localhost:9090 🔒 |
 | | `alertmanager` | routes fired alerts | via nginx → https://localhost:9093 🔒 |
 | | `grafana` | dashboards, Explore, traces | via nginx → https://localhost:3001 🔒 |
