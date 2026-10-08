@@ -18,7 +18,7 @@ export function UserCard({
   const [rel, setRel] = useState<Friendship>(person.friendship);
 
   return (
-    <div className="flex items-center gap-3 border-b border-line py-3">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line py-3">
       <Link href={`/u/${person.id}`} className="flex min-w-0 flex-1 items-center gap-3">
         <Avatar src={person.avatar_url} name={person.name} size={36} online={person.online} />
         <span className="truncate font-bold tracking-tight">{person.name ?? "user"}</span>

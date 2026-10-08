@@ -30,17 +30,21 @@ export function FriendActions({
   variant?: "row" | "profile";
 }) {
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const btn = variant === "profile" ? profileBtn : rowBtn;
   const accent = variant === "profile" ? " font-bold" : "";
   const check = variant === "profile" ? 14 : 12;
 
   async function act(fn: () => Promise<unknown>, next: Friendship) {
     setBusy(true);
+    setError(null);
     try {
       await fn();
       onChange(next);
-    } catch {
-      /* keep current state on error */
+    } catch (err) {
+      setError(
+        err instanceof Error && err.message ? err.message : "Couldn't update this friendship.",
+      );
     } finally {
       setBusy(false);
     }
@@ -48,11 +52,24 @@ export function FriendActions({
 
   if (friendship === "self") return null;
 
-  return (
+  const alert = error ? (
+    <p
+      role="alert"
+      className={
+        variant === "profile"
+          ? "w-full font-mono text-xs text-red-500"
+          : "mt-1 w-full pl-12 font-mono text-xs text-red-500"
+      }
+    >
+      {error}
+    </p>
+  ) : null;
+
+  const buttons = (
     <div
       className={
         variant === "profile"
-          ? "flex items-center gap-2"
+          ? "contents"
           : "flex shrink-0 items-center gap-2"
       }
     >
@@ -107,6 +124,24 @@ export function FriendActions({
           friends <Icon name="check" size={check} />
         </button>
       )}
+    </div>
+  );
+
+  // The row alert is a sibling of the name link, so it can span the card.
+  // The profile alert stays in the hero's wrapping button group.
+  if (variant === "row") {
+    return (
+      <>
+        {buttons}
+        {alert}
+      </>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {buttons}
+      {alert}
     </div>
   );
 }
