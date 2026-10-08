@@ -2,6 +2,7 @@
 // and sharing events with friends. Relative paths + session cookie, like auth.ts.
 
 import type { Card } from "./api";
+import { messageFromResponse, req } from "./http";
 
 export type Friendship =
   | "self"
@@ -27,10 +28,6 @@ export type SharedEvent = {
   created_at: string;
 };
 
-function req(path: string, init?: RequestInit) {
-  return fetch(path, { credentials: "include", ...init });
-}
-
 async function asJson<T>(res: Response, fallback: T): Promise<T> {
   return res.ok ? res.json() : fallback;
 }
@@ -42,16 +39,7 @@ async function mutate(path: string, method = "POST", body?: object): Promise<{ s
     headers: body ? { "content-type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) {
-    let msg = "Something went wrong.";
-    try {
-      const data = await res.json();
-      if (typeof data.detail === "string") msg = data.detail;
-    } catch {
-      /* non-JSON */
-    }
-    throw new Error(msg);
-  }
+  if (!res.ok) throw new Error(await messageFromResponse(res, "Something went wrong."));
   return res.json();
 }
 
