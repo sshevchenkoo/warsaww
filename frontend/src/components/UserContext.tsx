@@ -42,14 +42,15 @@ type UserState = {
 
 const UserCtx = createContext<UserState | null>(null);
 
-// getSavedIds is stale once the session epoch moves. A heart click during the
-// fetch keeps its bit; when that bit already matches the server, retire the
-// click's generation so a failed POST cannot delete an id the server still has
-// (wasSaved was the empty pre-load set). Null means do not publish.
+// getSavedIds is stale once the session epoch moves. A generation newer than
+// the pre-fetch snapshot is a save/unsave still in flight (cleared when that
+// request settles), so its heart is kept even when an even number of clicks
+// put the bit back. If that heart already matches the server, retire the
+// generation so a failed POST cannot delete an id the server still has.
+// Null means do not publish.
 function savedIdsFromLoad(
   epoch: number,
   generationAtStart: ReadonlyMap<string, number>,
-  savedAtStart: ReadonlySet<string>,
   ids: readonly string[],
   generations: Map<string, number>,
   savedNow: ReadonlySet<string>,
@@ -60,8 +61,6 @@ function savedIdsFromLoad(
   for (const [id, generation] of generations) {
     if (generation === (generationAtStart.get(id) ?? 0)) continue;
     const on = savedNow.has(id);
-    // Already reverted: the heart matches the pre-fetch set, so the server bit stands.
-    if (on === savedAtStart.has(id)) continue;
     if (on) next.add(id);
     else next.delete(id);
     if (on === server.has(id)) generations.set(id, generation + 1);
@@ -99,12 +98,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
         saveGuard.bumpSaveEpoch();
         const epoch = saveGuard.currentSaveEpoch();
         const generationAtStart = new Map(saveGeneration.current);
-        const savedAtStart = new Set(savedIdsRef.current);
         const ids = await getSavedIds();
         const next = savedIdsFromLoad(
           epoch,
           generationAtStart,
-          savedAtStart,
           ids,
           saveGeneration.current,
           savedIdsRef.current,
@@ -147,17 +144,27 @@ export function UserProvider({ children }: { children: ReactNode }) {
     saveGeneration.current.set(id, generation);
 
     const request = wasSaved ? unsaveItem(id) : saveItem(id);
-    request.catch((err: unknown) => {
-      if (saveGuard.currentSaveEpoch() !== epoch) return;
-      if (saveGeneration.current.get(id) !== generation) return;
-      const reverted = new Set(savedIdsRef.current);
-      if (wasSaved) reverted.add(id);
-      else reverted.delete(id);
-      publishSaved(reverted);
-      setSaveError(
-        err instanceof Error && err.message ? err.message : "Couldn't update saved items.",
-      );
-    });
+    // Drop the generation when this request settles so a later load can tell
+    // an in-flight click from one that already reverted.
+    request.then(
+      () => {
+        if (saveGuard.currentSaveEpoch() !== epoch) return;
+        if (saveGeneration.current.get(id) !== generation) return;
+        saveGeneration.current.delete(id);
+      },
+      (err: unknown) => {
+        if (saveGuard.currentSaveEpoch() !== epoch) return;
+        if (saveGeneration.current.get(id) !== generation) return;
+        const reverted = new Set(savedIdsRef.current);
+        if (wasSaved) reverted.add(id);
+        else reverted.delete(id);
+        saveGeneration.current.delete(id);
+        publishSaved(reverted);
+        setSaveError(
+          err instanceof Error && err.message ? err.message : "Couldn't update saved items.",
+        );
+      },
+    );
   }, []);
 
   // Adopt a freshly authenticated user and load their saved ids (same as the
@@ -166,13 +173,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
     saveGuard.bumpSaveEpoch();
     const epoch = saveGuard.currentSaveEpoch();
     const generationAtStart = new Map(saveGeneration.current);
-    const savedAtStart = new Set(savedIdsRef.current);
     setUser(u);
     const ids = await getSavedIds();
     const next = savedIdsFromLoad(
       epoch,
       generationAtStart,
-      savedAtStart,
       ids,
       saveGeneration.current,
       savedIdsRef.current,
