@@ -42,6 +42,33 @@ type UserState = {
 
 const UserCtx = createContext<UserState | null>(null);
 
+// getSavedIds is stale once the session epoch moves. A heart click during the
+// fetch keeps its bit; when that bit already matches the server, retire the
+// click's generation so a failed POST cannot delete an id the server still has
+// (wasSaved was the empty pre-load set). Null means do not publish.
+function savedIdsFromLoad(
+  epoch: number,
+  generationAtStart: ReadonlyMap<string, number>,
+  savedAtStart: ReadonlySet<string>,
+  ids: readonly string[],
+  generations: Map<string, number>,
+  savedNow: ReadonlySet<string>,
+): Set<string> | null {
+  if (saveGuard.currentSaveEpoch() !== epoch) return null;
+  const server = new Set(ids);
+  const next = new Set(server);
+  for (const [id, generation] of generations) {
+    if (generation === (generationAtStart.get(id) ?? 0)) continue;
+    const on = savedNow.has(id);
+    // Already reverted: the heart matches the pre-fetch set, so the server bit stands.
+    if (on === savedAtStart.has(id)) continue;
+    if (on) next.add(id);
+    else next.delete(id);
+    if (on === server.has(id)) generations.set(id, generation + 1);
+  }
+  return next;
+}
+
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -70,7 +97,19 @@ export function UserProvider({ children }: { children: ReactNode }) {
       setUser(me);
       if (me) {
         saveGuard.bumpSaveEpoch();
-        publishSaved(new Set(await getSavedIds()));
+        const epoch = saveGuard.currentSaveEpoch();
+        const generationAtStart = new Map(saveGeneration.current);
+        const savedAtStart = new Set(savedIdsRef.current);
+        const ids = await getSavedIds();
+        const next = savedIdsFromLoad(
+          epoch,
+          generationAtStart,
+          savedAtStart,
+          ids,
+          saveGeneration.current,
+          savedIdsRef.current,
+        );
+        if (next) publishSaved(next);
       }
       setLoading(false);
     })();
@@ -125,8 +164,20 @@ export function UserProvider({ children }: { children: ReactNode }) {
   // initial /me load). Used by both login and register.
   const applySession = useCallback(async (u: User) => {
     saveGuard.bumpSaveEpoch();
+    const epoch = saveGuard.currentSaveEpoch();
+    const generationAtStart = new Map(saveGeneration.current);
+    const savedAtStart = new Set(savedIdsRef.current);
     setUser(u);
-    publishSaved(new Set(await getSavedIds()));
+    const ids = await getSavedIds();
+    const next = savedIdsFromLoad(
+      epoch,
+      generationAtStart,
+      savedAtStart,
+      ids,
+      saveGeneration.current,
+      savedIdsRef.current,
+    );
+    if (next) publishSaved(next);
   }, []);
 
   const login = useCallback(
