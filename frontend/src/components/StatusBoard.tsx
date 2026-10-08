@@ -34,15 +34,23 @@ function asUp(value: unknown): Check {
   return value === true ? "up" : "down";
 }
 
-/** /ready is 200 {db, redis} or 503 {detail: {db, redis}}. A thrown fetch means both are unreachable. */
+/** /ready is 200 {db, redis} or 503 {detail: {db, redis}}. A proxy 500/502 is not an answer. */
 async function readReady(signal: AbortSignal): Promise<{ db: Check; redis: Check; answered: boolean }> {
   try {
     const res = await fetch("/ready", { cache: "no-store", signal });
     const body = (await res.json().catch(() => null)) as
       | { db?: unknown; redis?: unknown; detail?: { db?: unknown; redis?: unknown } }
       | null;
-    const payload = res.ok ? body : body?.detail;
-    return { db: asUp(payload?.db), redis: asUp(payload?.redis), answered: true };
+    const payload = res.status === 200 ? body : res.status === 503 ? body?.detail : null;
+    if (
+      typeof payload !== "object" ||
+      payload === null ||
+      typeof payload.db !== "boolean" ||
+      typeof payload.redis !== "boolean"
+    ) {
+      return { db: "down", redis: "down", answered: false };
+    }
+    return { db: asUp(payload.db), redis: asUp(payload.redis), answered: true };
   } catch (err) {
     if (isAbort(err)) throw err;
     return { db: "down", redis: "down", answered: false };
