@@ -22,6 +22,7 @@ import {
   verifyEmail as apiVerifyEmail,
   type User,
 } from "@/lib/auth";
+import * as saveGuard from "@/lib/saveGuard";
 import { pingPresence } from "@/lib/social";
 
 type UserState = {
@@ -120,6 +121,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearUser = useCallback(() => {
+    // Same instant as logout's epoch bump: a heart error already in flight
+    // must not restore saved ids after the account is gone.
+    saveGuard.bumpSaveEpoch();
     setUser(null);
     setSavedIds(new Set());
   }, []);
