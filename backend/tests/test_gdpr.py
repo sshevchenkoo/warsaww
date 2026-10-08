@@ -34,10 +34,6 @@ class FakeSession:
 
 
 class FakeRequest:
-    def __init__(self):
-        self.session = {"user_id": "fake"}
-        self.cleared = False
-
     class _SessionDict(dict):
         def __init__(self, d):
             super().__init__(d)

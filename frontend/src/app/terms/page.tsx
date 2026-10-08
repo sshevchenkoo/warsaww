@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     "The rules for using warsaw, — accounts, acceptable use, third-party content, and disclaimers.",
 };
 
-const UPDATED = "13 September 2026";
+const UPDATED = "8 October 2026";
 const CONTACT = "support@transendance.online";
 
 function H2({ children }: { children: React.ReactNode }) {
@@ -71,7 +71,8 @@ export default function TermsPage() {
       <P>
         You are responsible for the content you add (display name, avatar, shared messages). You
         grant us the limited right to store and display it as needed to operate the features you
-        use. You can remove this content or delete your account at any time.
+        use. You can remove this content from your profile, or delete the account, at any time.
+        Account deletion is a control on your profile page.
       </P>
 
       <H2>5. Third-party content and sources</H2>
@@ -106,7 +107,9 @@ export default function TermsPage() {
       <P>
         We may suspend or terminate accounts that violate these terms or harm the service or its
         users. You may stop using the service and delete your account at any time from your profile
-        page.
+        page. The page asks you to type the email address on the account and, if the account has a
+        password, that password. There is no confirmation link to click. After the account is
+        deleted we email that address a notice that the account and its data were deleted.
       </P>
 
       <H2>10. Changes</H2>

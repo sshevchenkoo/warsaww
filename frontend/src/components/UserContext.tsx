@@ -34,6 +34,8 @@ type UserState = {
   verify: (code: string) => Promise<void>;
   resendVerification: () => Promise<void>;
   logout: () => Promise<void>;
+  // Drop the in-memory session after DELETE /me, which already cleared the cookie.
+  clearUser: () => void;
   updateUser: (patch: Partial<User>) => void;
   loginUrl: string;
 };
@@ -117,6 +119,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setSavedIds(new Set());
   }, []);
 
+  const clearUser = useCallback(() => {
+    setUser(null);
+    setSavedIds(new Set());
+  }, []);
+
   // Merge a partial update into the current user (e.g. a new avatar_url after
   // upload) so the header + profile reflect it without a full reload.
   const updateUser = useCallback((patch: Partial<User>) => {
@@ -135,6 +142,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         verify,
         resendVerification,
         logout,
+        clearUser,
         updateUser,
         loginUrl: LOGIN_URL,
       }}

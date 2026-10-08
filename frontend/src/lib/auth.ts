@@ -101,6 +101,46 @@ export function logout() {
   return req("/auth/logout", { method: "POST" });
 }
 
+async function errorMessage(res: Response, fallback: string): Promise<string> {
+  try {
+    const data = await res.json();
+    if (typeof data.detail === "string") return data.detail;
+    if (Array.isArray(data.detail) && data.detail[0]?.msg) return data.detail[0].msg;
+  } catch {
+    /* non-JSON error body */
+  }
+  return fallback;
+}
+
+// GET /me/export returns a JSON file (profile, saved items, friendships, shares).
+// Trigger a download of that body. The avatar image itself is not in the file.
+export async function downloadMyData(): Promise<void> {
+  const res = await req("/me/export");
+  if (!res.ok) throw new Error(await errorMessage(res, "Couldn't download your data. Try again."));
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const match = res.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/);
+  a.download = match?.[1] || "warsaw-events-data.json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// DELETE /me. Password accounts must send the current password; Google accounts
+// have none, so the body stays empty. The API clears the session and emails a
+// notice that the account was deleted.
+export async function deleteAccount(currentPassword?: string): Promise<void> {
+  const res = await req("/me", {
+    method: "DELETE",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(currentPassword ? { current_password: currentPassword } : {}),
+  });
+  if (!res.ok) throw new Error(await errorMessage(res, "Couldn't delete the account. Try again."));
+}
+
 // Upload a new avatar (multipart). Returns the new cache-busted avatar_url, or
 // throws with the API's error message (e.g. too large / not an image).
 // XMLHttpRequest, not fetch: fetch has no upload-progress event. onProgress
