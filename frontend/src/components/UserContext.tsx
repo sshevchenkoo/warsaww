@@ -23,6 +23,7 @@ import {
   verifyEmail as apiVerifyEmail,
   type User,
 } from "@/lib/auth";
+import * as saveGuard from "@/lib/saveGuard";
 import { pingPresence } from "@/lib/social";
 
 type UserState = {
@@ -50,9 +51,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
   // from inside a setState updater. StrictMode runs those updaters twice in dev,
   // and a fetch in there becomes two POST/DELETEs.
   const savedIdsRef = useRef(savedIds);
-  // Bumped when the session's saved set is replaced, so a late failure does not
-  // write a heart back onto a signed-out or freshly loaded user.
-  const saveEpoch = useRef(0);
   const saveGeneration = useRef(new Map<string, number>());
 
   function publishSaved(next: Set<string>) {
@@ -60,32 +58,18 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setSavedIds(next);
   }
 
-  // Login, logout, and account deletion replace the set from outside a click.
+  // clearUser() on the account-deletion branch writes setSavedIds directly.
+  // Mirror that write so the next click reads the emptied set.
   useEffect(() => {
     savedIdsRef.current = savedIds;
   }, [savedIds]);
-
-  // A user change (including one added by another branch, such as clearUser)
-  // invalidates an in-flight heart so its error cannot paint a saved id back on.
-  const sessionUserId = useRef<string | null | undefined>(undefined);
-  useEffect(() => {
-    const id = user?.id ?? null;
-    if (sessionUserId.current === undefined) {
-      sessionUserId.current = id;
-      return;
-    }
-    if (sessionUserId.current !== id) {
-      saveEpoch.current += 1;
-      sessionUserId.current = id;
-    }
-  }, [user]);
 
   useEffect(() => {
     (async () => {
       const me = await getMe();
       setUser(me);
       if (me) {
-        saveEpoch.current += 1;
+        saveGuard.bumpSaveEpoch();
         publishSaved(new Set(await getSavedIds()));
       }
       setLoading(false);
@@ -119,13 +103,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
     publishSaved(next);
     setSaveError(null);
 
-    const epoch = saveEpoch.current;
+    const epoch = saveGuard.currentSaveEpoch();
     const generation = (saveGeneration.current.get(id) ?? 0) + 1;
     saveGeneration.current.set(id, generation);
 
     const request = wasSaved ? unsaveItem(id) : saveItem(id);
     request.catch((err: unknown) => {
-      if (saveEpoch.current !== epoch) return;
+      if (saveGuard.currentSaveEpoch() !== epoch) return;
       if (saveGeneration.current.get(id) !== generation) return;
       const reverted = new Set(savedIdsRef.current);
       if (wasSaved) reverted.add(id);
@@ -140,7 +124,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   // Adopt a freshly authenticated user and load their saved ids (same as the
   // initial /me load). Used by both login and register.
   const applySession = useCallback(async (u: User) => {
-    saveEpoch.current += 1;
+    saveGuard.bumpSaveEpoch();
     setUser(u);
     publishSaved(new Set(await getSavedIds()));
   }, []);
@@ -170,7 +154,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    saveEpoch.current += 1;
+    saveGuard.bumpSaveEpoch();
     await apiLogout();
     setUser(null);
     publishSaved(new Set());

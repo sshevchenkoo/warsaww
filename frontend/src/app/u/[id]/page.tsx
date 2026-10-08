@@ -7,23 +7,12 @@ import { useEffect, useState } from "react";
 import { Avatar } from "@/components/Avatar";
 import { EmptyState } from "@/components/EmptyState";
 import { EventCard } from "@/components/EventCard";
+import { FriendActions } from "@/components/FriendActions";
 import { Icon } from "@/components/Icon";
 import { SectionHeading } from "@/components/SectionHeading";
 import { useUser } from "@/components/UserContext";
 import type { Card } from "@/lib/api";
-import {
-  acceptRequest,
-  declineRequest,
-  getProfile,
-  getUserSaved,
-  removeFriend,
-  sendRequest,
-  type Friendship,
-  type PublicUser,
-} from "@/lib/social";
-
-const btn =
-  "rounded-full px-4 py-2 font-mono text-sm tracking-wide transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50";
+import { getProfile, getUserSaved, type Friendship, type PublicUser } from "@/lib/social";
 
 export default function Profile() {
   const { id } = useParams<{ id: string }>();
@@ -32,8 +21,6 @@ export default function Profile() {
   const [person, setPerson] = useState<PublicUser | null | undefined>(undefined);
   const [rel, setRel] = useState<Friendship>("none");
   const [saved, setSaved] = useState<Card[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -82,21 +69,6 @@ export default function Profile() {
     );
   }
 
-  async function act(fn: () => Promise<unknown>, next: Friendship) {
-    setBusy(true);
-    setActionError(null);
-    try {
-      await fn();
-      setRel(next);
-    } catch (err) {
-      setActionError(
-        err instanceof Error && err.message ? err.message : "Couldn't update this friendship.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <main className="mx-auto w-full max-w-6xl px-5 pb-24 pt-6 sm:pt-10">
       <Link
@@ -140,40 +112,12 @@ export default function Profile() {
             </p>
           </div>
 
-          {rel !== "self" && (
-            <div className="flex flex-wrap items-center gap-2">
-              {rel === "none" && (
-                <button type="button" disabled={busy} onClick={() => act(() => sendRequest(person.id), "request_sent")} className={`${btn} bg-accent font-bold text-accent-ink hover:opacity-90`}>
-                  add friend
-                </button>
-              )}
-              {rel === "request_sent" && (
-                <button type="button" disabled={busy} onClick={() => act(() => removeFriend(person.id), "none")} className={`${btn} border border-line text-muted hover:text-fg`}>
-                  requested · cancel
-                </button>
-              )}
-              {rel === "request_received" && (
-                <>
-                  <button type="button" disabled={busy} onClick={() => act(() => acceptRequest(person.id), "friends")} className={`${btn} bg-accent font-bold text-accent-ink hover:opacity-90`}>
-                    accept
-                  </button>
-                  <button type="button" disabled={busy} onClick={() => act(() => declineRequest(person.id), "none")} className={`${btn} border border-line text-muted hover:text-accent`}>
-                    decline
-                  </button>
-                </>
-              )}
-              {rel === "friends" && (
-                <button type="button" disabled={busy} onClick={() => act(() => removeFriend(person.id), "none")} className={`${btn} inline-flex items-center gap-1 border border-line text-muted hover:text-accent`}>
-                  friends <Icon name="check" size={14} />
-                </button>
-              )}
-              {actionError && (
-                <p role="alert" className="w-full font-mono text-xs text-red-500">
-                  {actionError}
-                </p>
-              )}
-            </div>
-          )}
+          <FriendActions
+            userId={person.id}
+            friendship={rel}
+            variant="profile"
+            onChange={setRel}
+          />
         </div>
       </section>
 
