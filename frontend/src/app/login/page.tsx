@@ -10,7 +10,7 @@ import { VerifyPanel } from "@/components/VerifyPanel";
 type Mode = "signin" | "signup";
 
 export default function Login() {
-  const { user, login, register, confirmTwoFactor, loginUrl } = useUser();
+  const { user, loading, login, register, confirmTwoFactor, loginUrl } = useUser();
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
@@ -23,9 +23,12 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
 
   // A verified user has no reason to be here → send them to search.
+  // The code step stays up if a late /me fills `user` after the password
+  // login already replaced the session with pending_2fa.
   useEffect(() => {
+    if (pending2fa) return;
     if (user?.email_verified) router.replace("/");
-  }, [user, router]);
+  }, [user, router, pending2fa]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -73,8 +76,9 @@ export default function Login() {
   }
 
   // Password accepted, two-factor still open. Same code field as VerifyPanel;
-  // this one finishes the login instead of confirming the address.
-  if (pending2fa && !user) {
+  // this one finishes the login instead of confirming the address. Checked
+  // before the verified-user redirect so a late /me cannot dismiss it.
+  if (pending2fa) {
     return (
       <main className="mx-auto w-full max-w-sm px-5 pb-24 pt-16">
         <div className="rounded-2xl border border-line p-5 sm:p-6">
@@ -133,8 +137,10 @@ export default function Login() {
     );
   }
 
-  // Verified session: the effect above sends them home. Don't flash the form.
-  if (user?.email_verified) {
+  // Mount GET /me still in flight, or a verified session the effect sends home.
+  // The password form must not be usable until that GET settles: submitting
+  // it would drop the real session and a late /me would navigate home.
+  if (loading || user?.email_verified) {
     return (
       <main className="mx-auto grid w-full max-w-sm place-items-center px-5 pb-24 pt-24">
         <Spinner label="signing in" />
