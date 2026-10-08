@@ -54,7 +54,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       setUser(me);
       if (me) setSavedIds(new Set(await getSavedIds()));
       setLoading(false);
-    })();
+    })().finally(() => setLoading(false)); // a rejected /me must still reveal the form
   }, []);
 
   // Presence heartbeat: while signed in, ping on mount and once a minute so
