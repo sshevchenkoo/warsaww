@@ -14,8 +14,8 @@ import {
   type PublicUser,
 } from "@/lib/social";
 
-export default function People() {
-  const { user, loading } = useUser();
+function PeopleSession() {
+  const { user } = useUser();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PublicUser[] | null>(null);
   const [searching, setSearching] = useState(false);
@@ -73,24 +73,7 @@ export default function People() {
     };
   }, [query]);
 
-  if (loading) return null;
-
-  if (!user) {
-    return (
-      <main className="mx-auto w-full max-w-2xl px-5 pb-24 pt-16">
-        <h1 className="text-4xl font-black tracking-tighter">people</h1>
-        <p className="mt-3 font-mono text-sm text-muted">
-          sign in to find friends and share events.
-        </p>
-        <Link
-          href="/login"
-          className="mt-6 inline-block rounded-full bg-accent px-4 py-2 font-mono text-sm font-bold text-accent-ink transition-transform hover:scale-105 active:scale-95"
-        >
-          sign in
-        </Link>
-      </main>
-    );
-  }
+  if (!user) return null;
 
   // When a search-result relationship changes, refresh the friends/requests lists.
   const refreshLists = () => {
@@ -158,4 +141,31 @@ export default function People() {
       )}
     </main>
   );
+}
+
+function PeopleSignedOut() {
+  return (
+    <main className="mx-auto w-full max-w-2xl px-5 pb-24 pt-16">
+      <h1 className="text-4xl font-black tracking-tighter">people</h1>
+      <p className="mt-3 font-mono text-sm text-muted">
+        sign in to find friends and share events.
+      </p>
+      <Link
+        href="/login"
+        className="mt-6 inline-block rounded-full bg-accent px-4 py-2 font-mono text-sm font-bold text-accent-ink transition-transform hover:scale-105 active:scale-95"
+      >
+        sign in
+      </Link>
+    </main>
+  );
+}
+
+export default function People() {
+  const { user, loading } = useUser();
+  if (loading) return null;
+  if (!user) return <PeopleSignedOut />;
+  // Remounting on the account id drops the previous account's requests and
+  // friends before the next fetch paints. Aborting the request is not enough:
+  // those rows are already in state.
+  return <PeopleSession key={user.id} />;
 }
