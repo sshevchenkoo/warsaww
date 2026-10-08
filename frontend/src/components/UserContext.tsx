@@ -43,11 +43,12 @@ type UserState = {
 const UserCtx = createContext<UserState | null>(null);
 
 // getSavedIds is stale once the session epoch moves. A generation newer than
-// the pre-fetch snapshot is a save/unsave still in flight (cleared when that
-// request settles), so its heart is kept even when an even number of clicks
-// put the bit back. If that heart already matches the server, retire the
-// generation so a failed POST cannot delete an id the server still has.
-// Null means do not publish.
+// the pre-fetch snapshot is a click this load has not snapshotted: a success
+// leaves it so a stale body cannot undo the heart, and a failure removes it
+// after reverting. Keep that heart even when an even number of clicks put the
+// bit back. If it already matches the server, retire the generation so a
+// failed POST cannot delete an id the server still has. A later load
+// snapshots the same generation and skips it. Null means do not publish.
 function savedIdsFromLoad(
   epoch: number,
   generationAtStart: ReadonlyMap<string, number>,
@@ -144,27 +145,20 @@ export function UserProvider({ children }: { children: ReactNode }) {
     saveGeneration.current.set(id, generation);
 
     const request = wasSaved ? unsaveItem(id) : saveItem(id);
-    // Drop the generation when this request settles so a later load can tell
-    // an in-flight click from one that already reverted.
-    request.then(
-      () => {
-        if (saveGuard.currentSaveEpoch() !== epoch) return;
-        if (saveGeneration.current.get(id) !== generation) return;
-        saveGeneration.current.delete(id);
-      },
-      (err: unknown) => {
-        if (saveGuard.currentSaveEpoch() !== epoch) return;
-        if (saveGeneration.current.get(id) !== generation) return;
-        const reverted = new Set(savedIdsRef.current);
-        if (wasSaved) reverted.add(id);
-        else reverted.delete(id);
-        saveGeneration.current.delete(id);
-        publishSaved(reverted);
-        setSaveError(
-          err instanceof Error && err.message ? err.message : "Couldn't update saved items.",
-        );
-      },
-    );
+    request.catch((err: unknown) => {
+      if (saveGuard.currentSaveEpoch() !== epoch) return;
+      if (saveGeneration.current.get(id) !== generation) return;
+      const reverted = new Set(savedIdsRef.current);
+      if (wasSaved) reverted.add(id);
+      else reverted.delete(id);
+      // A 2xx leaves the generation so this load still keeps the heart.
+      // Only a revert drops it, which lets the server bit stand.
+      saveGeneration.current.delete(id);
+      publishSaved(reverted);
+      setSaveError(
+        err instanceof Error && err.message ? err.message : "Couldn't update saved items.",
+      );
+    });
   }, []);
 
   // Adopt a freshly authenticated user and load their saved ids (same as the
