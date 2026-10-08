@@ -16,6 +16,7 @@ import type { Card } from "@/lib/api";
 import { deleteAvatar, getSaved, uploadAvatar } from "@/lib/auth";
 import {
   dismissShared,
+  isAbortError,
   listFriends,
   listShared,
   type PublicUser,
@@ -92,12 +93,34 @@ export default function Profile() {
 
   useEffect(() => {
     if (!user) return; // logged-out renders the sign-in prompt; busy is unused there
-    getSaved().then((c) => {
-      setCards(c);
-      setBusy(false);
-    });
-    listShared().then(setShared);
-    listFriends().then(setFriends);
+    // One controller for all three lists. Logout or a switch to another account
+    // aborts them, so a late response cannot paint the previous user's data.
+    const ctrl = new AbortController();
+    getSaved(ctrl.signal)
+      .then((c) => {
+        if (ctrl.signal.aborted) return;
+        setCards(c);
+        setBusy(false);
+      })
+      .catch((err) => {
+        if (isAbortError(err) || ctrl.signal.aborted) return;
+        setBusy(false);
+      });
+    listShared(ctrl.signal)
+      .then((rows) => {
+        if (!ctrl.signal.aborted) setShared(rows);
+      })
+      .catch((err) => {
+        if (!isAbortError(err)) setShared([]);
+      });
+    listFriends(ctrl.signal)
+      .then((rows) => {
+        if (!ctrl.signal.aborted) setFriends(rows);
+      })
+      .catch((err) => {
+        if (!isAbortError(err)) setFriends([]);
+      });
+    return () => ctrl.abort();
   }, [user]);
 
   function dismiss(shareId: string) {

@@ -33,6 +33,13 @@ export default function Home() {
   const [lastQuery, setLastQuery] = useState("");
   const abortRef = useRef<AbortController | null>(null);
 
+  // Leaving the page mid-stream cancels /search. A new prompt already aborts
+  // the previous controller inside run(); unmount had no cleanup, so the
+  // request and the model calls behind it kept going.
+  useEffect(() => {
+    return () => abortRef.current?.abort();
+  }, []);
+
   // Search is gated: only a logged-in, email-verified user can run prompts.
   const { user, loading: authLoading } = useUser();
   const canSearch = !!user?.email_verified;

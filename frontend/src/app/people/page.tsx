@@ -7,6 +7,7 @@ import { Spinner } from "@/components/Icon";
 import { UserCard } from "@/components/UserCard";
 import { useUser } from "@/components/UserContext";
 import {
+  isAbortError,
   listFriends,
   listRequests,
   searchUsers,
@@ -23,25 +24,53 @@ export default function People() {
 
   useEffect(() => {
     if (!user) return;
-    listRequests().then(setRequests);
-    listFriends().then(setFriends);
+    const ctrl = new AbortController();
+    listRequests(ctrl.signal)
+      .then((rows) => {
+        if (!ctrl.signal.aborted) setRequests(rows);
+      })
+      .catch((err) => {
+        if (!isAbortError(err)) setRequests([]);
+      });
+    listFriends(ctrl.signal)
+      .then((rows) => {
+        if (!ctrl.signal.aborted) setFriends(rows);
+      })
+      .catch((err) => {
+        if (!isAbortError(err)) setFriends([]);
+      });
+    return () => ctrl.abort();
   }, [user]);
 
-  // Debounced search as you type. All state updates happen inside the timeout
-  // callback (never synchronously in the effect body).
+  // Debounced search. Cleanup aborts the previous request so a slow response
+  // for an older prefix cannot overwrite the newer one. State updates stay
+  // inside the timeout (not synchronous in the effect body).
   useEffect(() => {
     const q = query.trim();
-    const id = setTimeout(async () => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => {
       if (q.length < 2) {
         setResults(null);
         setSearching(false);
         return;
       }
       setSearching(true);
-      setResults(await searchUsers(q));
-      setSearching(false);
+      searchUsers(q, ctrl.signal)
+        .then((found) => {
+          if (ctrl.signal.aborted) return;
+          setResults(found);
+          setSearching(false);
+        })
+        .catch((err) => {
+          if (isAbortError(err) || ctrl.signal.aborted) return;
+          setResults([]);
+          setSearching(false);
+        });
     }, q.length < 2 ? 0 : 300);
-    return () => clearTimeout(id);
+    return () => {
+      clearTimeout(timer);
+      ctrl.abort();
+    };
   }, [query]);
 
   if (loading) return null;
