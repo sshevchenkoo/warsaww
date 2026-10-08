@@ -60,6 +60,26 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setSavedIds(next);
   }
 
+  // Login, logout, and account deletion replace the set from outside a click.
+  useEffect(() => {
+    savedIdsRef.current = savedIds;
+  }, [savedIds]);
+
+  // A user change (including one added by another branch, such as clearUser)
+  // invalidates an in-flight heart so its error cannot paint a saved id back on.
+  const sessionUserId = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    const id = user?.id ?? null;
+    if (sessionUserId.current === undefined) {
+      sessionUserId.current = id;
+      return;
+    }
+    if (sessionUserId.current !== id) {
+      saveEpoch.current += 1;
+      sessionUserId.current = id;
+    }
+  }, [user]);
+
   useEffect(() => {
     (async () => {
       const me = await getMe();
