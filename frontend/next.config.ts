@@ -24,6 +24,10 @@ const nextConfig: NextConfig = {
       { source: "/friends/:path*", destination: `${BACKEND}/friends/:path*` },
       { source: "/friends", destination: `${BACKEND}/friends` },
       { source: "/share", destination: `${BACKEND}/share` },
+      // Status page probes. Same-origin in production via the ingress; in dev
+      // they have to be rewritten or the browser hits Next and gets a 404.
+      { source: "/health", destination: `${BACKEND}/health` },
+      { source: "/ready", destination: `${BACKEND}/ready` },
     ];
   },
 };
