@@ -1,19 +1,68 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Icon, Spinner } from "@/components/Icon";
 import { useUser } from "@/components/UserContext";
 import { listFriends, shareEvent, type PublicUser } from "@/lib/social";
 
+// One friend list and one open menu for every card. Each button used to fetch
+// /friends on open and stay open beside the others.
+let friendsCache: PublicUser[] | null = null;
+let friendsUserId: string | null = null;
+let friendsInflight: Promise<void> | null = null;
+let openItemId: string | null = null;
+const menuListeners = new Set<() => void>();
+
+function notifyMenus() {
+  menuListeners.forEach((fn) => fn());
+}
+
 /** Share an item with a friend. `compact` renders the round icon used on cards;
  *  otherwise a labelled pill for the detail page. Only shown to logged-in users. */
 export function ShareButton({ itemId, compact = false }: { itemId: string; compact?: boolean }) {
   const { user } = useUser();
+  const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [friends, setFriends] = useState<PublicUser[] | null>(null);
   const [sent, setSent] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    function sync() {
+      setOpen(openItemId === itemId);
+      setFriends(friendsUserId === user?.id ? friendsCache : null);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Escape" || openItemId !== itemId) return;
+      openItemId = null;
+      notifyMenus();
+    }
+    function onPointer(e: PointerEvent) {
+      if (openItemId !== itemId) return;
+      if (rootRef.current?.contains(e.target as Node)) return;
+      openItemId = null;
+      notifyMenus();
+    }
+    menuListeners.add(sync);
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointer);
+    return () => {
+      menuListeners.delete(sync);
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointer);
+    };
+  }, [itemId, user?.id]);
+
+  useEffect(() => {
+    const id = user?.id ?? null;
+    if (friendsUserId === id) return;
+    friendsUserId = id;
+    friendsCache = null;
+    friendsInflight = null;
+    openItemId = null;
+    notifyMenus();
+  }, [user?.id]);
 
   if (!user) return null;
 
@@ -21,9 +70,28 @@ export function ShareButton({ itemId, compact = false }: { itemId: string; compa
     // Cards wrap the content in a <Link>; don't navigate when opening the menu.
     e.preventDefault();
     e.stopPropagation();
-    const next = !open;
-    setOpen(next);
-    if (next && friends === null) listFriends().then(setFriends);
+    if (!user) return;
+    const next = openItemId !== itemId;
+    openItemId = next ? itemId : null;
+    if (friendsUserId !== user.id) {
+      friendsUserId = user.id;
+      friendsCache = null;
+      friendsInflight = null;
+    }
+    notifyMenus();
+    if (!next || friendsCache || friendsInflight) return;
+    const userId = user.id;
+    friendsInflight = listFriends()
+      .then((rows) => {
+        if (friendsUserId === userId) friendsCache = rows;
+      })
+      .catch(() => {
+        if (friendsUserId === userId) friendsCache = [];
+      })
+      .finally(() => {
+        friendsInflight = null;
+        if (friendsUserId === userId) notifyMenus();
+      });
   }
 
   async function share(e: React.MouseEvent, friendId: string) {
@@ -38,7 +106,7 @@ export function ShareButton({ itemId, compact = false }: { itemId: string; compa
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={rootRef}>
       <button
         type="button"
         onClick={toggle}

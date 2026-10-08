@@ -68,6 +68,7 @@ export default function Login() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="name (optional)"
+            aria-label="Name (optional)"
             autoComplete="name"
             className="border-b-2 border-line bg-transparent pb-2 text-lg placeholder:text-muted/70 focus:border-accent"
           />
@@ -78,6 +79,7 @@ export default function Login() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="email"
+          aria-label="Email"
           autoComplete="email"
           className="border-b-2 border-line bg-transparent pb-2 text-lg outline-none placeholder:text-muted/70 focus:border-accent"
         />
@@ -88,6 +90,7 @@ export default function Login() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder={mode === "signup" ? "password (8+ characters)" : "password"}
+          aria-label="Password"
           autoComplete={mode === "signup" ? "new-password" : "current-password"}
           className="border-b-2 border-line bg-transparent pb-2 text-lg outline-none placeholder:text-muted/70 focus:border-accent"
         />
@@ -99,6 +102,7 @@ export default function Login() {
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             placeholder="confirm password"
+            aria-label="Confirm password"
             autoComplete="new-password"
             className="border-b-2 border-line bg-transparent pb-2 text-lg outline-none placeholder:text-muted/70 focus:border-accent"
           />
