@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { Icon, Spinner } from "@/components/Icon";
 import { useUser } from "@/components/UserContext";
@@ -12,7 +12,8 @@ import { listFriends, shareEvent, type PublicUser } from "@/lib/social";
 let friendsCache: PublicUser[] | null = null;
 let friendsUserId: string | null = null;
 let friendsInflight: Promise<void> | null = null;
-let openItemId: string | null = null;
+// Per button, not per event: the same event can be on screen twice.
+let openMenuId: string | null = null;
 const menuListeners = new Set<() => void>();
 
 function notifyMenus() {
@@ -23,6 +24,7 @@ function notifyMenus() {
  *  otherwise a labelled pill for the detail page. Only shown to logged-in users. */
 export function ShareButton({ itemId, compact = false }: { itemId: string; compact?: boolean }) {
   const { user } = useUser();
+  const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [friends, setFriends] = useState<PublicUser[] | null>(null);
@@ -30,18 +32,19 @@ export function ShareButton({ itemId, compact = false }: { itemId: string; compa
 
   useEffect(() => {
     function sync() {
-      setOpen(openItemId === itemId);
+      setOpen(openMenuId === menuId);
       setFriends(friendsUserId === user?.id ? friendsCache : null);
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key !== "Escape" || openItemId !== itemId) return;
-      openItemId = null;
+      if (e.key !== "Escape" || openMenuId !== menuId) return;
+      openMenuId = null;
       notifyMenus();
     }
     function onPointer(e: PointerEvent) {
-      if (openItemId !== itemId) return;
+      // Only the instance that is actually open may dismiss.
+      if (openMenuId !== menuId) return;
       if (rootRef.current?.contains(e.target as Node)) return;
-      openItemId = null;
+      openMenuId = null;
       notifyMenus();
     }
     menuListeners.add(sync);
@@ -52,7 +55,7 @@ export function ShareButton({ itemId, compact = false }: { itemId: string; compa
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("pointerdown", onPointer);
     };
-  }, [itemId, user?.id]);
+  }, [menuId, user?.id]);
 
   useEffect(() => {
     const id = user?.id ?? null;
@@ -60,7 +63,7 @@ export function ShareButton({ itemId, compact = false }: { itemId: string; compa
     friendsUserId = id;
     friendsCache = null;
     friendsInflight = null;
-    openItemId = null;
+    openMenuId = null;
     notifyMenus();
   }, [user?.id]);
 
@@ -71,8 +74,8 @@ export function ShareButton({ itemId, compact = false }: { itemId: string; compa
     e.preventDefault();
     e.stopPropagation();
     if (!user) return;
-    const next = openItemId !== itemId;
-    openItemId = next ? itemId : null;
+    const next = openMenuId !== menuId;
+    openMenuId = next ? menuId : null;
     if (friendsUserId !== user.id) {
       friendsUserId = user.id;
       friendsCache = null;
