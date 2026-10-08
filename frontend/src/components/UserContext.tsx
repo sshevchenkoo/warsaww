@@ -14,12 +14,14 @@ import {
   getSavedIds,
   LOGIN_URL,
   login as apiLogin,
+  login2fa as apiLogin2fa,
   logout as apiLogout,
   register as apiRegister,
   resendVerification as apiResendVerification,
   saveItem,
   unsaveItem,
   verifyEmail as apiVerifyEmail,
+  type LoginResult,
   type User,
 } from "@/lib/auth";
 import { pingPresence } from "@/lib/social";
@@ -29,7 +31,8 @@ type UserState = {
   loading: boolean;
   savedIds: Set<string>;
   toggleSave: (id: string) => void;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<LoginResult>;
+  confirmTwoFactor: (code: string) => Promise<void>;
   register: (email: string, password: string, name?: string) => Promise<void>;
   verify: (code: string) => Promise<void>;
   resendVerification: () => Promise<void>;
@@ -89,7 +92,18 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string) => {
-      await applySession(await apiLogin(email, password));
+      const result = await apiLogin(email, password);
+      // Two-factor stops here: the session is only pending_2fa until the code.
+      if ("pending_2fa" in result) return result;
+      await applySession(result);
+      return result;
+    },
+    [applySession],
+  );
+
+  const confirmTwoFactor = useCallback(
+    async (code: string) => {
+      await applySession(await apiLogin2fa(code));
     },
     [applySession],
   );
@@ -131,6 +145,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         savedIds,
         toggleSave,
         login,
+        confirmTwoFactor,
         register,
         verify,
         resendVerification,

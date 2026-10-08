@@ -10,13 +10,15 @@ import { VerifyPanel } from "@/components/VerifyPanel";
 type Mode = "signin" | "signup";
 
 export default function Login() {
-  const { user, login, register, loginUrl } = useUser();
+  const { user, login, register, confirmTwoFactor, loginUrl } = useUser();
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  const [pending2fa, setPending2fa] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -34,8 +36,19 @@ export default function Login() {
     }
     setBusy(true);
     try {
-      if (mode === "signup") await register(email, password, name || undefined);
-      else await login(email, password);
+      if (mode === "signup") {
+        await register(email, password, name || undefined);
+      } else {
+        const result = await login(email, password);
+        if ("pending_2fa" in result) {
+          // Password checked out, but the session is not a login yet. The API
+          // emailed a code; the panel below posts it to /auth/login/2fa.
+          setPassword("");
+          setCode("");
+          setPending2fa(true);
+          return;
+        }
+      }
       // No redirect here: an unverified account falls through to the code panel
       // below; once verified the effect above bounces to home.
     } catch (err) {
@@ -45,12 +58,86 @@ export default function Login() {
     }
   }
 
+  async function submitCode(e: React.FormEvent) {
+    e.preventDefault();
+    if (busy || code.trim().length < 4) return;
+    setError(null);
+    setBusy(true);
+    try {
+      await confirmTwoFactor(code.trim());
+      setPending2fa(false);
+    } catch (err) {
+      setError((err as Error).message);
+      setBusy(false);
+    }
+  }
+
+  // Password accepted, two-factor still open. Same code field as VerifyPanel;
+  // this one finishes the login instead of confirming the address.
+  if (pending2fa && !user) {
+    return (
+      <main className="mx-auto w-full max-w-sm px-5 pb-24 pt-16">
+        <div className="rounded-2xl border border-line p-5 sm:p-6">
+          <h2 className="text-xl font-black tracking-tight">
+            check your email<span className="text-accent">.</span>
+          </h2>
+          <p className="mt-1 font-mono text-xs tracking-wide text-muted">
+            we sent a 6-digit code to {email}. enter it to finish signing in.
+          </p>
+
+          <form onSubmit={submitCode} className="mt-4 flex flex-col items-start gap-3">
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="123456"
+              aria-label="Sign-in code"
+              autoFocus
+              className="w-full border-b-2 border-line bg-transparent pb-2 text-2xl font-bold tracking-[0.3em] outline-none placeholder:text-muted/50 focus:border-accent"
+            />
+            <button
+              type="submit"
+              disabled={busy || code.length < 4}
+              className="rounded-full bg-accent px-5 py-2.5 font-bold text-accent-ink transition-transform hover:scale-[1.02] active:scale-95 disabled:opacity-50"
+            >
+              {busy ? <Spinner label="verifying" /> : "verify"}
+            </button>
+          </form>
+
+          {error && <p className="mt-3 font-mono text-xs text-accent">{error}</p>}
+
+          <button
+            type="button"
+            onClick={() => {
+              setPending2fa(false);
+              setCode("");
+              setError(null);
+            }}
+            className="mt-4 font-mono text-xs tracking-wide text-muted transition-colors hover:text-fg"
+          >
+            back to sign in
+          </button>
+        </div>
+      </main>
+    );
+  }
+
   // Logged in but not verified (just registered, or signed in to an unconfirmed
   // account) → enter the emailed code right here before going anywhere.
   if (user && !user.email_verified) {
     return (
       <main className="mx-auto w-full max-w-sm px-5 pb-24 pt-16">
         <VerifyPanel />
+      </main>
+    );
+  }
+
+  // Verified session: the effect above sends them home. Don't flash the form.
+  if (user?.email_verified) {
+    return (
+      <main className="mx-auto grid w-full max-w-sm place-items-center px-5 pb-24 pt-24">
+        <Spinner label="signing in" />
       </main>
     );
   }

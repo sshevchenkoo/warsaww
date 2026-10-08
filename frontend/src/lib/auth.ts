@@ -14,7 +14,14 @@ export type User = {
   pending_email: string | null;
   // Only password accounts can change their email (Google manages the rest).
   has_password: boolean;
+  // Password logins mail a code when this is on. Google accounts stay false;
+  // their second factor is the Google account itself.
+  two_factor_enabled: boolean;
 };
+
+// Password login either opens a session or, when two-factor is on, parks it
+// until POST /auth/login/2fa. That response has no user fields.
+export type LoginResult = User | { pending_2fa: true };
 
 export const LOGIN_URL = "/auth/login/google";
 
@@ -28,7 +35,7 @@ export async function getMe(): Promise<User | null> {
 }
 
 // Send JSON (POST by default); on failure throw with the API's error message.
-async function authPost(path: string, body: object, method = "POST"): Promise<User> {
+async function authJson(path: string, body: object, method = "POST"): Promise<unknown> {
   const res = await req(path, {
     method,
     headers: { "content-type": "application/json" },
@@ -48,19 +55,39 @@ async function authPost(path: string, body: object, method = "POST"): Promise<Us
   return res.json();
 }
 
-export function register(email: string, password: string, name?: string): Promise<User> {
-  return authPost("/auth/register", { email, password, name: name || null });
+function asUser(data: unknown): User {
+  return data as User;
 }
 
-export function login(email: string, password: string): Promise<User> {
-  return authPost("/auth/login", { email, password });
+export function register(email: string, password: string, name?: string): Promise<User> {
+  return authJson("/auth/register", { email, password, name: name || null }).then(asUser);
+}
+
+export async function login(email: string, password: string): Promise<LoginResult> {
+  const data = await authJson("/auth/login", { email, password });
+  if (
+    typeof data === "object" &&
+    data !== null &&
+    "pending_2fa" in data &&
+    (data as { pending_2fa?: unknown }).pending_2fa === true &&
+    !("id" in data)
+  ) {
+    return { pending_2fa: true };
+  }
+  return asUser(data);
+}
+
+// Finish a password login that came back as pending_2fa. The code was emailed
+// by POST /auth/login; a wrong or expired one throws the API's message.
+export function login2fa(code: string): Promise<User> {
+  return authJson("/auth/login/2fa", { code }).then(asUser);
 }
 
 // Confirm the email with the 6-digit code we mailed; returns the updated user
 // (email_verified flips to true). Throws with the API's message on a bad/expired
 // code or too many attempts.
 export function verifyEmail(code: string): Promise<User> {
-  return authPost("/auth/verify", { code });
+  return authJson("/auth/verify", { code }).then(asUser);
 }
 
 // Edit the profile. Omitted fields stay unchanged; `name: null` clears it. A new
@@ -70,8 +97,9 @@ export function updateMe(patch: {
   name?: string | null;
   email?: string;
   current_password?: string;
+  two_factor_enabled?: boolean;
 }): Promise<User> {
-  return authPost("/me", patch, "PATCH");
+  return authJson("/me", patch, "PATCH").then(asUser);
 }
 
 // Ask the API to email a fresh verification code to the logged-in user.
