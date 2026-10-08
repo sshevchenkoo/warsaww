@@ -33,6 +33,7 @@ export default function Profile() {
   const [rel, setRel] = useState<Friendship>("none");
   const [saved, setSaved] = useState<Card[]>([]);
   const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -83,11 +84,14 @@ export default function Profile() {
 
   async function act(fn: () => Promise<unknown>, next: Friendship) {
     setBusy(true);
+    setActionError(null);
     try {
       await fn();
       setRel(next);
-    } catch {
-      /* ignore */
+    } catch (err) {
+      setActionError(
+        err instanceof Error && err.message ? err.message : "Couldn't update this friendship.",
+      );
     } finally {
       setBusy(false);
     }
@@ -137,7 +141,7 @@ export default function Profile() {
           </div>
 
           {rel !== "self" && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {rel === "none" && (
                 <button type="button" disabled={busy} onClick={() => act(() => sendRequest(person.id), "request_sent")} className={`${btn} bg-accent font-bold text-accent-ink hover:opacity-90`}>
                   add friend
@@ -162,6 +166,11 @@ export default function Profile() {
                 <button type="button" disabled={busy} onClick={() => act(() => removeFriend(person.id), "none")} className={`${btn} inline-flex items-center gap-1 border border-line text-muted hover:text-accent`}>
                   friends <Icon name="check" size={14} />
                 </button>
+              )}
+              {actionError && (
+                <p role="alert" className="w-full font-mono text-xs text-red-500">
+                  {actionError}
+                </p>
               )}
             </div>
           )}

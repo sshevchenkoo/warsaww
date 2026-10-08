@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -44,12 +45,29 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [saveError, setSaveError] = useState<string | null>(null);
+  // Mirrors savedIds so a click can decide save vs unsave without reading state
+  // from inside a setState updater. StrictMode runs those updaters twice in dev,
+  // and a fetch in there becomes two POST/DELETEs.
+  const savedIdsRef = useRef(savedIds);
+  // Bumped when the session's saved set is replaced, so a late failure does not
+  // write a heart back onto a signed-out or freshly loaded user.
+  const saveEpoch = useRef(0);
+  const saveGeneration = useRef(new Map<string, number>());
+
+  function publishSaved(next: Set<string>) {
+    savedIdsRef.current = next;
+    setSavedIds(next);
+  }
 
   useEffect(() => {
     (async () => {
       const me = await getMe();
       setUser(me);
-      if (me) setSavedIds(new Set(await getSavedIds()));
+      if (me) {
+        saveEpoch.current += 1;
+        publishSaved(new Set(await getSavedIds()));
+      }
       setLoading(false);
     })();
   }, []);
@@ -64,27 +82,47 @@ export function UserProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(timer);
   }, [user]);
 
-  // Optimistic toggle: flip the heart immediately, fire the API in the
-  // background (saving is idempotent and un-saving a missing row is a no-op).
+  useEffect(() => {
+    if (!saveError) return;
+    const timer = window.setTimeout(() => setSaveError(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [saveError]);
+
+  // Optimistic heart: flip immediately, then one request. On failure put the
+  // heart back and say why. A newer click on the same card wins over an older
+  // response.
   const toggleSave = useCallback((id: string) => {
-    setSavedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-        unsaveItem(id);
-      } else {
-        next.add(id);
-        saveItem(id);
-      }
-      return next;
+    const wasSaved = savedIdsRef.current.has(id);
+    const next = new Set(savedIdsRef.current);
+    if (wasSaved) next.delete(id);
+    else next.add(id);
+    publishSaved(next);
+    setSaveError(null);
+
+    const epoch = saveEpoch.current;
+    const generation = (saveGeneration.current.get(id) ?? 0) + 1;
+    saveGeneration.current.set(id, generation);
+
+    const request = wasSaved ? unsaveItem(id) : saveItem(id);
+    request.catch((err: unknown) => {
+      if (saveEpoch.current !== epoch) return;
+      if (saveGeneration.current.get(id) !== generation) return;
+      const reverted = new Set(savedIdsRef.current);
+      if (wasSaved) reverted.add(id);
+      else reverted.delete(id);
+      publishSaved(reverted);
+      setSaveError(
+        err instanceof Error && err.message ? err.message : "Couldn't update saved items.",
+      );
     });
   }, []);
 
   // Adopt a freshly authenticated user and load their saved ids (same as the
   // initial /me load). Used by both login and register.
   const applySession = useCallback(async (u: User) => {
+    saveEpoch.current += 1;
     setUser(u);
-    setSavedIds(new Set(await getSavedIds()));
+    publishSaved(new Set(await getSavedIds()));
   }, []);
 
   const login = useCallback(
@@ -112,9 +150,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    saveEpoch.current += 1;
     await apiLogout();
     setUser(null);
-    setSavedIds(new Set());
+    publishSaved(new Set());
   }, []);
 
   // Merge a partial update into the current user (e.g. a new avatar_url after
@@ -140,6 +179,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
       }}
     >
       {children}
+      {saveError && (
+        <p
+          role="alert"
+          className="fixed bottom-4 left-1/2 z-50 max-w-[min(24rem,calc(100%-2rem))] -translate-x-1/2 rounded-full border border-line bg-card px-4 py-2 text-center font-mono text-xs text-red-500"
+        >
+          {saveError}
+        </p>
+      )}
     </UserCtx.Provider>
   );
 }

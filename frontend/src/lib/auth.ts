@@ -89,12 +89,32 @@ export async function getSaved(): Promise<Card[]> {
   return res.ok ? res.json() : [];
 }
 
-export function saveItem(id: string) {
-  return req(`/me/saved/${id}`, { method: "POST" });
+// POST/DELETE /me/saved. Throws the API message (or a connection fallback) so
+// the heart can revert when the call fails. A 2xx body is {status}.
+async function savedMutation(id: string, method: "POST" | "DELETE"): Promise<void> {
+  let res: Response;
+  try {
+    res = await req(`/me/saved/${id}`, { method });
+  } catch {
+    throw new Error("Couldn't update saved items. Check your connection.");
+  }
+  if (res.ok) return;
+  let msg = "Couldn't update saved items.";
+  try {
+    const data = await res.json();
+    if (typeof data.detail === "string") msg = data.detail;
+  } catch {
+    /* non-JSON error body */
+  }
+  throw new Error(msg);
 }
 
-export function unsaveItem(id: string) {
-  return req(`/me/saved/${id}`, { method: "DELETE" });
+export function saveItem(id: string): Promise<void> {
+  return savedMutation(id, "POST");
+}
+
+export function unsaveItem(id: string): Promise<void> {
+  return savedMutation(id, "DELETE");
 }
 
 export function logout() {

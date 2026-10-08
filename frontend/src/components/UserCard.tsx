@@ -27,22 +27,25 @@ export function UserCard({
 }) {
   const [rel, setRel] = useState<Friendship>(person.friendship);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function act(fn: () => Promise<unknown>, next: Friendship) {
     setBusy(true);
+    setError(null);
     try {
       await fn();
       setRel(next);
       onChange?.(person.id, next);
-    } catch {
-      /* keep current state on error */
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : "Couldn't update this friendship.");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="flex items-center gap-3 border-b border-line py-3">
+    <div className="border-b border-line py-3">
+      <div className="flex items-center gap-3">
       <Link href={`/u/${person.id}`} className="flex min-w-0 flex-1 items-center gap-3">
         <Avatar src={person.avatar_url} name={person.name} size={36} online={person.online} />
         <span className="truncate font-bold tracking-tight">{person.name ?? "user"}</span>
@@ -100,7 +103,13 @@ export function UserCard({
             friends <Icon name="check" size={12} />
           </button>
         )}
+        </div>
       </div>
+      {error && (
+        <p role="alert" className="mt-1 pl-12 font-mono text-xs text-red-500">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
