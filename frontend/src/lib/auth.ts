@@ -127,8 +127,15 @@ export function unsaveItem(id: string): Promise<void> {
   return savedMutation(id, "DELETE");
 }
 
-export function logout() {
-  return req("/auth/logout", { method: "POST" });
+// A dropped request must not reject. UserContext clears the in-memory session
+// only after this returns, so a network error would otherwise leave the header
+// looking logged in.
+export async function logout(): Promise<void> {
+  try {
+    await req("/auth/logout", { method: "POST" });
+  } catch {
+    /* still let the caller drop the local session */
+  }
 }
 
 // GET /me/export returns a JSON file (profile, saved items, friendships, shares).
