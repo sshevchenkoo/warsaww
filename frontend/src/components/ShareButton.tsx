@@ -14,6 +14,7 @@ export function ShareButton({ itemId, compact = false }: { itemId: string; compa
   const [open, setOpen] = useState(false);
   const [friends, setFriends] = useState<PublicUser[] | null>(null);
   const [sent, setSent] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
 
   if (!user) return null;
 
@@ -29,11 +30,12 @@ export function ShareButton({ itemId, compact = false }: { itemId: string; compa
   async function share(e: React.MouseEvent, friendId: string) {
     e.preventDefault();
     e.stopPropagation();
+    setError(null);
     try {
       await shareEvent(friendId, itemId);
       setSent((prev) => new Set(prev).add(friendId));
-    } catch {
-      /* ignore */
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : "Couldn't share this.");
     }
   }
 
@@ -59,6 +61,11 @@ export function ShareButton({ itemId, compact = false }: { itemId: string; compa
           <p className="border-b border-line px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-muted">
             share with
           </p>
+          {error && (
+            <p role="alert" className="border-b border-line px-3 py-2 font-mono text-[11px] text-red-500">
+              {error}
+            </p>
+          )}
           {friends === null ? (
             <p className="flex items-center gap-2 px-3 py-3 font-mono text-xs text-muted">
               <Spinner size={12} />
