@@ -102,15 +102,17 @@ step by step in [VM_SETUP_42.md](VM_SETUP_42.md).
 
 ## Quick start
 
+One command — it self-provisions the TLS cert and the infra login on first run:
+
 ```bash
-# 1. set ONE login/password for all infra UIs (Grafana + Kibana/Prometheus/Alertmanager)
-make infra-auth AUTH_USER=admin AUTH_PASS=<password>
-
-# 2. first run: build, start everything, load 100 [TEST] demo events + test users
 make stack-init
-
-# open https://localhost  (accept the one-time self-signed warning)  · Grafana https://localhost:3001 (your login)
+# first run prints a generated infra login, e.g.:  admin / 9f3c…   (for Grafana/Kibana/Prometheus)
+# open https://localhost  (accept the one-time self-signed warning)  ·  Grafana https://localhost:3001
 ```
+
+`stack-init` builds + starts everything and loads 100 `[TEST]` demo events + test users
+(`user1@test.com` / `1234`). The infra UIs are secured by a random `admin` password
+printed once; set your own anytime with `make infra-auth AUTH_USER=.. AUTH_PASS=..`.
 
 Already initialized? `make stack-up`. Stop with `make stack-down` (data kept).
 
@@ -118,7 +120,7 @@ Already initialized? `make stack-up`. Stop with `make stack-down` (data kept).
 
 | Command | What it does |
 |---------|--------------|
-| `make infra-auth AUTH_USER=.. AUTH_PASS=..` | set the infra login (writes gitignored `.htpasswd` + `secrets.env`) — run once |
+| `make infra-auth AUTH_USER=.. AUTH_PASS=..` | *optional* — set your own infra login instead of the auto-generated one (writes gitignored `.htpasswd` + `secrets.env`) |
 | `make stack-init` | first run: start stack + wait for API + load demo events + test users |
 | `make stack-up` | build + start the whole stack |
 | `make stack-down` | stop everything (named volumes kept) |

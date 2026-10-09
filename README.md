@@ -346,20 +346,21 @@ demo fixtures and pre-verified test users; semantic search and LLM features need
 
 ### Run
 
-From the repo root:
+One command from the repo root:
 
 ```bash
-make infra-auth AUTH_USER=admin AUTH_PASS='replace-with-your-password'   # once: login for Grafana/Kibana/Prometheus
 make stack-init   # build + start everything, load 100 demo events and two test users
 ```
 
-`stack-init` also generates a self-signed TLS certificate, so **every browser-facing
-endpoint is served over HTTPS** — the site and all infra UIs. Nothing is exposed over
-plain HTTP; the app/API/Grafana containers publish no host port and are reached only
-through the nginx HTTPS gateway. Open **https://localhost** (accept the one-time
-self-signed warning) and sign in as `user1@test.com` / `1234`. Infra UIs, behind the
-login from `make infra-auth`: Grafana **https://localhost:3001**, Kibana
-**https://localhost:5601**, Prometheus **https://localhost:9090**.
+On the first run it self-provisions what it needs — a self-signed TLS certificate and
+an infra login (user `admin`, a random password **printed once in the terminal**; set
+your own anytime with `make infra-auth AUTH_USER=.. AUTH_PASS=..`). So **every
+browser-facing endpoint is served over HTTPS** — the site and all infra UIs. Nothing is
+exposed over plain HTTP; the app/API/Grafana containers publish no host port and are
+reached only through the nginx HTTPS gateway. Open **https://localhost** (accept the
+one-time self-signed warning) and sign in as `user1@test.com` / `1234`. Infra UIs, behind
+the generated login: Grafana **https://localhost:3001**, Kibana **https://localhost:5601**,
+Prometheus **https://localhost:9090**.
 
 | Command | What |
 |---|---|

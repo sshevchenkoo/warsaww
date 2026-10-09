@@ -149,7 +149,12 @@ app-down:
 # The same observability the cloud runs, on a laptop — see deploy/local/README.md.
 # Heavy (~4-6 GB RAM); stop with `make stack-down` when done.
 stack-up:              ## Start the whole stack (app + Grafana/Prometheus/Tempo + ELK)
-	@[ -f deploy/local/.htpasswd ] || { echo "$(RED)Set an infra login first:$(NC) make infra-auth AUTH_USER=admin AUTH_PASS=<password>"; exit 1; }
+	@if [ ! -f deploy/local/.htpasswd ]; then \
+	  P=$$(openssl rand -hex 12); \
+	  docker run --rm httpd:2.4-alpine htpasswd -Bbn admin "$$P" > deploy/local/.htpasswd; \
+	  printf 'GF_SECURITY_ADMIN_USER=%s\nGF_SECURITY_ADMIN_PASSWORD=%s\n' admin "$$P" > deploy/local/secrets.env; \
+	  echo "$(YELLOW)Generated infra login →$(NC) admin / $$P   (change anytime: make infra-auth AUTH_USER=.. AUTH_PASS=..)"; \
+	fi
 	@[ -f deploy/local/certs/localhost.crt ] || $(MAKE) local-tls
 	@echo "$(GREEN)Building + starting the full local stack (this pulls several images)...$(NC)"
 	$(STACK) up -d --build --remove-orphans
