@@ -95,6 +95,9 @@ flowchart LR
   backend/.env` and fill keys. The observability services start without it; demo
   data seeds without any keys.
 
+On a 42 workstation (no sudo on the host) run the stack in a VirtualBox guest —
+step by step in [VM_SETUP_42.md](VM_SETUP_42.md).
+
 ---
 
 ## Quick start
