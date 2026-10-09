@@ -25,6 +25,7 @@ export function Header() {
             </Link>
             <Link
               href="/profile"
+              aria-label="profile"
               className="flex items-center gap-2 text-muted transition-colors hover:text-fg"
             >
               <Avatar src={user.avatar_url} name={user.name ?? user.email} size={24} />

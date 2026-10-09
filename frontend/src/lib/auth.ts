@@ -15,7 +15,14 @@ export type User = {
   pending_email: string | null;
   // Only password accounts can change their email (Google manages the rest).
   has_password: boolean;
+  // Password logins mail a code when this is on. Google accounts stay false;
+  // their second factor is the Google account itself.
+  two_factor_enabled: boolean;
 };
+
+// Password login either opens a session or, when two-factor is on, parks it
+// until POST /auth/login/2fa. That response has no user fields.
+export type LoginResult = User | { pending_2fa: true };
 
 export const LOGIN_URL = "/auth/login/google";
 
@@ -25,7 +32,7 @@ export async function getMe(): Promise<User | null> {
 }
 
 // Send JSON (POST by default); on failure throw with the API's error message.
-async function authPost(path: string, body: object, method = "POST"): Promise<User> {
+async function authJson(path: string, body: object, method = "POST"): Promise<unknown> {
   const res = await req(path, {
     method,
     headers: { "content-type": "application/json" },
@@ -37,19 +44,39 @@ async function authPost(path: string, body: object, method = "POST"): Promise<Us
   return res.json();
 }
 
-export function register(email: string, password: string, name?: string): Promise<User> {
-  return authPost("/auth/register", { email, password, name: name || null });
+function asUser(data: unknown): User {
+  return data as User;
 }
 
-export function login(email: string, password: string): Promise<User> {
-  return authPost("/auth/login", { email, password });
+export function register(email: string, password: string, name?: string): Promise<User> {
+  return authJson("/auth/register", { email, password, name: name || null }).then(asUser);
+}
+
+export async function login(email: string, password: string): Promise<LoginResult> {
+  const data = await authJson("/auth/login", { email, password });
+  if (
+    typeof data === "object" &&
+    data !== null &&
+    "pending_2fa" in data &&
+    (data as { pending_2fa?: unknown }).pending_2fa === true &&
+    !("id" in data)
+  ) {
+    return { pending_2fa: true };
+  }
+  return asUser(data);
+}
+
+// Finish a password login that came back as pending_2fa. The code was emailed
+// by POST /auth/login; a wrong or expired one throws the API's message.
+export function login2fa(code: string): Promise<User> {
+  return authJson("/auth/login/2fa", { code }).then(asUser);
 }
 
 // Confirm the email with the 6-digit code we mailed; returns the updated user
 // (email_verified flips to true). Throws with the API's message on a bad/expired
 // code or too many attempts.
 export function verifyEmail(code: string): Promise<User> {
-  return authPost("/auth/verify", { code });
+  return authJson("/auth/verify", { code }).then(asUser);
 }
 
 // Edit the profile. Omitted fields stay unchanged; `name: null` clears it. A new
@@ -59,8 +86,9 @@ export function updateMe(patch: {
   name?: string | null;
   email?: string;
   current_password?: string;
+  two_factor_enabled?: boolean;
 }): Promise<User> {
-  return authPost("/me", patch, "PATCH");
+  return authJson("/me", patch, "PATCH").then(asUser);
 }
 
 // Ask the API to email a fresh verification code to the logged-in user.
@@ -73,21 +101,70 @@ export async function getSavedIds(): Promise<string[]> {
   return res.ok ? res.json() : [];
 }
 
-export async function getSaved(): Promise<Card[]> {
-  const res = await req("/me/saved");
+export async function getSaved(signal?: AbortSignal): Promise<Card[]> {
+  const res = await req("/me/saved", { signal });
   return res.ok ? res.json() : [];
 }
 
-export function saveItem(id: string) {
-  return req(`/me/saved/${id}`, { method: "POST" });
+// POST/DELETE /me/saved. Throws the API message (or a connection fallback) so
+// the heart can revert when the call fails. A 2xx body is {status}.
+async function savedMutation(id: string, method: "POST" | "DELETE"): Promise<void> {
+  let res: Response;
+  try {
+    res = await req(`/me/saved/${id}`, { method });
+  } catch {
+    throw new Error("Couldn't update saved items. Check your connection.");
+  }
+  if (res.ok) return;
+  throw new Error(await messageFromResponse(res, "Couldn't update saved items."));
 }
 
-export function unsaveItem(id: string) {
-  return req(`/me/saved/${id}`, { method: "DELETE" });
+export function saveItem(id: string): Promise<void> {
+  return savedMutation(id, "POST");
 }
 
-export function logout() {
-  return req("/auth/logout", { method: "POST" });
+export function unsaveItem(id: string): Promise<void> {
+  return savedMutation(id, "DELETE");
+}
+
+// A dropped request must not reject. UserContext clears the in-memory session
+// only after this returns, so a network error would otherwise leave the header
+// looking logged in.
+export async function logout(): Promise<void> {
+  try {
+    await req("/auth/logout", { method: "POST" });
+  } catch {
+    /* still let the caller drop the local session */
+  }
+}
+
+// GET /me/export returns a JSON file (profile, saved items, friendships, shares).
+// Trigger a download of that body. The avatar image itself is not in the file.
+export async function downloadMyData(): Promise<void> {
+  const res = await req("/me/export");
+  if (!res.ok) throw new Error(await messageFromResponse(res, "Couldn't download your data. Try again."));
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const match = res.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/);
+  a.download = match?.[1] || "warsaw-events-data.json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// DELETE /me. Password accounts must send the current password; Google accounts
+// have none, so the body stays empty. The API clears the session and emails a
+// notice that the account was deleted.
+export async function deleteAccount(currentPassword?: string): Promise<void> {
+  const res = await req("/me", {
+    method: "DELETE",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(currentPassword ? { current_password: currentPassword } : {}),
+  });
+  if (!res.ok) throw new Error(await messageFromResponse(res, "Couldn't delete the account. Try again."));
 }
 
 // Upload a new avatar (multipart). Returns the new cache-busted avatar_url, or

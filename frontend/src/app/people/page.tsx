@@ -7,14 +7,15 @@ import { Spinner } from "@/components/Icon";
 import { UserCard } from "@/components/UserCard";
 import { useUser } from "@/components/UserContext";
 import {
+  isAbortError,
   listFriends,
   listRequests,
   searchUsers,
   type PublicUser,
 } from "@/lib/social";
 
-export default function People() {
-  const { user, loading } = useUser();
+function PeopleSession() {
+  const { user } = useUser();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PublicUser[] | null>(null);
   const [searching, setSearching] = useState(false);
@@ -23,45 +24,56 @@ export default function People() {
 
   useEffect(() => {
     if (!user) return;
-    listRequests().then(setRequests);
-    listFriends().then(setFriends);
+    const ctrl = new AbortController();
+    listRequests(ctrl.signal)
+      .then((rows) => {
+        if (!ctrl.signal.aborted) setRequests(rows);
+      })
+      .catch((err) => {
+        if (!isAbortError(err)) setRequests([]);
+      });
+    listFriends(ctrl.signal)
+      .then((rows) => {
+        if (!ctrl.signal.aborted) setFriends(rows);
+      })
+      .catch((err) => {
+        if (!isAbortError(err)) setFriends([]);
+      });
+    return () => ctrl.abort();
   }, [user]);
 
-  // Debounced search as you type. All state updates happen inside the timeout
-  // callback (never synchronously in the effect body).
+  // Debounced search. Cleanup aborts the previous request so a slow response
+  // for an older prefix cannot overwrite the newer one. State updates stay
+  // inside the timeout (not synchronous in the effect body).
   useEffect(() => {
     const q = query.trim();
-    const id = setTimeout(async () => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => {
       if (q.length < 2) {
         setResults(null);
         setSearching(false);
         return;
       }
       setSearching(true);
-      setResults(await searchUsers(q));
-      setSearching(false);
+      searchUsers(q, ctrl.signal)
+        .then((found) => {
+          if (ctrl.signal.aborted) return;
+          setResults(found);
+          setSearching(false);
+        })
+        .catch((err) => {
+          if (isAbortError(err) || ctrl.signal.aborted) return;
+          setResults([]);
+          setSearching(false);
+        });
     }, q.length < 2 ? 0 : 300);
-    return () => clearTimeout(id);
+    return () => {
+      clearTimeout(timer);
+      ctrl.abort();
+    };
   }, [query]);
 
-  if (loading) return null;
-
-  if (!user) {
-    return (
-      <main className="mx-auto w-full max-w-2xl px-5 pb-24 pt-16">
-        <h1 className="text-4xl font-black tracking-tighter">people</h1>
-        <p className="mt-3 font-mono text-sm text-muted">
-          sign in to find friends and share events.
-        </p>
-        <Link
-          href="/login"
-          className="mt-6 inline-block rounded-full bg-accent px-4 py-2 font-mono text-sm font-bold text-accent-ink transition-transform hover:scale-105 active:scale-95"
-        >
-          sign in
-        </Link>
-      </main>
-    );
-  }
+  if (!user) return null;
 
   // When a search-result relationship changes, refresh the friends/requests lists.
   const refreshLists = () => {
@@ -76,7 +88,7 @@ export default function People() {
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="search by name or email…"
+        placeholder="search by name…"
         aria-label="Search people"
         className="w-full border-b-2 border-line bg-transparent pb-2 text-lg font-bold tracking-tight transition-colors placeholder:text-muted/70 focus:border-accent"
       />
@@ -129,4 +141,31 @@ export default function People() {
       )}
     </main>
   );
+}
+
+function PeopleSignedOut() {
+  return (
+    <main className="mx-auto w-full max-w-2xl px-5 pb-24 pt-16">
+      <h1 className="text-4xl font-black tracking-tighter">people</h1>
+      <p className="mt-3 font-mono text-sm text-muted">
+        sign in to find friends and share events.
+      </p>
+      <Link
+        href="/login"
+        className="mt-6 inline-block rounded-full bg-accent px-4 py-2 font-mono text-sm font-bold text-accent-ink transition-transform hover:scale-105 active:scale-95"
+      >
+        sign in
+      </Link>
+    </main>
+  );
+}
+
+export default function People() {
+  const { user, loading } = useUser();
+  if (loading) return null;
+  if (!user) return <PeopleSignedOut />;
+  // Remounting on the account id drops the previous account's requests and
+  // friends before the next fetch paints. Aborting the request is not enough:
+  // those rows are already in state.
+  return <PeopleSession key={user.id} />;
 }

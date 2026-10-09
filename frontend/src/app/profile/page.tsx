@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import { AccountControls } from "@/components/AccountControls";
 import { Avatar } from "@/components/Avatar";
 import { CardSkeleton } from "@/components/CardSkeleton";
 import { EmptyState } from "@/components/EmptyState";
@@ -16,6 +17,7 @@ import type { Card } from "@/lib/api";
 import { deleteAvatar, getSaved, uploadAvatar } from "@/lib/auth";
 import {
   dismissShared,
+  isAbortError,
   listFriends,
   listShared,
   type PublicUser,
@@ -41,8 +43,8 @@ function Stat({ value, label, href }: { value: number; label: string; href?: str
   );
 }
 
-export default function Profile() {
-  const { user, loading, savedIds, updateUser } = useUser();
+function ProfileSession() {
+  const { user, savedIds, updateUser } = useUser();
   const [cards, setCards] = useState<Card[]>([]);
   const [shared, setShared] = useState<SharedEvent[]>([]);
   const [friends, setFriends] = useState<PublicUser[]>([]);
@@ -92,12 +94,34 @@ export default function Profile() {
 
   useEffect(() => {
     if (!user) return; // logged-out renders the sign-in prompt; busy is unused there
-    getSaved().then((c) => {
-      setCards(c);
-      setBusy(false);
-    });
-    listShared().then(setShared);
-    listFriends().then(setFriends);
+    // One controller for all three lists. Logout or a switch to another account
+    // aborts them, so a late response cannot paint the previous user's data.
+    const ctrl = new AbortController();
+    getSaved(ctrl.signal)
+      .then((c) => {
+        if (ctrl.signal.aborted) return;
+        setCards(c);
+        setBusy(false);
+      })
+      .catch((err) => {
+        if (isAbortError(err) || ctrl.signal.aborted) return;
+        setBusy(false);
+      });
+    listShared(ctrl.signal)
+      .then((rows) => {
+        if (!ctrl.signal.aborted) setShared(rows);
+      })
+      .catch((err) => {
+        if (!isAbortError(err)) setShared([]);
+      });
+    listFriends(ctrl.signal)
+      .then((rows) => {
+        if (!ctrl.signal.aborted) setFriends(rows);
+      })
+      .catch((err) => {
+        if (!isAbortError(err)) setFriends([]);
+      });
+    return () => ctrl.abort();
   }, [user]);
 
   function dismiss(shareId: string) {
@@ -105,28 +129,7 @@ export default function Profile() {
     dismissShared(shareId).catch(() => {});
   }
 
-  if (loading) return null;
-
-  if (!user) {
-    return (
-      <main className="mx-auto grid w-full max-w-6xl place-items-center px-5 pb-24 pt-24 text-center">
-        <Icon name="heart" size={40} className="text-muted/40" />
-        <h1 className="mt-4 text-4xl font-black tracking-tighter sm:text-5xl">
-          your saved<span className="text-accent">.</span>
-        </h1>
-        <p className="mt-3 max-w-sm font-mono text-sm leading-relaxed text-muted">
-          sign in to keep the events &amp; places you like — and to see what friends
-          send your way.
-        </p>
-        <Link
-          href="/login"
-          className="mt-7 rounded-full bg-accent px-5 py-2.5 font-mono text-sm font-bold text-accent-ink transition-transform hover:scale-105 active:scale-95"
-        >
-          sign in
-        </Link>
-      </main>
-    );
-  }
+  if (!user) return null;
 
   // Reflect un-hearting live: only show cards still in savedIds.
   const visible = cards.filter((c) => savedIds.has(c.id));
@@ -280,6 +283,8 @@ export default function Profile() {
         </div>
       </section>
 
+      <AccountControls user={user} />
+
       {/* Unconfirmed email: the code-entry form lives here so a user who left the
           signup page can still verify (and unlock search) from their profile.
           The same panel confirms a pending email change from the edit form. */}
@@ -353,4 +358,34 @@ export default function Profile() {
       </section>
     </main>
   );
+}
+
+function ProfileSignedOut() {
+  return (
+    <main className="mx-auto grid w-full max-w-6xl place-items-center px-5 pb-24 pt-24 text-center">
+      <Icon name="heart" size={40} className="text-muted/40" />
+      <h1 className="mt-4 text-4xl font-black tracking-tighter sm:text-5xl">
+        your saved<span className="text-accent">.</span>
+      </h1>
+      <p className="mt-3 max-w-sm font-mono text-sm leading-relaxed text-muted">
+        sign in to keep the events &amp; places you like — and to see what friends
+        send your way.
+      </p>
+      <Link
+        href="/login"
+        className="mt-7 rounded-full bg-accent px-5 py-2.5 font-mono text-sm font-bold text-accent-ink transition-transform hover:scale-105 active:scale-95"
+      >
+        sign in
+      </Link>
+    </main>
+  );
+}
+
+export default function Profile() {
+  const { user, loading } = useUser();
+  if (loading) return null;
+  if (!user) return <ProfileSignedOut />;
+  // Remounting on the account id drops the previous account's saved items,
+  // shares, and friends before the next fetch paints.
+  return <ProfileSession key={user.id} />;
 }
