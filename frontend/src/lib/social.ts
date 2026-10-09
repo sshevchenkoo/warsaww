@@ -55,8 +55,12 @@ async function mutate(path: string, method = "POST", body?: object): Promise<{ s
   return res.json();
 }
 
-export const searchUsers = (q: string): Promise<PublicUser[]> =>
-  req(`/users/search?q=${encodeURIComponent(q)}`).then((r) => asJson(r, []));
+export function isAbortError(err: unknown): boolean {
+  return (err instanceof DOMException || err instanceof Error) && err.name === "AbortError";
+}
+
+export const searchUsers = (q: string, signal?: AbortSignal): Promise<PublicUser[]> =>
+  req(`/users/search?q=${encodeURIComponent(q)}`, { signal }).then((r) => asJson(r, []));
 
 export const getProfile = (id: string): Promise<PublicUser | null> =>
   req(`/users/${id}`).then((r) => asJson<PublicUser | null>(r, null));
@@ -64,11 +68,11 @@ export const getProfile = (id: string): Promise<PublicUser | null> =>
 export const getUserSaved = (id: string): Promise<Card[]> =>
   req(`/users/${id}/saved`).then((r) => asJson(r, []));
 
-export const listFriends = (): Promise<PublicUser[]> =>
-  req("/friends").then((r) => asJson(r, []));
+export const listFriends = (signal?: AbortSignal): Promise<PublicUser[]> =>
+  req("/friends", { signal }).then((r) => asJson(r, []));
 
-export const listRequests = (): Promise<PublicUser[]> =>
-  req("/friends/requests").then((r) => asJson(r, []));
+export const listRequests = (signal?: AbortSignal): Promise<PublicUser[]> =>
+  req("/friends/requests", { signal }).then((r) => asJson(r, []));
 
 export const sendRequest = (id: string) => mutate(`/friends/request/${id}`);
 export const acceptRequest = (id: string) => mutate(`/friends/accept/${id}`);
@@ -78,8 +82,8 @@ export const removeFriend = (id: string) => mutate(`/friends/${id}`, "DELETE");
 export const shareEvent = (toUserId: string, itemId: string, message?: string) =>
   mutate("/share", "POST", { to_user_id: toUserId, item_id: itemId, message: message || null });
 
-export const listShared = (): Promise<SharedEvent[]> =>
-  req("/me/shared").then((r) => asJson(r, []));
+export const listShared = (signal?: AbortSignal): Promise<SharedEvent[]> =>
+  req("/me/shared", { signal }).then((r) => asJson(r, []));
 
 export const dismissShared = (shareId: string) => mutate(`/me/shared/${shareId}`, "DELETE");
 

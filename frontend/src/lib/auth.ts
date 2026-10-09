@@ -101,8 +101,8 @@ export async function getSavedIds(): Promise<string[]> {
   return res.ok ? res.json() : [];
 }
 
-export async function getSaved(): Promise<Card[]> {
-  const res = await req("/me/saved");
+export async function getSaved(signal?: AbortSignal): Promise<Card[]> {
+  const res = await req("/me/saved", { signal });
   return res.ok ? res.json() : [];
 }
 
