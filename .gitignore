@@ -11,6 +11,8 @@ deploy/local/.htpasswd
 deploy/local/secrets.env
 # local TLS cert for https://localhost (self-signed, per-machine) — never commit
 deploy/local/certs/
+# DB dumps from `make do-db-backup` (prod user data: emails, password hashes)
+*.dump
 
 # Terraform
 *.tfvars

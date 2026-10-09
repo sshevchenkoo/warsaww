@@ -16,6 +16,9 @@ export function Footer() {
           <Link href="/terms" className="transition-colors hover:text-fg">
             Terms of Service
           </Link>
+          <Link href="/status" className="transition-colors hover:text-fg">
+            Status
+          </Link>
         </nav>
         <p className="font-mono text-[11px] tracking-wide text-muted">
           A student project — events &amp; places in Warsaw.

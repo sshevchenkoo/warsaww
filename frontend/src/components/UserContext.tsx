@@ -15,12 +15,14 @@ import {
   getSavedIds,
   LOGIN_URL,
   login as apiLogin,
+  login2fa as apiLogin2fa,
   logout as apiLogout,
   register as apiRegister,
   resendVerification as apiResendVerification,
   saveItem,
   unsaveItem,
   verifyEmail as apiVerifyEmail,
+  type LoginResult,
   type User,
 } from "@/lib/auth";
 import * as saveGuard from "@/lib/saveGuard";
@@ -31,11 +33,14 @@ type UserState = {
   loading: boolean;
   savedIds: Set<string>;
   toggleSave: (id: string) => void;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<LoginResult>;
+  confirmTwoFactor: (code: string) => Promise<void>;
   register: (email: string, password: string, name?: string) => Promise<void>;
   verify: (code: string) => Promise<void>;
   resendVerification: () => Promise<void>;
   logout: () => Promise<void>;
+  // Drop the in-memory session after DELETE /me, which already cleared the cookie.
+  clearUser: () => void;
   updateUser: (patch: Partial<User>) => void;
   loginUrl: string;
 };
@@ -110,7 +115,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         if (next) publishSaved(next);
       }
       setLoading(false);
-    })();
+    })().finally(() => setLoading(false)); // a rejected /me must still reveal the form
   }, []);
 
   // Presence heartbeat: while signed in, ping on mount and once a minute so
@@ -181,7 +186,18 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string) => {
-      await applySession(await apiLogin(email, password));
+      const result = await apiLogin(email, password);
+      // Two-factor stops here: the session is only pending_2fa until the code.
+      if ("pending_2fa" in result) return result;
+      await applySession(result);
+      return result;
+    },
+    [applySession],
+  );
+
+  const confirmTwoFactor = useCallback(
+    async (code: string) => {
+      await applySession(await apiLogin2fa(code));
     },
     [applySession],
   );
@@ -210,6 +226,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
     publishSaved(new Set());
   }, []);
 
+  const clearUser = useCallback(() => {
+    // Same instant as logout's epoch bump: a heart error already in flight
+    // must not restore saved ids after the account is gone.
+    saveGuard.bumpSaveEpoch();
+    setUser(null);
+    setSavedIds(new Set());
+  }, []);
+
   // Merge a partial update into the current user (e.g. a new avatar_url after
   // upload) so the header + profile reflect it without a full reload.
   const updateUser = useCallback((patch: Partial<User>) => {
@@ -224,10 +248,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
         savedIds,
         toggleSave,
         login,
+        confirmTwoFactor,
         register,
         verify,
         resendVerification,
         logout,
+        clearUser,
         updateUser,
         loginUrl: LOGIN_URL,
       }}

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import { AccountControls } from "@/components/AccountControls";
 import { Avatar } from "@/components/Avatar";
 import { CardSkeleton } from "@/components/CardSkeleton";
 import { EmptyState } from "@/components/EmptyState";
@@ -279,6 +280,8 @@ export default function Profile() {
           </dl>
         </div>
       </section>
+
+      <AccountControls user={user} />
 
       {/* Unconfirmed email: the code-entry form lives here so a user who left the
           signup page can still verify (and unlock search) from their profile.

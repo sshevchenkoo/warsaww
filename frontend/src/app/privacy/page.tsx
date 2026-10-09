@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     "What data warsaw, collects, why, who it is shared with, and how you can access or delete it.",
 };
 
-const UPDATED = "13 September 2026";
+const UPDATED = "8 October 2026";
 const CONTACT = "privacy@transendance.online";
 
 function H2({ children }: { children: React.ReactNode }) {
@@ -72,7 +72,8 @@ export default function PrivacyPage() {
       <H2>How we use your data</H2>
       <P>
         To authenticate you and keep you signed in; to provide the core features (search, saving,
-        friends, sharing, presence); to send you a verification code and account-related emails;
+        friends, sharing, presence); to send you a verification code and, when you delete your
+        account, a notice that it was deleted;
         to prevent abuse and enforce rate limits; and to operate, secure, and improve the service.
       </P>
 
@@ -105,16 +106,23 @@ export default function PrivacyPage() {
       <H2>Retention</H2>
       <P>
         We keep account and activity data while your account exists. Search logs are retained for
-        quality and abuse-prevention purposes. When you delete your account, your account data and
-        the records tied to it (saved items, friendships, shares, avatar) are deleted.
+        quality and abuse-prevention purposes. They are not stored against your account, so they
+        are not part of the export and are not removed when you delete the account. When you
+        delete your account, your account data and the records tied to it (saved items,
+        friendships, shares, avatar) are deleted.
       </P>
 
       <H2>Your rights</H2>
       <P>
-        You can access and update your profile in the app, export a copy of your data, and delete
-        your account. Depending on where you live (e.g. under the EU GDPR) you may also have rights
-        to rectification, restriction, and to lodge a complaint with a supervisory authority. To
-        exercise any of these, use the controls on your profile page or contact us at{" "}
+        On your profile page you can update your name and, for a password account, your email;
+        download a JSON copy of your profile, saved items, friendships, and shares (the avatar
+        link, not the image file); and delete your account. Deletion asks you to type your email
+        and, when the account has a password, that password. A Google account has no password
+        here, so the email is the confirmation. We then email that address to confirm the account
+        was deleted. That message is a notice, not a link you must open. Depending on where you
+        live (e.g. under the EU GDPR) you may also have rights to rectification, restriction, and
+        to lodge a complaint with a supervisory authority. To exercise any of these, use the
+        controls on your profile page or contact us at{" "}
         <a className="text-accent hover:underline" href={`mailto:${CONTACT}`}>
           {CONTACT}
         </a>

@@ -76,7 +76,7 @@ export default function People() {
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="search by name or email…"
+        placeholder="search by name…"
         aria-label="Search people"
         className="w-full border-b-2 border-line bg-transparent pb-2 text-lg font-bold tracking-tight transition-colors placeholder:text-muted/70 focus:border-accent"
       />
