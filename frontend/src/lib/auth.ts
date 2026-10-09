@@ -2,6 +2,7 @@
 // (proxied to the API in dev, same-origin in prod) and send the session cookie.
 
 import type { Card } from "./api";
+import { messageFromDetail, messageFromResponse, req } from "./http";
 
 export type User = {
   id: string;
@@ -25,10 +26,6 @@ export type LoginResult = User | { pending_2fa: true };
 
 export const LOGIN_URL = "/auth/login/google";
 
-function req(path: string, init?: RequestInit) {
-  return fetch(path, { credentials: "include", ...init });
-}
-
 export async function getMe(): Promise<User | null> {
   const res = await req("/me");
   return res.ok ? res.json() : null;
@@ -42,15 +39,7 @@ async function authJson(path: string, body: object, method = "POST"): Promise<un
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    let msg = "Something went wrong. Try again.";
-    try {
-      const data = await res.json();
-      if (typeof data.detail === "string") msg = data.detail;
-      else if (Array.isArray(data.detail) && data.detail[0]?.msg) msg = data.detail[0].msg;
-    } catch {
-      /* non-JSON error body */
-    }
-    throw new Error(msg);
+    throw new Error(await messageFromResponse(res, "Something went wrong. Try again."));
   }
   return res.json();
 }
@@ -129,6 +118,35 @@ export function logout() {
   return req("/auth/logout", { method: "POST" });
 }
 
+// GET /me/export returns a JSON file (profile, saved items, friendships, shares).
+// Trigger a download of that body. The avatar image itself is not in the file.
+export async function downloadMyData(): Promise<void> {
+  const res = await req("/me/export");
+  if (!res.ok) throw new Error(await messageFromResponse(res, "Couldn't download your data. Try again."));
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const match = res.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/);
+  a.download = match?.[1] || "warsaw-events-data.json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// DELETE /me. Password accounts must send the current password; Google accounts
+// have none, so the body stays empty. The API clears the session and emails a
+// notice that the account was deleted.
+export async function deleteAccount(currentPassword?: string): Promise<void> {
+  const res = await req("/me", {
+    method: "DELETE",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(currentPassword ? { current_password: currentPassword } : {}),
+  });
+  if (!res.ok) throw new Error(await messageFromResponse(res, "Couldn't delete the account. Try again."));
+}
+
 // Upload a new avatar (multipart). Returns the new cache-busted avatar_url, or
 // throws with the API's error message (e.g. too large / not an image).
 // XMLHttpRequest, not fetch: fetch has no upload-progress event. onProgress
@@ -149,8 +167,8 @@ export function uploadAvatar(file: File, onProgress?: (percent: number) => void)
         resolve(xhr.response.avatar_url as string);
         return;
       }
-      const detail = xhr.response?.detail; // null when the error body isn't JSON
-      reject(new Error(typeof detail === "string" ? detail : "Upload failed. Try a smaller image."));
+      // null when the error body isn't JSON
+      reject(new Error(messageFromDetail(xhr.response, "Upload failed. Try a smaller image.")));
     };
     xhr.onerror = () => reject(new Error("Upload failed. Check your connection."));
     xhr.send(form);
