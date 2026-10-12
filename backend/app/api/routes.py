@@ -111,13 +111,17 @@ def ready(session: Session = Depends(get_session)) -> dict:
 @router.get("/upcoming")
 def upcoming(limit: int = 12, session: Session = Depends(get_session)) -> list[ItemOut]:
     """Soonest upcoming events (no prompt, no LLM) — the home-page default feed.
-    An event counts as upcoming until it ends (or starts, if it has no end)."""
+    An event counts as upcoming until it ends (or starts, if it has no end).
+    Real events rank ahead of the bundled [TEST] demo fixtures, which only fill
+    the feed when there aren't enough real ones (they share near-future dates and
+    would otherwise crowd out the real catalog)."""
     now = datetime.now(timezone.utc)
     items = (
         session.query(Item)
         .filter(Item.kind == "event", Item.starts_at.isnot(None))
         .filter(func.coalesce(Item.ends_at, Item.starts_at) >= now)
-        .order_by(Item.starts_at.asc())
+        # False (real) sorts before True ([TEST]); within each, soonest first.
+        .order_by(Item.name.like("[TEST]%").asc(), Item.starts_at.asc())
         .limit(min(max(limit, 1), 48))
         .all()
     )
