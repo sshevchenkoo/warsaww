@@ -139,8 +139,9 @@ An item can appear in many saves and shares. User and item foreign keys cascade 
 ## Modules
 
 Scored against the ft_transcendence subject v21.1, section IV (Major = 2 points, Minor = 1,
-14 required). The chosen inventory totals 7 Major modules × 2 plus 5 Minor modules × 1
-= **19 claimed points**, subject to demonstration and evaluator validation.
+14 required). The inventory totals 7 Major × 2 plus 6 Minor × 1 = **20 points**. The
+subject caps the bonus at +5 over the 14, so **19 count toward the grade**; module #13 is
+kept as insurance in case another module is not validated during evaluation.
 The SVG icon set and loading spinners are integrated into `main`.
 [docs/MODULES.md](docs/MODULES.md) is an earlier 14-point assessment that predates
 profile editing, avatar management and SVG icon integration; the table below is the
@@ -160,7 +161,8 @@ current module inventory.
 | 10 | ELK log management | DevOps | Major | 2 | yashevch | Elasticsearch + Logstash + Kibana, Fluent Bit shipping, retention — demonstrated locally via `deploy/local/` (cloud equivalent: `deploy/cloud/ansible/`, `deploy/cloud/platform/`) |
 | 11 | Prometheus + Grafana monitoring | DevOps | Major | 2 | yashevch | Prometheus + Grafana + Alertmanager, exporters, dashboards, alert rules — demonstrated locally via `deploy/local/` (cloud equivalent: `deploy/cloud/platform/`) |
 | 12 | Custom module: multi-source ingestion pipeline | Module of choice | Major | 2 | tbogus, yhruda | `backend/app/ingestion/` ([INGESTION.md](docs/INGESTION.md)) — justified below |
-| | **Total** | | | **19** | | |
+| 13 | Health check & status page + backups/DR | DevOps | Minor | 1 | dstefans, tbogus | `/status` page (`frontend/src/app/status/`, `StatusBoard.tsx`) over `/health` + `/ready` (`backend/app/api/routes.py`); DB backup/restore (`make do-db-backup` / `do-db-restore`) + [DISASTER_RECOVERY.md](docs/DISASTER_RECOVERY.md) |
+| | **Total** | | | **20** | | |
 
 ### Why these modules were chosen
 
@@ -178,6 +180,7 @@ current module inventory.
 | #10 ELK | Centralized searchable logs make API and ingestion failures diagnosable across containers. |
 | #11 Monitoring | Metrics, dashboards and alerts reveal service health, resource pressure and database problems. |
 | #12 Custom ingestion | A current, deduplicated catalog requires several incompatible sources; the detailed justification follows. |
+| #13 Health check & status page | A status page over liveness/readiness probes, plus DB backup/restore and a disaster-recovery runbook, make the service's health visible and its data recoverable. |
 
 Two notes on how these are counted:
 
