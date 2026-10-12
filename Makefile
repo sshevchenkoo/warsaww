@@ -1,6 +1,6 @@
 .PHONY: help keys \
         dev app-up app-down app-logs app-seed web web-bg web-logs \
-        stack-up stack-init stack-seed seed-fixtures seed-users stack-down stack-logs infra-auth local-tls \
+        stack-up stack-init stack-seed seed-fixtures seed-users stack-down stack-logs infra-auth local-tls require-keys \
         scheduler-up scheduler-down \
         do-infra-up do-infra-down do-kubeconfig do-db-init \
         do-images do-platform do-deploy do-elk
@@ -182,9 +182,27 @@ infra-auth:            ## Set infra UI login: make infra-auth AUTH_USER=admin AU
 	@printf 'GF_SECURITY_ADMIN_USER=%s\nGF_SECURITY_ADMIN_PASSWORD=%s\n' "$(AUTH_USER)" "$(AUTH_PASS)" > deploy/local/secrets.env
 	@echo "$(GREEN)Infra login set for '$(AUTH_USER)'.$(NC) Apply: $(YELLOW)make stack-up$(NC)"
 
-# First-run one-liner for a fresh machine: start the stack, wait for the API,
-# and load the bundled 100 [TEST] demo events — no API keys required.
-stack-init: stack-up  ## First run: start the stack + wait + load the demo dataset
+# Preflight: the seeders embed via Voyage and search via Anthropic, so a missing or
+# placeholder key means 401s and events stored WITHOUT vectors. Fail early with a clear
+# message instead of letting ingestion spam errors. (stack-up itself stays keyless —
+# the infra/observability stack boots fine without keys.)
+require-keys:
+	@[ -f backend/.env ] || { printf "$(RED)backend/.env not found.$(NC) Copy backend/.env.example to backend/.env and fill the keys.\n"; exit 1; }
+	@miss=""; for k in ANTHROPIC_API_KEY VOYAGE_API_KEY; do \
+	  v=$$(sed -n "s/^$$k=//p" backend/.env | tr -d ' "'); \
+	  case "$$v" in ""|*...) miss="$$miss $$k";; esac; \
+	done; \
+	if [ -n "$$miss" ]; then \
+	  printf "$(RED)Missing/placeholder key(s) in backend/.env:$(NC)%s\n" "$$miss"; \
+	  printf "Seeding needs VOYAGE_API_KEY (embeddings) and ANTHROPIC_API_KEY (search).\n"; \
+	  printf "Fill them in backend/.env, then: $(YELLOW)make stack-down && make stack-init$(NC)\n"; \
+	  exit 1; \
+	fi; \
+	printf "$(GREEN)API keys present.$(NC)\n"
+
+# First-run one-liner for a fresh machine: check keys, start the stack, wait for the
+# API, and load the bundled 100 [TEST] demo events.
+stack-init: require-keys stack-up  ## First run: check keys + start the stack + load the demo dataset
 	@echo "$(GREEN)Waiting for the API to be ready...$(NC)"
 	@for i in $$(seq 1 60); do \
 	  curl -sf http://localhost:8000/health >/dev/null 2>&1 && break; \
@@ -194,7 +212,7 @@ stack-init: stack-up  ## First run: start the stack + wait + load the demo datas
 	$(MAKE) seed-users
 	@echo "$(GREEN)Ready:$(NC) 100 [TEST] demo events + test users loaded — open http://localhost:3000"
 
-seed-fixtures:         ## Load the bundled 100 [TEST] demo events (no API keys needed)
+seed-fixtures: require-keys  ## Load the bundled 100 [TEST] demo events (needs VOYAGE_API_KEY to embed)
 	$(STACK) exec api python -m app.ingestion.runner --source=fixtures
 
 seed-users:            ## Create pre-verified test users (user1@test.com / user2@test.com, pw 1234)

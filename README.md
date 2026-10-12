@@ -330,10 +330,11 @@ teammates' changes into `main`.
 ### Environment
 
 From the repository root, configure the backend before starting containers.
-Copy the template: `cp backend/.env.example backend/.env`. Replace the sample
-`ANTHROPIC_API_KEY=sk-ant-...` with a real key, or leave it empty for a keyless demo.
-Add the optional variables below as needed. With no API keys, `make stack-init` loads
-demo fixtures and pre-verified test users; semantic search and LLM features need their keys:
+Copy the template: `cp backend/.env.example backend/.env` and fill in real keys.
+`make stack-init` runs a preflight check and **stops with an error** if
+`ANTHROPIC_API_KEY` or `VOYAGE_API_KEY` is missing or a placeholder — they are required
+to embed and search. (The infra/observability stack alone, `make stack-up`, boots
+without keys.) The remaining variables are optional:
 
 | Variable | Needed for |
 |---|---|

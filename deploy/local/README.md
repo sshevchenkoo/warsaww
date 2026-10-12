@@ -92,8 +92,9 @@ flowchart LR
   ```
   (Docker Desktop on macOS sets this inside its VM automatically.)
 - **`backend/.env`** for the API to actually serve — `cp backend/.env.example
-  backend/.env` and fill keys. The observability services start without it; demo
-  data seeds without any keys.
+  backend/.env` and fill keys. The observability stack (`make stack-up`) boots
+  without it, but `make stack-init` runs a preflight that **stops** if
+  `ANTHROPIC_API_KEY` / `VOYAGE_API_KEY` are missing (seeding embeds and searches).
 
 On a 42 workstation (no sudo on the host) run the stack in a VirtualBox guest —
 step by step in [VM_SETUP_42.md](VM_SETUP_42.md).
@@ -125,7 +126,7 @@ Already initialized? `make stack-up`. Stop with `make stack-down` (data kept).
 | `make stack-up` | build + start the whole stack |
 | `make stack-down` | stop everything (named volumes kept) |
 | `make stack-logs` | follow all logs |
-| `make seed-fixtures` | load the 100 `[TEST]` demo events (no API keys) |
+| `make seed-fixtures` | load the 100 `[TEST]` demo events (needs `VOYAGE_API_KEY` to embed) |
 | `make seed-users` | create test users `user1@test.com` / `user2@test.com` (pw `1234`) |
 | `make stack-seed` | demo fixtures + real sources (`places`, `facebook_events`) |
 | `make scheduler-up` / `scheduler-down` | enable/disable periodic ingestion (ofelia) |
