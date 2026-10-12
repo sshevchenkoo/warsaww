@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     db_max_overflow: int = 5     # 2 replicas * (5+5) = 20 < max_connections (25)
     db_pool_recycle: int = 1800  # seconds; recycle connections older than 30 min
     db_pool_pre_ping: bool = True
+    # Echo every SQL statement to stdout (SQLAlchemy engine logging). Debug only —
+    # set DB_ECHO=true in the env to see the queries in `docker compose logs api`.
+    db_echo: bool = False
     # Whether the app may run DDL (extensions, create_all, indexes) on startup
     # and before ingestion. True for local dev (the local role owns the schema).
     # In prod set DB_BOOTSTRAP=false so the runtime role can be a least-privilege

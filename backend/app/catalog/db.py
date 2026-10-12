@@ -12,6 +12,8 @@ class Base(DeclarativeBase):
 
 engine = create_engine(
     settings.database_url,
+    # Log every SQL statement to stdout when DB_ECHO=true (debugging). Off by default.
+    echo=settings.db_echo,
     pool_pre_ping=settings.db_pool_pre_ping,
     pool_size=settings.db_pool_size,
     max_overflow=settings.db_max_overflow,
