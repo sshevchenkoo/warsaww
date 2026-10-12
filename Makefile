@@ -204,13 +204,16 @@ require-keys:
 # API, and load the bundled 100 [TEST] demo events.
 stack-init: require-keys stack-up  ## First run: check keys + start the stack + load the demo dataset
 	@echo "$(GREEN)Waiting for the API to be ready...$(NC)"
+	@# The api publishes no host port, so probe /health from inside its container
+	@# (python:3.12-slim ships no curl; urlopen raises on non-2xx).
 	@for i in $$(seq 1 60); do \
-	  curl -sf http://localhost:8000/health >/dev/null 2>&1 && break; \
+	  $(STACK) exec -T api python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)" >/dev/null 2>&1 && exit 0; \
 	  sleep 2; \
-	done
+	done; \
+	echo "$(RED)API not ready after 2 minutes — check: $(STACK) logs api$(NC)"; exit 1
 	$(MAKE) seed-fixtures
 	$(MAKE) seed-users
-	@echo "$(GREEN)Ready:$(NC) 100 [TEST] demo events + test users loaded — open http://localhost:3000"
+	@echo "$(GREEN)Ready:$(NC) 100 [TEST] demo events + test users loaded — open https://localhost"
 
 seed-fixtures: require-keys  ## Load the bundled 100 [TEST] demo events (needs VOYAGE_API_KEY to embed)
 	$(STACK) exec api python -m app.ingestion.runner --source=fixtures
