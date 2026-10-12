@@ -1,0 +1,3 @@
+# Keeps frontend/public/ in git. The Dockerfile copies this directory
+# (COPY --from=builder /app/public ./public); without it the web image
+# fails to build. Drop static assets (favicon, images) here.
