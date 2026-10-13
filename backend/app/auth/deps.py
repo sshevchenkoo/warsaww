@@ -38,3 +38,18 @@ def current_user(request: Request, session: Session = Depends(get_session)) -> U
         text("SELECT set_config('app.user_id', :uid, true)"), {"uid": str(user.id)}
     )
     return user
+
+
+def optional_current_user(
+    request: Request, session: Session = Depends(get_session)
+) -> User | None:
+    """Like `current_user` but returns None instead of raising 401 when there is
+    no valid session. Used by the `GET /me` auth probe so an anonymous visitor
+    gets a clean 200 (null) instead of a 401 the browser logs to the console.
+    Still pins the RLS identity when a user is present."""
+    if not request.session.get("user_id"):
+        return None
+    try:
+        return current_user(request, session)
+    except HTTPException:
+        return None

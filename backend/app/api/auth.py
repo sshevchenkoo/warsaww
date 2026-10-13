@@ -20,7 +20,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth.deps import current_user
+from app.auth.deps import current_user, optional_current_user
 from app.auth.email import (
     generate_code,
     hash_code,
@@ -366,8 +366,11 @@ async def logout(request: Request) -> dict:
 
 
 @router.get("/me")
-def me(user: User = Depends(current_user)) -> dict:
-    return _user_payload(user)
+def me(user: User | None = Depends(optional_current_user)) -> dict | None:
+    # Returns 200 with the user, or 200 with null for an anonymous visitor —
+    # NOT 401, so the browser console stays clean on public pages. The frontend
+    # treats a null body as "logged out". Protected actions still use current_user.
+    return _user_payload(user) if user else None
 
 
 @router.get("/me/export")
