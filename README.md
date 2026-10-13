@@ -143,9 +143,8 @@ Scored against the ft_transcendence subject v21.1, section IV (Major = 2 points,
 subject caps the bonus at +5 over the 14, so **19 count toward the grade**; module #13 is
 kept as insurance in case another module is not validated during evaluation.
 The SVG icon set and loading spinners are integrated into `main`.
-[docs/MODULES.md](docs/MODULES.md) is an earlier 14-point assessment that predates
-profile editing, avatar management and SVG icon integration; the table below is the
-current module inventory.
+[docs/MODULES.md](docs/MODULES.md) is the working inventory behind this table: the risks
+per claim, and modules implemented but not claimed (2FA, GDPR) that can replace a rejected one.
 
 | # | Module | Category | Type | Pts | Implemented by | Where |
 |---|---|---|---|---|---|---|
@@ -433,4 +432,4 @@ over, and how it fails.
 | [SEARCH](docs/SEARCH.md) | One `/search` request end to end — ordering, connection lifecycle, the degradation ladder |
 | [INGESTION](docs/INGESTION.md) | The adapter contract, the four sources, the pipeline stages, adding a fifth |
 | [SECURITY](docs/SECURITY.md) | Identity, sessions, RLS, rate limits, uploads, secrets — and what none of it covers |
-| [MODULES](docs/MODULES.md) | Historical module assessment and planning risks; current inventory is in Modules above |
+| [MODULES](docs/MODULES.md) | Module inventory: risks per claim, reserve modules not claimed, what is out |

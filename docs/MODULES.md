@@ -1,7 +1,7 @@
-# MODULES.md — what we can claim, what it is worth, and what is one step away
+# MODULES.md — what we claim, what it is worth, and what is held in reserve
 
 Scored against the **ft_transcendence subject v21.1**, section IV: 14 points required, Major = 2,
-Minor = 1.
+Minor = 1, bonus capped at +5.
 
 The rule that shapes this whole document is the subject's own:
 
@@ -9,30 +9,33 @@ The rule that shapes this whole document is the subject's own:
 > properly implemented modules will be counted toward your final score. **Non-functional or
 > incomplete modules = 0 points.**
 
-So a module is listed as claimable here only if every bullet in its subject description is met by
-code that exists on `main` today. "Almost" is worth zero, and is therefore in §3 rather than §1.
+So a module is listed as claimed here only if every bullet in its subject description is met by
+code that exists on `main` today. The claimed list is the one in [README.md](../README.md#modules);
+this file is the working inventory behind it, with the risks attached.
 
 ---
 
-## 1. Claimable today — 14 points
+## 1. Claimed — 20 points (19 count)
 
 | # | Module | Category | Type | Pts | Evidence |
 |---|---|---|---|---|---|
 | 1 | Framework for both frontend and backend | Web | Major | 2 | Next.js 16 App Router (`frontend/`) + FastAPI (`backend/app/`) |
-| 2 | Use an ORM | Web | Minor | 1 | SQLAlchemy 2 typed models, `backend/app/catalog/models.py` |
+| 2 | Use an ORM | Web | Minor | 1 | SQLAlchemy 2 typed models, `backend/app/catalog/models.py` ([ORM.md](ORM.md)) |
 | 3 | Server-Side Rendering | Web | Minor | 1 | `/item/[id]` renders server-side with metadata (`ƒ` in the build output) |
-| 4 | Custom design system | Web | Minor | 1 | 13 reusable components + palette/typography tokens in `globals.css` |
-| 5 | OAuth 2.0 remote authentication | User Management | Minor | 1 | Google OIDC via authlib, `backend/app/auth/oauth.py` |
-| 6 | Complete RAG system | AI | Major | 2 | Voyage embeddings + pgvector/pg_trgm hybrid retrieval → grounded blurbs |
-| 7 | Complete LLM system interface | AI | Major | 2 | Intent + re-rank, SSE streaming, error handling, rate limiting |
-| 8 | ELK log management | DevOps | Major | 2 | Elasticsearch + Logstash + Kibana, Fluent Bit shipping, ILM retention, basic auth |
-| 9 | Prometheus + Grafana monitoring | DevOps | Major | 2 | kube-prometheus-stack, 3 exporters, 2 dashboards on the cluster (3 in the local stack), 13 alert rules, password-protected |
-| | **Total** | | | **14** | |
+| 4 | Custom design system | Web | Minor | 1 | Palette/typography tokens in `globals.css`, 18 files in `frontend/src/components/`, SVG icon set + Spinner in `Icon.tsx` |
+| 5 | Standard user management | User Management | Major | 2 | `PATCH /me` (name, email with code confirmation), avatar with default fallback, friends with online status, profile page |
+| 6 | OAuth 2.0 remote authentication | User Management | Minor | 1 | Google OIDC via authlib, `backend/app/auth/oauth.py` |
+| 7 | Complete RAG system | AI | Major | 2 | Voyage embeddings + pgvector/pg_trgm hybrid retrieval → grounded blurbs, `backend/app/retrieval/` |
+| 8 | Complete LLM system interface | AI | Major | 2 | Intent + re-rank, SSE streaming, error handling, daily quota, `backend/app/llm/` |
+| 9 | File upload and management | User Management | Minor | 1 | Avatar upload: client + server validation, decompression-bomb guard, upload progress, `DELETE /me/avatar` |
+| 10 | ELK log management | DevOps | Major | 2 | Elasticsearch + Logstash + Kibana, Fluent Bit shipping, ILM retention, basic auth — demonstrated via `deploy/local/` |
+| 11 | Prometheus + Grafana monitoring | DevOps | Major | 2 | Prometheus + Grafana + Alertmanager, 3 exporters, dashboards, alert rules, password-protected — demonstrated via `deploy/local/` |
+| 12 | Custom module: multi-source ingestion pipeline | Module of choice | Major | 2 | `backend/app/ingestion/` ([INGESTION.md](INGESTION.md)); justification in the README |
+| 13 | Health check & status page + backups/DR | DevOps | Minor | 1 | `/status` page over `/health` + `/ready`; `make do-db-backup` / `do-db-restore`; [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md) |
+| | **Total** | | | **20** | |
 
-**14 is exactly the pass mark, with zero margin.** The subject says it plainly: *"aiming for more than
-14 points in total may be a good idea, especially if some modules aren't validated during the
-evaluation."* One rejected module and the project fails. §3 is therefore not optional polish — it is
-the safety margin.
+**7 Major × 2 + 6 Minor × 1 = 20 points.** The cap is 14 + 5 = 19, so one point is surplus:
+the project still passes with any single Minor rejected, or with one Major rejected (18).
 
 ### Notes on the riskier claims in that table
 
@@ -40,27 +43,39 @@ the safety margin.
 framework" as separate Minors *and* "both" as a Major. They are alternatives, not additive: claiming
 the Major is 2 points, not 2 + 1 + 1.
 
-**#4 (design system) is the weakest of the nine.** The subject asks for "a proper color palette,
-typography, and icons (minimum: 10 reusable components)". We have 13 components
-(`EventCard`, `UserCard`, `Header`, `Footer`, `ShareButton`, `ItemActions`, `ItemImage`,
-`VerifyPanel`, `UserContext`, `Avatar`, `SectionHeading`, `EmptyState`, `CardSkeleton`), a documented
-palette that re-skins the app from one token, and a two-face type system (Geist Sans + Geist Mono).
-What we do **not** have is an icon set — the UI uses text glyphs (`♡ → ✕`). An evaluator who reads
-"icons" strictly can reject this. **Without #4 the total is 13, i.e. a fail.** Adding a small SVG icon
-set is a couple of hours and removes the single biggest risk on the board.
+**#4 (design system) no longer lacks icons.** The subject asks for "a proper color palette,
+typography, and icons (minimum: 10 reusable components)". The UI used text glyphs (`♡ → ✕`) until
+the shared SVG icon set in `Icon.tsx` replaced them; that was the biggest risk on the earlier
+14-point board and it is closed.
 
-**#6 and #7 may be read as one system.** They are separate modules in the subject, and we implement
+**#7 and #8 may be read as one system.** They are separate modules in the subject, and we implement
 both, but both run inside `/search`. Demo them as two things:
 
-- **LLM interface (#7):** prompt → Haiku structured output; Sonnet streaming token by token into SSE;
+- **LLM interface (#8):** prompt → Haiku structured output; Sonnet streaming token by token into SSE;
   the degradation ladder in [SEARCH.md](SEARCH.md) §5; the per-session daily quota.
-- **RAG (#6):** the catalog as the dataset (`items` + 1024-dim vectors); hybrid retrieval as the
+- **RAG (#7):** the catalog as the dataset (`items` + 1024-dim vectors); hybrid retrieval as the
   context step ([ALGORITHMS.md](ALGORITHMS.md) §4); blurbs grounded in the retrieved cards, with the
   re-ranker structurally unable to invent one (`items[n-1]`).
 
+**#7, #8 and #12 need API keys to demo.** Without `ANTHROPIC_API_KEY` and `VOYAGE_API_KEY` search
+and seeding stop at the `make stack-init` preflight. Check the keys before the evaluation, not during it.
+
 ---
 
-## 2. What is definitively out
+## 2. Implemented, not claimed — the reserve
+
+These are on `main` and look complete against the subject, but are left out of the README because
+the 19-point cap is already reached. If a claimed module is rejected, one of these can replace it —
+**walk through every subject bullet before claiming it.**
+
+| Module | Type | Pts | What exists | Check before claiming |
+|---|---|---|---|---|
+| **2FA** | Minor | +1 | Opt-in two-factor sign-in for password accounts: toggle on the profile, a code emailed at login, `POST /auth/login/2fa` to finish (#58). Same HMAC-stored, expiring, attempt-capped code path as email verification ([SECURITY.md](SECURITY.md) §3) | Without `RESEND_API_KEY` the code is only logged, so the demo needs a working mail sender |
+| **GDPR compliance** | Minor | +1 | `GET /me/export` (JSON download), `DELETE /me` confirmed by typing the email (and password), an "Account deleted" email, Privacy Policy and Terms that match (#49, #59) | "Confirmation emails" also has to cover data changes, not only deletion; the email-change code covers that, but say so in the demo |
+
+---
+
+## 3. What is definitively out
 
 Not "not yet" — these conflict with what the project is, and chasing them would mean building a
 different product.
@@ -73,50 +88,29 @@ different product.
 | WAF/ModSecurity + HashiCorp Vault (Cybersecurity, Major) | Ingress is plain nginx; secrets are Kubernetes Secrets. |
 | Advanced permissions / roles, Organization system (User Mgmt, Major ×2) | No role model; every account is an equal user. |
 | Recommendation system using ML (AI, Major) | Ranking is query-driven, not behaviour-driven. Nothing personalises on saved items. |
-| Advanced analytics dashboard (Data, Major) | Grafana would be the artifact, and it is already the evidence for module #9. Claiming the same dashboards twice invites both claims to be rejected. |
+| Advanced analytics dashboard (Data, Major) | Grafana would be the artifact, and it is already the evidence for module #11. Claiming the same dashboards twice invites both claims to be rejected. |
 
 ---
 
-## 3. One step away — the margin, cheapest first
+## 4. Still one step away
 
-Each of these is mostly built. The column that matters is the last one.
+Not needed for the score; listed so nobody rediscovers them from scratch.
 
 | Module | Type | Pts | What exists | What is missing |
 |---|---|---|---|---|
-| **Custom module: ingestion pipeline** | Major | +2 | Four adapters, cross-source dedup (blocking → rapidfuzz → LLM adjudication), embedding, upsert — all documented in [INGESTION.md](INGESTION.md) | **Only the README justification.** The subject requires, in `README.md`: why this module, what technical challenges it addresses, how it adds value, why it deserves Major status. The code is done. This is the cheapest 2 points available. |
-| **Standard user management** | Major | +2 | Avatar upload with default fallback, friends with online status, profile page — [SECURITY.md](SECURITY.md) §2 | Nothing — `PATCH /me` (name, email with code confirmation) plus the inline edit form on the profile page landed with #12 and #13. |
-| **2FA** | Minor | +1 | Email verification by 6-digit code: HMAC-stored, expiry, attempt cap ([SECURITY.md](SECURITY.md) §3) | It runs at registration, not at login, so it is verification rather than a second factor. Reuse the same code path as a step in `/auth/login` for password accounts. |
-| **File upload and management** | Minor | +1 | Multi-format accept, client + server validation, decompression-bomb guard, upload progress in `%` (XHR `upload.onprogress`), a "remove photo" control on `DELETE /me/avatar` | Nothing — both bullets landed with #14. |
 | **Advanced search** | Minor | +1 | Filters already derived from the prompt and applied in SQL ([ALGORITHMS.md](ALGORITHMS.md) §4.4) | The module means *user-facing*: filter controls, a sort option, pagination. The backend is ready; this is UI. |
-| **GDPR compliance** | Minor | +1 | Privacy Policy and Terms pages | All four functional bullets: request your data, delete with confirmation, export in a readable format, confirmation emails. Note the Terms page already promises account deletion "from your profile" — which does not exist. That is a live inconsistency, not just a missing module. |
-| **Health check + backups + DR** | Minor | +1 | `GET /health` returns a static `ok` with no DB round-trip (`api/routes.py`); both k8s probes point at it | A readiness check that actually queries the DB, a status page, automated backups, and a written disaster-recovery procedure. DO managed Postgres does daily backups + 7-day PITR by default, but nothing in `Makefile`, `docs/` or Terraform names it, and nothing covers restore. |
-| **Multiple languages (3+)** | Minor | +1 | The product is already multilingual where it counts: prompts in RU/PL/EN, blurbs returned in the user's language | The **UI chrome** is English-only. Needs an i18n system, three complete translations, and a switcher. |
-| **Public API** | Major | +2 | 32 endpoints, rate limiting, auto-generated docs at `/docs` | An API-key auth path (today: session cookies only) and a `PUT` endpoint — the subject names `PUT /api/{something}` explicitly and we have zero PUT/PATCH routes. |
+| **Multiple languages (3+)** | Minor | +1 | Prompts in RU/PL/EN, blurbs returned in the user's language | The **UI chrome** is English-only. Needs an i18n system, three complete translations, and a switcher. |
+| **Public API** | Major | +2 | 37 routes, rate limiting, auto-generated docs at `/docs`, `PATCH /me` | An API-key auth path (today: session cookies only) and a `PUT` endpoint — the subject names `PUT /api/{something}` explicitly. |
 | **User interaction (chat/profile/friends)** | Major | +2 | Profile system ✅, friends system ✅ | A basic chat. There is no chat anywhere in the codebase. Sharing an item with a message is not one. |
-
-### The recommended path to a safe score
-
-| Step | Module | Effort | Running total |
-|---|---|---|---|
-| 0 | — | — | 14 |
-| 1 | Write the custom-module justification in `README.md` | ~1 h | **16** |
-| 2 | `PATCH /me` + a name field on the profile page | ~2 h | **18** |
-| 3 | An icon set, to de-risk the design system Minor | ~2 h | 18 (protects 1) |
-| 4 | Avatar delete button + upload progress | ~1 h | **19** |
-| 5 | 2FA at login, reusing the existing code path | ~3 h | **20** |
-
-Roughly a day's work takes the project from "exactly at the line" to six points of margin — enough to
-survive two rejected modules.
 
 ---
 
-## 4. Where this has to be written down
+## 5. Where this has to be written down
 
 The subject requires the module list in `README.md`, not here:
 
 > **Modules:** List of all chosen modules (Major and Minor). Justification for each module choice,
 > especially for custom "Modules of choice". How each module was implemented.
 
-This file is the working document — the honest inventory with the risks attached. The README gets the
-final claimed list once the team agrees on it, and it must include a written justification for every
-custom module, or that module scores zero regardless of how good the code is.
+The README holds the claimed list and the custom-module justification; this file is the inventory
+behind it. When a module moves between §1 and §2, update both.
