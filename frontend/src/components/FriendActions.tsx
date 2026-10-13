@@ -31,6 +31,7 @@ export function FriendActions({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const btn = variant === "profile" ? profileBtn : rowBtn;
   const accent = variant === "profile" ? " font-bold" : "";
   const check = variant === "profile" ? 14 : 12;
@@ -113,16 +114,40 @@ export function FriendActions({
           </button>
         </>
       )}
-      {friendship === "friends" && (
+      {friendship === "friends" && !confirmRemove && (
         <button
           type="button"
           disabled={busy}
-          onClick={() => act(() => removeFriend(userId), "none")}
+          onClick={() => setConfirmRemove(true)}
           className={`${btn} inline-flex items-center gap-1 border border-line text-muted hover:text-accent`}
           title={variant === "row" ? "Remove friend" : undefined}
         >
           friends <Icon name="check" size={check} />
         </button>
+      )}
+      {/* Removing a friend is a two-step action: the first click only asks. */}
+      {friendship === "friends" && confirmRemove && (
+        <>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              act(() => removeFriend(userId), "none").then(() => setConfirmRemove(false))
+            }
+            className={`${btn}${accent} bg-red-500 text-white hover:opacity-90`}
+          >
+            remove friend?
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            autoFocus
+            onClick={() => setConfirmRemove(false)}
+            className={`${btn} border border-line text-muted hover:text-fg`}
+          >
+            keep
+          </button>
+        </>
       )}
     </div>
   );
