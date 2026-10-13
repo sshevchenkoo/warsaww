@@ -34,7 +34,7 @@ export function FriendActions({
   const [confirmRemove, setConfirmRemove] = useState(false);
   const btn = variant === "profile" ? profileBtn : rowBtn;
   const accent = variant === "profile" ? " font-bold" : "";
-  const check = variant === "profile" ? 14 : 12;
+  const iconSize = variant === "profile" ? 14 : 12;
 
   async function act(fn: () => Promise<unknown>, next: Friendship) {
     setBusy(true);
@@ -122,7 +122,7 @@ export function FriendActions({
           className={`${btn} inline-flex items-center gap-1 border border-line text-muted hover:text-accent`}
           title={variant === "row" ? "Remove friend" : undefined}
         >
-          friends <Icon name="check" size={check} />
+          remove <Icon name="x" size={iconSize} />
         </button>
       )}
       {/* Removing a friend is a two-step action: the first click only asks. */}
