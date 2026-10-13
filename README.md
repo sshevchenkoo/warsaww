@@ -349,21 +349,32 @@ without keys.) The remaining variables are optional:
 
 ### Run
 
-One command from the repo root:
+From a machine with Docker running, step by step:
 
 ```bash
-make stack-init   # build + start everything, load 100 demo events and two test users
+# 1. Get the code (already cloned? just: git pull)
+git clone https://github.com/sshevchenkoo/warsaww.git && cd warsaww
+
+# 2. Add the API keys — fill ANTHROPIC_API_KEY + VOYAGE_API_KEY (the rest optional)
+cp backend/.env.example backend/.env    # then edit backend/.env
+
+# 3. Build + start everything (HTTPS + 100 demo events + test users) — one command
+make stack-init
+
+# 4. (optional) load the real Warsaw catalog: places + Facebook + Ticketmaster
+make stack-seed
 ```
 
-On the first run it self-provisions what it needs — a self-signed TLS certificate and
-an infra login (user `admin`, a random password **printed once in the terminal**; set
-your own anytime with `make infra-auth AUTH_USER=.. AUTH_PASS=..`). So **every
-browser-facing endpoint is served over HTTPS** — the site and all infra UIs. Nothing is
-exposed over plain HTTP; the app/API/Grafana containers publish no host port and are
-reached only through the nginx HTTPS gateway. Open **https://localhost** (accept the
-one-time self-signed warning) and sign in as `user1@test.com` / `1234`. Infra UIs, behind
-the generated login: Grafana **https://localhost:3001**, Kibana **https://localhost:5601**,
-Prometheus **https://localhost:9090**.
+Then open **https://localhost** — accept the one-time self-signed-certificate warning —
+and sign in as `user1@test.com` / `1234`.
+
+`make stack-init` self-provisions the rest on the first run: a self-signed TLS certificate
+and an infra login (user `admin`, a random password **printed once in the terminal**;
+override anytime with `make infra-auth AUTH_USER=.. AUTH_PASS=..`). **Every browser-facing
+endpoint is served over HTTPS** — the site and all infra UIs; the app/API/Grafana
+containers publish no host port and are reached only through the nginx HTTPS gateway.
+Infra UIs, behind the same login: Grafana **https://localhost:3001**, Kibana
+**https://localhost:5601**, Prometheus **https://localhost:9090**.
 
 | Command | What |
 |---|---|
