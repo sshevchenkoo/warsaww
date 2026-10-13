@@ -91,6 +91,7 @@ export default function Login() {
 
           <form onSubmit={submitCode} className="mt-4 flex flex-col items-start gap-3">
             <input
+              name="code"
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
               inputMode="numeric"
@@ -158,6 +159,7 @@ export default function Login() {
       <form onSubmit={submit} className="mt-8 flex flex-col gap-3">
         {mode === "signup" && (
           <input
+            name="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="name (optional)"
@@ -167,6 +169,7 @@ export default function Login() {
           />
         )}
         <input
+          name="email"
           type="email"
           required
           value={email}
@@ -177,6 +180,7 @@ export default function Login() {
           className="border-b-2 border-line bg-transparent pb-2 text-lg outline-none placeholder:text-muted/70 focus:border-accent"
         />
         <input
+          name="password"
           type="password"
           required
           minLength={mode === "signup" ? 8 : undefined}
@@ -189,6 +193,7 @@ export default function Login() {
         />
         {mode === "signup" && (
           <input
+            name="confirm-password"
             type="password"
             required
             minLength={8}

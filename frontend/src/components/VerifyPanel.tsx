@@ -71,6 +71,7 @@ export function VerifyPanel() {
 
       <form onSubmit={submit} className="mt-4 flex flex-col gap-3 sm:flex-row">
         <input
+          name="code"
           value={code}
           onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
           inputMode="numeric"

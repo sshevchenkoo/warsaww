@@ -58,6 +58,7 @@ export function ProfileEditForm({ user, onDone }: { user: User; onDone: () => vo
       <label className="flex flex-col gap-1">
         <span className={labelClass}>name</span>
         <input
+          name="name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={100}
@@ -72,6 +73,7 @@ export function ProfileEditForm({ user, onDone }: { user: User; onDone: () => vo
         <label className="flex flex-col gap-1">
           <span className={labelClass}>email</span>
           <input
+            name="email"
             type="email"
             required
             value={email}
@@ -97,6 +99,7 @@ export function ProfileEditForm({ user, onDone }: { user: User; onDone: () => vo
             </span>
           </span>
           <input
+            name="two-factor"
             type="checkbox"
             role="switch"
             checked={twoFactor}
@@ -119,6 +122,7 @@ export function ProfileEditForm({ user, onDone }: { user: User; onDone: () => vo
                 : "current password (to change your email)"}
           </span>
           <input
+            name="current-password"
             type="password"
             required
             value={password}
