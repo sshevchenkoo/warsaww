@@ -226,6 +226,7 @@ seed-users:            ## Create pre-verified test users (user1@test.com / user2
 stack-seed: seed-fixtures  ## Load demo fixtures + real Warsaw sources into the DB
 	$(STACK) exec api python -m app.ingestion.runner --source=places
 	$(STACK) exec api python -m app.ingestion.runner --source=facebook_events
+	$(STACK) exec api python -m app.ingestion.runner --source=ticketmaster
 
 stack-logs:            ## Follow all stack logs
 	$(STACK) logs -f
