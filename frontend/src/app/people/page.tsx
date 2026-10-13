@@ -86,6 +86,7 @@ function PeopleSession() {
       <h1 className="mb-6 text-4xl font-black tracking-tighter sm:text-5xl">people</h1>
 
       <input
+        name="q"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="search by name…"

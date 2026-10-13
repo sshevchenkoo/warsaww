@@ -131,6 +131,7 @@ function DeleteAccountDialog({
           <label className="flex flex-col gap-1">
             <span className="font-mono text-[10px] uppercase tracking-widest text-muted">email</span>
             <input
+              name="confirm-email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="off"
@@ -145,6 +146,7 @@ function DeleteAccountDialog({
                 current password
               </span>
               <input
+                name="current-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

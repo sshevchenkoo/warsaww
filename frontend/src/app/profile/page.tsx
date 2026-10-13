@@ -261,6 +261,7 @@ function ProfileSession() {
           </div>
 
           <input
+            name="avatar"
             ref={fileInput}
             type="file"
             accept="image/png,image/jpeg,image/webp,image/gif"

@@ -135,6 +135,7 @@ export default function Home() {
             className="relative"
           >
             <input
+              name="q"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={placeholder}
