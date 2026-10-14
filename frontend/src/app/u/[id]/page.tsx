@@ -22,13 +22,16 @@ export default function Profile() {
   const [rel, setRel] = useState<Friendship>("none");
   const [saved, setSaved] = useState<Card[]>([]);
 
+  // Profiles need a session: don't ask while logged out, or the 401 lands in the
+  // browser console.
+  const userId = user?.id;
   useEffect(() => {
-    if (!id) return;
+    if (!id || !userId) return;
     getProfile(id).then((p) => {
       setPerson(p);
       if (p) setRel(p.friendship);
     });
-  }, [id]);
+  }, [id, userId]);
 
   // (Re)load saved whenever we become friends (or it's our own profile). The
   // saved section only renders for friends/self, so no need to clear otherwise.
@@ -37,15 +40,7 @@ export default function Profile() {
     if (rel === "friends" || rel === "self") getUserSaved(id).then(setSaved);
   }, [id, rel]);
 
-  if (meLoading || person === undefined) {
-    return (
-      <main className="mx-auto w-full max-w-6xl px-5 pt-10">
-        <div className="h-40 animate-pulse rounded-3xl border border-line bg-card" />
-      </main>
-    );
-  }
-
-  if (!user) {
+  if (!meLoading && !user) {
     return (
       <main className="mx-auto w-full max-w-6xl px-5 pt-16">
         <p className="font-mono text-sm text-muted">sign in to view profiles.</p>
@@ -53,6 +48,14 @@ export default function Profile() {
           sign in
           <Icon name="arrow-right" size={12} />
         </Link>
+      </main>
+    );
+  }
+
+  if (meLoading || !user || person === undefined) {
+    return (
+      <main className="mx-auto w-full max-w-6xl px-5 pt-10">
+        <div className="h-40 animate-pulse rounded-3xl border border-line bg-card" />
       </main>
     );
   }
