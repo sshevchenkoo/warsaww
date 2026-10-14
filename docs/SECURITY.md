@@ -4,8 +4,7 @@ An inventory of every control in the app, why it exists, and where the boundary 
 a change near auth, sessions, RLS or uploads can be checked against the reasoning that put the
 control there in the first place.
 
-The short reference version of the identity flow is [auth.md](auth.md). This file supersedes it where
-they disagree — in particular, the app *does* now handle passwords (§2).
+The endpoint-level reference for the identity flow is [auth.md](auth.md).
 
 ---
 
@@ -307,8 +306,9 @@ Stated plainly, because an inventory that only lists strengths is misleading:
   POST/JSON. A browser that mishandles SameSite, or a future state-changing GET, would need one.
 - **Fail-open rate limits.** An attacker who can take Redis down gets unlimited search and unlimited
   auth attempts. Passwords are still bcrypt and authorization still holds; the cost control does not.
-- **No account lockout or 2FA.** The auth limit is per-IP per-minute and a distributed attacker is not
-  meaningfully slowed by it.
+- **No account lockout, and 2FA is opt-in.** The auth limit is per-IP per-minute and a distributed
+  attacker is not meaningfully slowed by it. Only accounts that turned on two-factor sign-in (an
+  emailed code after the password) are protected beyond the password itself.
 - **No password reset flow.** A user with a password-only account who forgets it has no path back
   except signing in with Google on the same address.
 - **Trust in `X-Forwarded-For`.** A client that can reach the API directly, bypassing the ingress, can

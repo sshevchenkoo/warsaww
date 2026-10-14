@@ -98,9 +98,10 @@ Search has a quota of 10 per user per day. If you run out while testing:
 
 ### Module of choice
 
-- [ ] **#12 Ingestion pipeline** — `make stack-seed` loads `places` (no key needed) and
-      `facebook_events` (needs `APIFY_TOKEN`, billed per run; it logs and skips without
-      one). Its own output in the terminal shows the pipeline steps (fetch, dedup,
+- [ ] **#12 Ingestion pipeline** — `make stack-seed` loads `places` (no key needed),
+      `facebook_events` (needs `APIFY_TOKEN`, billed per run) and `ticketmaster` (needs
+      `TICKETMASTER_API_KEY`); a source without its key logs the error and is skipped.
+      Its own output in the terminal shows the pipeline steps (fetch, dedup,
       embed, upsert), and `$STACK exec db psql -U app events -c 'select count(*) from items'`
       grows past the 100 demo items. Be ready to walk through `docs/INGESTION.md`
 
@@ -116,28 +117,27 @@ Search has a quota of 10 per user per day. If you run out while testing:
   - [ ] Alerting works: `$STACK stop api`, wait a few minutes, `APIDown` turns **firing** on
         `https://localhost:9090/alerts` and appears in Alertmanager (`:9093`).
         Then `$STACK start api`
-
-## 4. Minor modules waiting for their frontend
-
-Backend is merged; claim them only once the UI is merged and the line is added to the
-README module table.
-
-- [ ] **2FA** (UI: #16) — as the Resend-owner account: enable two-factor on the profile,
-      log out, log in with the password → the app asks for a code, the code arrives by
-      email, a wrong code is refused. Until the UI lands, in the DevTools console while
-      logged in:
-      `await fetch('/me', {method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({two_factor_enabled: true})})`
-- [ ] **GDPR** (UI: #18) — use a throwaway account, **not** `user1`/`user2`:
-  - [ ] Export downloads a JSON with the account, saves, friendships and shares — and
-        nothing about other users. Console: `await (await fetch('/me/export')).json()`
-  - [ ] Delete asks for the password, logs you out, the account can no longer log in, and
-        a confirmation email arrives
-- [ ] **Health check + backups + DR** (UI: status page #20)
+- [ ] **#13 Health check + backups + DR**
+  - [ ] The `/status` page (footer link) shows the API and its dependencies as up
   - [ ] Ready check passes:
         `$STACK exec api python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/ready').read())"`
-  - [ ] `$STACK stop redis` → the same command fails with HTTP 503 and `"redis": false`;
-        `$STACK start redis` → back to ok
+  - [ ] `$STACK stop redis` → the same command fails with HTTP 503 and `"redis": false`,
+        and `/status` shows it; `$STACK start redis` → back to ok
   - [ ] Be ready to walk through `docs/DISASTER_RECOVERY.md` and `make do-db-backup`
+
+## 4. Reserve modules (implemented, not claimed)
+
+Not in the README table — see [MODULES.md](MODULES.md) §2. Test them anyway, so either can
+replace a rejected module on the day.
+
+- [ ] **2FA** — as the Resend-owner account: enable two-factor on the profile, log out,
+      log in with the password → the app asks for a code, the code arrives by email, a
+      wrong code is refused
+- [ ] **GDPR** — use a throwaway account, **not** `user1`/`user2`:
+  - [ ] Export downloads a JSON with the account, saves, friendships and shares — and
+        nothing about other users
+  - [ ] Delete asks for the password, logs you out, the account can no longer log in, and
+        a confirmation email arrives
 
 ## 5. Wrap-up
 
