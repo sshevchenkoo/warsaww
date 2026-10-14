@@ -333,10 +333,10 @@ teammates' changes into `main`.
 
 From the repository root, configure the backend before starting containers.
 Copy the template: `cp backend/.env.example backend/.env` and fill in real keys.
-`make stack-init` runs a preflight check and **stops with an error** if
-`ANTHROPIC_API_KEY` or `VOYAGE_API_KEY` is missing or a placeholder — they are required
-to embed and search. (The infra/observability stack alone, `make stack-up`, boots
-without keys.) The remaining variables are optional:
+`make stack-up` boots the stack without keys, but loading the demo data on the first
+run (and search itself) needs `ANTHROPIC_API_KEY` + `VOYAGE_API_KEY` — it seeds only
+when they are present, otherwise it skips with a hint. The remaining variables are
+optional:
 
 | Variable | Needed for |
 |---|---|
@@ -358,17 +358,18 @@ git clone https://github.com/sshevchenkoo/warsaww.git && cd warsaww
 # 2. Add the API keys — fill ANTHROPIC_API_KEY + VOYAGE_API_KEY (the rest optional)
 cp backend/.env.example backend/.env    # then edit backend/.env
 
-# 3. Build + start everything (HTTPS + 100 demo events + test users) — one command
-make stack-init
+# 3. Build + start everything — one command. On a fresh database it also loads
+#    100 demo events + test users; on an existing one it just starts.
+make stack-up
 
-# 4. (optional) load the real Warsaw catalog: places + Facebook + Ticketmaster
+# 4. (optional) also load the real Warsaw catalog: places + Facebook + Ticketmaster
 make stack-seed
 ```
 
 Then open **https://localhost** — accept the one-time self-signed-certificate warning —
 and sign in as `user1@test.com` / `1234`.
 
-`make stack-init` self-provisions the rest on the first run: a self-signed TLS certificate
+`make stack-up` self-provisions the rest on the first run: a self-signed TLS certificate
 and an infra login (user `admin`, a random password **printed once in the terminal**;
 override anytime with `make infra-auth AUTH_USER=.. AUTH_PASS=..`). **Every browser-facing
 endpoint is served over HTTPS** — the site and all infra UIs; the app/API/Grafana

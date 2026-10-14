@@ -1,6 +1,6 @@
 .PHONY: help keys \
         dev app-up app-down app-logs app-seed web web-bg web-logs \
-        stack-up stack-init stack-seed seed-fixtures seed-users stack-down stack-logs infra-auth local-tls require-keys \
+        stack-up stack-init stack-seed seed-fixtures seed-users stack-down stack-logs infra-auth local-tls require-keys _seed-if-empty \
         scheduler-up scheduler-down \
         do-infra-up do-infra-down do-kubeconfig do-db-init \
         do-images do-platform do-deploy do-elk
@@ -64,9 +64,8 @@ help:
 	@echo "  $(YELLOW)Full local stack (app + observability, one command):$(NC)"
 	@echo "    make infra-auth      — set the login for the infra UIs (run once): AUTH_USER=.. AUTH_PASS=.."
 	@echo "    make local-tls       — generate the self-signed cert for https://localhost (auto-run by stack-up)"
-	@echo "    make stack-init      — FIRST RUN: start the stack + load 100 [TEST] demo events"
-	@echo "    make stack-up        — app + Grafana/Prometheus/Tempo + ELK (~4-6 GB RAM)"
-	@echo "    make seed-fixtures   — load the 100 [TEST] demo events (no API keys)"
+	@echo "    make stack-up        — start everything; first run auto-loads demo data + test users (~4-6 GB RAM)"
+	@echo "    make seed-fixtures   — load the 100 [TEST] demo events (needs VOYAGE_API_KEY)"
 	@echo "    make seed-users      — create test users (user1@test.com / user2@test.com · pw 1234)"
 	@echo "    make stack-seed      — demo fixtures + real Warsaw sources"
 	@echo "    make stack-logs      — follow all stack logs"
@@ -148,7 +147,7 @@ app-down:
 # ─── Full local stack: app + observability (Grafana/Prometheus/Tempo + ELK) ───
 # The same observability the cloud runs, on a laptop — see deploy/local/README.md.
 # Heavy (~4-6 GB RAM); stop with `make stack-down` when done.
-stack-up:              ## Start the whole stack (app + Grafana/Prometheus/Tempo + ELK)
+stack-up:              ## Start everything; first run also loads demo data + test users
 	@if [ ! -f deploy/local/.htpasswd ]; then \
 	  P=$$(openssl rand -hex 12); \
 	  docker run --rm httpd:2.4-alpine htpasswd -Bbn admin "$$P" > deploy/local/.htpasswd; \
@@ -158,9 +157,28 @@ stack-up:              ## Start the whole stack (app + Grafana/Prometheus/Tempo 
 	@[ -f deploy/local/certs/localhost.crt ] || $(MAKE) local-tls
 	@echo "$(GREEN)Building + starting the full local stack (this pulls several images)...$(NC)"
 	$(STACK) up -d --build --remove-orphans
+	@$(MAKE) --no-print-directory _seed-if-empty
 	@echo "$(GREEN)Up:$(NC) site https://localhost  (HTTPS; API is proxied internally, no host port)"
 	@echo "  Grafana https://localhost:3001 · Prometheus :9090 · Kibana :5601 · Alertmanager :9093  (HTTPS, all require login)"
-	@echo "  Next: $(YELLOW)make stack-init$(NC) (first run: also loads demo data) or $(YELLOW)make stack-seed$(NC)"
+	@echo "  Real Warsaw data (optional): $(YELLOW)make stack-seed$(NC)"
+
+# First-run convenience: wait for the API, then load the 100 demo events + test
+# users ONLY if the catalog is empty. On a populated volume it's a no-op. Needs
+# API keys to embed; without them it skips with a hint instead of failing, so the
+# stack still comes up (infra/observability don't need keys).
+_seed-if-empty:
+	@for i in $$(seq 1 60); do \
+	  $(STACK) exec -T api python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)" >/dev/null 2>&1 && break; \
+	  sleep 2; \
+	done
+	@n=$$($(STACK) exec -T db psql -U app -d events -tAc "SELECT count(*) FROM items" 2>/dev/null | tr -d '[:space:]'); \
+	if [ "$$n" = "0" ]; then \
+	  echo "$(YELLOW)Empty database — loading 100 demo events + test users...$(NC)"; \
+	  ($(MAKE) --no-print-directory seed-fixtures && $(MAKE) --no-print-directory seed-users) || \
+	    echo "$(RED)Demo data skipped:$(NC) set ANTHROPIC_API_KEY + VOYAGE_API_KEY in backend/.env, then run $(YELLOW)make stack-seed$(NC)"; \
+	elif [ -n "$$n" ]; then \
+	  echo "$(GREEN)Catalog already has $$n items — not seeding.$(NC)"; \
+	fi
 
 # Self-signed TLS cert for the local HTTPS front (nginx :443 → web). Per-machine,
 # gitignored. The browser shows a one-time "not secure" warning — click through.
@@ -200,20 +218,10 @@ require-keys:
 	fi; \
 	printf "$(GREEN)API keys present.$(NC)\n"
 
-# First-run one-liner for a fresh machine: check keys, start the stack, wait for the
-# API, and load the bundled 100 [TEST] demo events.
-stack-init: require-keys stack-up  ## First run: check keys + start the stack + load the demo dataset
-	@echo "$(GREEN)Waiting for the API to be ready...$(NC)"
-	@# The api publishes no host port, so probe /health from inside its container
-	@# (python:3.12-slim ships no curl; urlopen raises on non-2xx).
-	@for i in $$(seq 1 60); do \
-	  $(STACK) exec -T api python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)" >/dev/null 2>&1 && exit 0; \
-	  sleep 2; \
-	done; \
-	echo "$(RED)API not ready after 2 minutes — check: $(STACK) logs api$(NC)"; exit 1
-	$(MAKE) seed-fixtures
-	$(MAKE) seed-users
-	@echo "$(GREEN)Ready:$(NC) 100 [TEST] demo events + test users loaded — open https://localhost"
+# Kept for compatibility and the docs: stack-up now loads the demo data
+# automatically on an empty DB, so stack-init is simply an alias for it.
+stack-init: stack-up  ## Alias of stack-up (first run auto-loads the demo dataset)
+	@:
 
 seed-fixtures: require-keys  ## Load the bundled 100 [TEST] demo events (needs VOYAGE_API_KEY to embed)
 	$(STACK) exec api python -m app.ingestion.runner --source=fixtures

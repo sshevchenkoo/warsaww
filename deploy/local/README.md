@@ -92,9 +92,9 @@ flowchart LR
   ```
   (Docker Desktop on macOS sets this inside its VM automatically.)
 - **`backend/.env`** for the API to actually serve — `cp backend/.env.example
-  backend/.env` and fill keys. The observability stack (`make stack-up`) boots
-  without it, but `make stack-init` runs a preflight that **stops** if
-  `ANTHROPIC_API_KEY` / `VOYAGE_API_KEY` are missing (seeding embeds and searches).
+  backend/.env` and fill keys. `make stack-up` boots without it, but loading the demo
+  data on the first run (and search) needs `ANTHROPIC_API_KEY` / `VOYAGE_API_KEY` — it
+  seeds only when they are present, otherwise it skips with a hint.
 
 On a 42 workstation (no sudo on the host) run the stack in a VirtualBox guest —
 step by step in [VM_SETUP_42.md](VM_SETUP_42.md).
@@ -106,24 +106,23 @@ step by step in [VM_SETUP_42.md](VM_SETUP_42.md).
 One command — it self-provisions the TLS cert and the infra login on first run:
 
 ```bash
-make stack-init
+make stack-up
 # first run prints a generated infra login, e.g.:  admin / 9f3c…   (for Grafana/Kibana/Prometheus)
 # open https://localhost  (accept the one-time self-signed warning)  ·  Grafana https://localhost:3001
 ```
 
-`stack-init` builds + starts everything and loads 100 `[TEST]` demo events + test users
-(`user1@test.com` / `1234`). The infra UIs are secured by a random `admin` password
-printed once; set your own anytime with `make infra-auth AUTH_USER=.. AUTH_PASS=..`.
-
-Already initialized? `make stack-up`. Stop with `make stack-down` (data kept).
+`make stack-up` builds + starts everything; on a fresh database it also loads 100
+`[TEST]` demo events + test users (`user1@test.com` / `1234`), on an existing one it
+just starts. The infra UIs are secured by a random `admin` password printed once; set
+your own anytime with `make infra-auth AUTH_USER=.. AUTH_PASS=..`. Stop with
+`make stack-down` (data kept).
 
 ### Make commands
 
 | Command | What it does |
 |---------|--------------|
 | `make infra-auth AUTH_USER=.. AUTH_PASS=..` | *optional* — set your own infra login instead of the auto-generated one (writes gitignored `.htpasswd` + `secrets.env`) |
-| `make stack-init` | first run: start stack + wait for API + load demo events + test users |
-| `make stack-up` | build + start the whole stack |
+| `make stack-up` | build + start the stack; first run also loads demo events + test users |
 | `make stack-down` | stop everything (named volumes kept) |
 | `make stack-logs` | follow all logs |
 | `make seed-fixtures` | load the 100 `[TEST]` demo events (needs `VOYAGE_API_KEY` to embed) |
