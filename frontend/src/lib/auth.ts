@@ -2,7 +2,7 @@
 // (proxied to the API in dev, same-origin in prod) and send the session cookie.
 
 import type { Card } from "./api";
-import { messageFromDetail, messageFromResponse, req } from "./http";
+import { messageFromResponse, req, uploadWithProgress } from "./http";
 
 export type User = {
   id: string;
@@ -183,32 +183,24 @@ function avatarProblem(file: File): string | null {
 
 // Upload a new avatar (multipart). Returns the new cache-busted avatar_url, or
 // throws with the API's error message (e.g. too large / not an image).
-// XMLHttpRequest, not fetch: fetch has no upload-progress event. onProgress
-// gets 0–100 while the bytes go up; the server then still re-encodes the image.
-export function uploadAvatar(file: File, onProgress?: (percent: number) => void): Promise<string> {
+// onProgress gets 0–100 while the bytes go up; the server then still re-encodes.
+export async function uploadAvatar(
+  file: File,
+  onProgress?: (percent: number) => void,
+): Promise<string> {
   const problem = avatarProblem(file);
-  if (problem) return Promise.reject(new Error(problem));
+  if (problem) throw new Error(problem);
   const form = new FormData();
   form.append("file", file);
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/me/avatar");
-    xhr.withCredentials = true;
-    xhr.responseType = "json";
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) onProgress?.(Math.round((e.loaded / e.total) * 100));
-    };
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300 && xhr.response?.avatar_url) {
-        resolve(xhr.response.avatar_url as string);
-        return;
-      }
-      // null when the error body isn't JSON
-      reject(new Error(messageFromDetail(xhr.response, "Upload failed. Try a smaller image.")));
-    };
-    xhr.onerror = () => reject(new Error("Upload failed. Check your connection."));
-    xhr.send(form);
-  });
+  const body = await uploadWithProgress(
+    "/me/avatar",
+    form,
+    onProgress,
+    "Upload failed. Try a smaller image.",
+  );
+  const url = (body as { avatar_url?: unknown } | null)?.avatar_url;
+  if (typeof url !== "string") throw new Error("Upload failed. Try a smaller image.");
+  return url;
 }
 
 // Remove the uploaded avatar (the UI falls back to the initial placeholder).

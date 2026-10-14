@@ -1,14 +1,14 @@
 # Data model
 
 > Deep dive: [SECURITY.md](SECURITY.md) §5 covers the Row-Level Security policies on
-> `saved_items`, `friendships` and `shared_events`. [ORM.md](ORM.md) follows one request
+> `saved_items`, `friendships`, `shared_events` and `user_files`. [ORM.md](ORM.md) follows one request
 > through the SQLAlchemy session down to the SQL it sends.
 
 Events and places are **one entity** (`items`) with a `kind`, not separate
 tables. That makes "what's on this Saturday evening" a single query: events in
 the time window plus permanent places. Everything a user owns hangs off `users`
 with `ON DELETE CASCADE`, so deleting an account removes their saves, friendships,
-shares and avatar in one statement.
+shares, attachments and avatar in one statement.
 
 Tables are SQLAlchemy models in `backend/app/catalog/models.py`; the SQL below is
 the equivalent schema. There are no migration files. `app.main._create_schema`
@@ -20,25 +20,25 @@ is DML-only, so `DB_BOOTSTRAP=false` and the same function runs as the admin via
 `make do-db-migrate` before each deploy that changes the schema.
 
 ```
-                  ┌──────────────┐
-                  │    items     │  catalog: events + places
-                  └──────┬───────┘
-            item_id      │      item_id
-        ┌────────────────┴────────────────┐
-        ▼                                 ▼
-┌──────────────┐                  ┌──────────────┐
-│ saved_items  │                  │shared_events │
-└──────┬───────┘                  └──┬────────┬──┘
-       │ user_id           from_user_id│        │to_user_id
-       ▼                              ▼        ▼
-   ┌──────────────────────────────────────────────┐
-   │                    users                     │
-   └──────┬───────────────────────────────┬───────┘
-          │ requester_id / addressee_id   │ user_id (PK)
-          ▼                               ▼
-   ┌──────────────┐                ┌──────────────┐
-   │ friendships  │                │ user_avatars │
-   └──────────────┘                └──────────────┘
+                          ┌──────────────┐
+                          │    items     │  catalog: events + places
+                          └──────┬───────┘
+            item_id              │ item_id               item_id
+        ┌────────────────────────┼──────────────────────────┐
+        ▼                        ▼                          ▼
+┌──────────────┐         ┌──────────────┐           ┌──────────────┐
+│ saved_items  │         │shared_events │           │  user_files  │
+└──────┬───────┘         └──┬────────┬──┘           └──────┬───────┘
+       │user_id from_user_id│        │to_user_id           │ user_id
+       ▼                    ▼        ▼                     ▼
+   ┌──────────────────────────────────────────────────────────┐
+   │                          users                           │
+   └──────┬───────────────────────────────────────────┬───────┘
+          │ requester_id / addressee_id               │ user_id (PK)
+          ▼                                           ▼
+   ┌──────────────┐                            ┌──────────────┐
+   │ friendships  │                            │ user_avatars │
+   └──────────────┘                            └──────────────┘
 
    intent_logs — standalone, no FKs
 ```
@@ -232,9 +232,35 @@ and `users.avatar_url` points there for uploaded avatars (`POST` / `DELETE
 /me/avatar` manage the row).
 See [SECURITY.md](SECURITY.md) §7 for the decompression guard.
 
+## `user_files` — attachments on items
+
+```sql
+CREATE TABLE user_files (
+    id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id      uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    item_id      uuid NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    filename     text NOT NULL,                  -- display name only, never a path
+    content_type text NOT NULL CHECK (content_type IN ('application/pdf', 'image/png',
+                     'image/jpeg', 'image/webp', 'image/gif')),
+    size         integer NOT NULL,
+    data         bytea NOT NULL,
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    CHECK (octet_length(data) <= 5242880)        -- 5 MiB, = settings.files_max_upload_bytes
+);
+CREATE INDEX ix_user_files_user_id ON user_files (user_id);
+CREATE INDEX ix_user_files_item_id ON user_files (item_id);
+```
+
+A PDF ticket or a photo a user pinned to an event or place. The FK goes to `items`,
+not `saved_items`, on purpose: un-hearting a card must not delete a ticket, so the
+profile lists such files separately. `data` is mapped `deferred`, so listing files
+never loads the bytes. The app caps each user at `settings.files_max_per_user`
+(20). `GET/POST /me/files`, `GET/DELETE /me/files/{id}` manage the rows; see
+[SECURITY.md](SECURITY.md) §7.
+
 ## Row-Level Security
 
-The three user-owned relation tables have RLS as a backstop under the
+The four user-owned tables have RLS as a backstop under the
 app-layer authorisation. The requester is `current_setting('app.user_id')`, set
 per request in `auth.deps.current_user`. Policies bite only for the runtime role
 (`warsaw_app`); the table owner used for migrations and local dev bypasses them.
@@ -244,6 +270,7 @@ per request in `auth.deps.current_user`. Policies bite only for the runtime role
 | `friendships` | either party | either party (`WITH CHECK`) | either party |
 | `shared_events` | sender or recipient | sender only | recipient only (dismiss) |
 | `saved_items` | own rows, or an **accepted friend's** rows | own rows | own rows |
+| `user_files` | own rows | own rows | own rows |
 
 `users`, `items`, `intent_logs` are public or non-tenant and carry no RLS.
 Full policy text and the reasoning: [SECURITY.md](SECURITY.md) §5.
