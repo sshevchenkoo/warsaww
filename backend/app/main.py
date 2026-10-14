@@ -243,7 +243,12 @@ app = FastAPI(title="Warsaw Events API", lifespan=lifespan)
 # a clean console). The handlers still raise 4xx internally — API semantics and
 # the unit tests are unchanged; only the wire status for these paths is softened
 # here, at the HTTP edge. Every other endpoint keeps its real status code.
-_SOFT_FAIL_PATHS = {"/auth/login", "/auth/register", "/auth/verify", "/auth/login/2fa"}
+# /me and /me/avatar: wrong password on account deletion, email already taken on
+# a profile edit, a file that isn't really an image.
+_SOFT_FAIL_PATHS = {
+    "/auth/login", "/auth/register", "/auth/verify", "/auth/login/2fa",
+    "/me", "/me/avatar",
+}
 
 
 @app.exception_handler(StarletteHTTPException)
