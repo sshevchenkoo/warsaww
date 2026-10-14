@@ -72,7 +72,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: "localhost:24224"
+        fluentd-address: "127.0.0.1:24224"
         fluentd-async: "true"
         tag: "warsaw.api"
     # Periodic ingestion — the local mirror of the cloud k8s CronJobs
@@ -107,7 +107,7 @@ services:
     logging:
       driver: fluentd
       options:
-        fluentd-address: "localhost:24224"
+        fluentd-address: "127.0.0.1:24224"
         fluentd-async: "true"
         tag: "warsaw.web"
 
@@ -224,8 +224,8 @@ services:
     volumes:
       - ./config/fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
     ports:
-      - "24224:24224"       # forward input — the Docker fluentd log driver target
-      - "24224:24224/udp"
+      - "127.0.0.1:24224:24224"       # forward input — the Docker fluentd log driver target (localhost only: plain TCP)
+      - "127.0.0.1:24224:24224/udp"
     depends_on:
       logstash:
         condition: service_started
