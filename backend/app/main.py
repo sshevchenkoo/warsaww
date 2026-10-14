@@ -2,8 +2,11 @@ import logging
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from starlette.middleware.sessions import SessionMiddleware
@@ -233,6 +236,21 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Warsaw Events API", lifespan=lifespan)
+
+# Expected auth failures (wrong password, duplicate email, bad/expired code) are
+# returned as 200 {"error": ...} for these endpoints instead of a 4xx, so the
+# browser doesn't log a console error on a normal user mistake (the subject wants
+# a clean console). The handlers still raise 4xx internally — API semantics and
+# the unit tests are unchanged; only the wire status for these paths is softened
+# here, at the HTTP edge. Every other endpoint keeps its real status code.
+_SOFT_FAIL_PATHS = {"/auth/login", "/auth/register", "/auth/verify", "/auth/login/2fa"}
+
+
+@app.exception_handler(StarletteHTTPException)
+async def _soft_auth_failures(request: Request, exc: StarletteHTTPException):
+    if request.url.path in _SOFT_FAIL_PATHS and 400 <= exc.status_code < 500:
+        return JSONResponse({"error": exc.detail}, status_code=200)
+    return await http_exception_handler(request, exc)
 
 # Signed-cookie sessions (no server-side state → the API stays stateless across
 # replicas). Holds only the logged-in user id; signed with session_secret.

@@ -38,10 +38,17 @@ async function authJson(path: string, body: object, method = "POST"): Promise<un
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
+  const data = await res.json().catch(() => null);
   if (!res.ok) {
-    throw new Error(await messageFromResponse(res, "Something went wrong. Try again."));
+    throw new Error(messageFromDetail(data, "Something went wrong. Try again."));
   }
-  return res.json();
+  // Expected auth failures come back as 200 { error: "..." } (so the browser
+  // doesn't log a 4xx to the console) — surface them the same way as before.
+  if (data && typeof data === "object" && "error" in data) {
+    const msg = (data as { error?: unknown }).error;
+    throw new Error(typeof msg === "string" && msg ? msg : "Something went wrong. Try again.");
+  }
+  return data;
 }
 
 function asUser(data: unknown): User {
