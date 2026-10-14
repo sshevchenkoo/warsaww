@@ -3,7 +3,11 @@ import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
-from fastapi.exception_handlers import http_exception_handler
+from fastapi.exception_handlers import (
+    http_exception_handler,
+    request_validation_exception_handler,
+)
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -256,6 +260,33 @@ async def _soft_auth_failures(request: Request, exc: StarletteHTTPException):
     if request.url.path in _SOFT_FAIL_PATHS and 400 <= exc.status_code < 500:
         return JSONResponse({"error": exc.detail}, status_code=200)
     return await http_exception_handler(request, exc)
+
+
+# A malformed form on those same paths (e.g. "user@test" as the email — the
+# browser's type=email accepts it) is just as routine: soften the 422 too, and
+# swap pydantic's wording for a line fit for the form.
+_FIELD_ERRORS = {
+    "email": "Enter a valid email address, like name@example.com.",
+    "password": "Password must be 8-72 characters.",
+    "code": "Enter the code from the email.",
+    "current_password": "Password must be at most 72 characters.",
+    "name": "Name must be at most 100 characters.",
+}
+
+
+def _validation_message(exc: RequestValidationError) -> str:
+    for err in exc.errors():
+        field = err.get("loc", ())[-1] if err.get("loc") else None
+        if field in _FIELD_ERRORS:
+            return _FIELD_ERRORS[field]
+    return "Please check the form and try again."
+
+
+@app.exception_handler(RequestValidationError)
+async def _soft_validation_failures(request: Request, exc: RequestValidationError):
+    if request.url.path in _SOFT_FAIL_PATHS:
+        return JSONResponse({"error": _validation_message(exc)}, status_code=200)
+    return await request_validation_exception_handler(request, exc)
 
 # Signed-cookie sessions (no server-side state → the API stays stateless across
 # replicas). Holds only the logged-in user id; signed with session_secret.
