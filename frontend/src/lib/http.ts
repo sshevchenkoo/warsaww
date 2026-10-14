@@ -24,3 +24,33 @@ export async function messageFromResponse(res: Response, fallback: string): Prom
     return fallback;
   }
 }
+
+// Multipart POST with upload progress. XMLHttpRequest, not fetch: fetch has no
+// upload-progress event. onProgress gets 0–100 while the bytes go up. Resolves
+// with the JSON body of a 2xx; otherwise throws with the API's `detail`.
+export function uploadWithProgress(
+  path: string,
+  form: FormData,
+  onProgress: ((percent: number) => void) | undefined,
+  fallback: string,
+): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", path);
+    xhr.withCredentials = true;
+    xhr.responseType = "json";
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress?.(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(xhr.response);
+        return;
+      }
+      // null when the error body isn't JSON
+      reject(new Error(messageFromDetail(xhr.response, fallback)));
+    };
+    xhr.onerror = () => reject(new Error("Upload failed. Check your connection."));
+    xhr.send(form);
+  });
+}

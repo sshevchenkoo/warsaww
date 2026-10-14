@@ -57,6 +57,7 @@ Runtime:    One command locally via Docker Compose — nginx (HTTPS) · Postgres
 | Profile | Hero with stats, inline edit of name and email (email change confirmed by code), avatar upload with progress and delete | tbogus, yhruda, dstefans |
 | Friends and sharing | Friend requests, online status, public profiles, sharing a card with a friend, a "shared with you" inbox | dstefans, yhruda, tbogus |
 | Saved items | Save a card with the heart; friends can see each other's saved lists | yhruda, dstefans |
+| Attachments | Attach a PDF ticket or a photo to a saved event or place: upload with progress, thumbnail or PDF preview, delete; files stay private to their owner | tbogus |
 | Shared UI components | Palette and type tokens, reusable components, shared SVG icons and loading spinners | dstefans, tbogus |
 | Production platform | Terraform for DigitalOcean DOKS + managed Postgres + ELK droplet; Helm for ELK logging, Prometheus/Grafana/Tempo and TLS | yashevch |
 | Local observability stack | The same monitoring and logging on a laptop behind an HTTPS + basic-auth nginx gateway, plus scheduled ingestion — the stack used for evaluation | yashevch |
@@ -86,25 +87,25 @@ Events and places are one table, `items`, with a `kind` column. Everything a use
 [docs/data-model.md](docs/data-model.md).
 
 ```
-                  ┌──────────────┐
-                  │    items     │  catalog: events + places
-                  └──────┬───────┘
-            item_id      │      item_id
-        ┌────────────────┴────────────────┐
-        ▼                                 ▼
-┌──────────────┐                  ┌──────────────┐
-│ saved_items  │                  │shared_events │
-└──────┬───────┘                  └──┬────────┬──┘
-       │ user_id           from_user_id│        │to_user_id
-       ▼                              ▼        ▼
-   ┌──────────────────────────────────────────────┐
-   │                    users                     │
-   └──────┬───────────────────────────────┬───────┘
-          │ requester_id / addressee_id   │ user_id (PK)
-          ▼                               ▼
-   ┌──────────────┐                ┌──────────────┐
-   │ friendships  │                │ user_avatars │
-   └──────────────┘                └──────────────┘
+                          ┌──────────────┐
+                          │    items     │  catalog: events + places
+                          └──────┬───────┘
+            item_id              │ item_id               item_id
+        ┌────────────────────────┼──────────────────────────┐
+        ▼                        ▼                          ▼
+┌──────────────┐         ┌──────────────┐           ┌──────────────┐
+│ saved_items  │         │shared_events │           │  user_files  │
+└──────┬───────┘         └──┬────────┬──┘           └──────┬───────┘
+       │user_id from_user_id│        │to_user_id           │ user_id
+       ▼                    ▼        ▼                     ▼
+   ┌──────────────────────────────────────────────────────────┐
+   │                          users                           │
+   └──────┬───────────────────────────────────────────┬───────┘
+          │ requester_id / addressee_id               │ user_id (PK)
+          ▼                                           ▼
+   ┌──────────────┐                            ┌──────────────┐
+   │ friendships  │                            │ user_avatars │
+   └──────────────┘                            └──────────────┘
 
    intent_logs — standalone, no FKs
 ```
@@ -117,6 +118,7 @@ Events and places are one table, `items`, with a `kind` column. Everything a use
 | `friendships` | Friend requests, directed until accepted |
 | `shared_events` | A card sent from one user to another, with an optional message |
 | `user_avatars` | Uploaded avatar bytes |
+| `user_files` | Attachments (PDF tickets, photos) a user pinned to an item, with the bytes |
 | `intent_logs` | Every parsed prompt with the extracted intent — analytics and a future fine-tuning set |
 
 Key fields and types (PK = primary key; FK = foreign key):
@@ -129,10 +131,11 @@ Key fields and types (PK = primary key; FK = foreign key):
 | `friendships` | `id uuid` PK; `requester_id/addressee_id uuid` FKs to users; `status text` constrained to pending/accepted |
 | `shared_events` | `id uuid` PK; `from_user_id/to_user_id uuid` FKs to users; `item_id uuid` FK to items; `message text` |
 | `user_avatars` | `user_id uuid` PK/FK to users; `data bytea`; `content_type text`; `updated_at timestamptz` |
+| `user_files` | `id uuid` PK; `user_id uuid` FK to users; `item_id uuid` FK to items; `filename text`; `content_type text` (PDF or image, CHECK); `size integer`; `data bytea` (≤ 5 MB, CHECK) |
 | `intent_logs` | `id uuid` PK; `user_prompt text`; `intent jsonb`; `model text`; `latency_ms integer` |
 
-A user can have many saves, friendships and shares, but at most one uploaded avatar.
-An item can appear in many saves and shares. User and item foreign keys cascade on deletion;
+A user can have many saves, friendships and shares, up to 20 attached files, but at most one
+uploaded avatar. An item can appear in many saves, shares and attachments. User and item foreign keys cascade on deletion;
 `intent_logs` is independent of these relationships.
 
 ## Modules
@@ -150,12 +153,12 @@ per claim, and modules implemented but not claimed (2FA, GDPR) that can replace 
 | 1 | Framework for both frontend and backend | Web | Major | 2 | dstefans, yhruda, tbogus | Next.js 16 App Router in `frontend/`, FastAPI in `backend/app/` |
 | 2 | Use an ORM | Web | Minor | 1 | yhruda, tbogus, dstefans | SQLAlchemy 2 typed models, `backend/app/catalog/models.py` ([ORM.md](docs/ORM.md)) |
 | 3 | Server-Side Rendering | Web | Minor | 1 | dstefans | `/item/[id]` is rendered on the server with its own metadata, `frontend/src/app/item/[id]/page.tsx` |
-| 4 | Custom design system | Web | Minor | 1 | dstefans, tbogus | Palette/type tokens in `frontend/src/app/globals.css`, 18 component files in `frontend/src/components/`, and shared SVG icons and Spinner in `frontend/src/components/Icon.tsx` |
+| 4 | Custom design system | Web | Minor | 1 | dstefans, tbogus | Palette/type tokens in `frontend/src/app/globals.css`, 19 component files in `frontend/src/components/`, and shared SVG icons and Spinner in `frontend/src/components/Icon.tsx` |
 | 5 | Standard user management | User Management | Major | 2 | tbogus, yhruda, dstefans | Profile edit (`PATCH /me`), avatar upload with a default, friends with online status — `backend/app/api/`, `frontend/src/app/profile/` |
 | 6 | OAuth 2.0 remote authentication | User Management | Minor | 1 | yhruda, tbogus | Google OIDC via authlib, `backend/app/auth/oauth.py` |
 | 7 | Complete RAG system | AI | Major | 2 | tbogus, yhruda | Voyage embeddings + pgvector/pg_trgm hybrid retrieval, blurbs grounded in the retrieved cards — `backend/app/retrieval/` |
 | 8 | Complete LLM system interface | AI | Major | 2 | tbogus, yhruda | Intent extraction (Haiku) and re-rank (Sonnet) streamed over SSE, with error handling and a daily quota — `backend/app/llm/` |
-| 9 | File upload and management | User Management | Minor | 1 | yhruda, tbogus | Avatar upload: type and size checks on both sides, upload progress, delete — `backend/app/api/avatars.py` |
+| 9 | File upload and management | Web | Minor | 1 | yhruda, tbogus | PDF and image attachments on saved items, plus the avatar: type (sniffed from the bytes) and size checked on both sides, owner-only access with RLS, thumbnail/PDF preview, upload progress, delete — `backend/app/api/files.py`, `backend/app/api/avatars.py`, `frontend/src/components/ItemFiles.tsx` |
 | 10 | ELK log management | DevOps | Major | 2 | yashevch | Elasticsearch + Logstash + Kibana, Fluent Bit shipping, retention — demonstrated locally via `deploy/local/` (cloud equivalent: `deploy/cloud/ansible/`, `deploy/cloud/platform/`) |
 | 11 | Prometheus + Grafana monitoring | DevOps | Major | 2 | yashevch | Prometheus + Grafana + Alertmanager, exporters, dashboards, alert rules — demonstrated locally via `deploy/local/` (cloud equivalent: `deploy/cloud/platform/`) |
 | 12 | Custom module: multi-source ingestion pipeline | Module of choice | Major | 2 | tbogus, yhruda | `backend/app/ingestion/` ([INGESTION.md](docs/INGESTION.md)) — justified below |
@@ -174,7 +177,7 @@ per claim, and modules implemented but not claimed (2FA, GDPR) that can replace 
 | #6 OAuth | Google sign-in gives users an alternative to creating another password. |
 | #7 RAG | Recommendations must be grounded in actual catalog entries, with real dates and locations. |
 | #8 LLM interface | Free-form multilingual requests need intent extraction and readable, contextual result explanations. |
-| #9 File management | Users need to upload, replace and remove profile pictures with bounded storage and validated content. |
+| #9 File management | Tickets and photos belong next to the event they are for, and profile pictures need replacing; both need validated content and bounded, private storage. |
 | #10 ELK | Centralized searchable logs make API and ingestion failures diagnosable across containers. |
 | #11 Monitoring | Metrics, dashboards and alerts reveal service health, resource pressure and database problems. |
 | #12 Custom ingestion | A current, deduplicated catalog requires several incompatible sources; the detailed justification follows. |
@@ -265,7 +268,8 @@ Built the FastAPI backend and initial catalog/intent scaffold (`0a9824f`), real 
 adapters (`768c36e`, `072e799`), Voyage vector search (`4b84257`), and streamed LLM
 re-ranking (`854f295`, `9eb4c1b`). Added email verification, profile editing, avatar
 removal/upload progress, security tests, the profile UI and the architecture deep dives.
-Added the shared SVG icon set and Spinner component (`1cec7fe`).
+Added the shared SVG icon set and Spinner component (`1cec7fe`), and PDF/photo
+attachments on saved items for module #9.
 This work supports modules #1, #2, #4–#9 and #12. To handle account ownership securely
 across password and Google sign-in, `cd125d3` invalidates a previously registered
 password when Google proves ownership. Database hardening added least-privilege

@@ -161,6 +161,7 @@ set it and do not touch RLS-protected tables.
 | `friendships` | Only the requester and the addressee can see or modify the row. |
 | `shared_events` | Sender and recipient read; only the sender inserts; only the recipient deletes (dismiss from inbox). |
 | `saved_items` | Write only your own. Read your own **or an accepted friend's** — and that friend check reads `friendships`, which is itself RLS-scoped. |
+| `user_files` | Every operation on your own rows only — attachments are never shared, not even with friends. |
 | `users`, `items`, `intent_logs` | No RLS — public or non-tenant data. |
 
 Four implementation details that are each a footgun:
@@ -202,7 +203,7 @@ the whole internet as one client.
 
 ---
 
-## 7. Uploads: the avatar decompression guard
+## 7. Uploads: the avatar decompression guard, attachments
 
 `backend/app/api/avatars.py`
 
@@ -227,6 +228,29 @@ What lands in the database is 15–25 KB, with `CHECK (octet_length(data) <= 524
 ceiling that holds even if the application logic is bypassed. Avatars live in their own
 `user_avatars` table so the blob never rides along on the many `SELECT … FROM users` queries in the
 social layer.
+
+### Attachments
+
+`backend/app/api/files.py`
+
+Attachments (PDF tickets, photos) are stored **as uploaded** — re-encoding would blur a ticket's
+barcode — so the controls are about what may be stored and who may read it:
+
+1. Same `read(max + 1)` size cap (5 MB) as avatars.
+2. **The type comes from the bytes.** A PDF must start with `%PDF-`; an image must open in Pillow as
+   PNG, JPEG, WebP or GIF, pass the same 50 MP dimension check, and survive `img.verify()`. The
+   client's filename and `Content-Type` are ignored, so a renamed `.html` is a 415, not a stored page.
+   A `CHECK` on `content_type` repeats the allow-list in the database.
+3. **Owner only.** Every query filters on the session user, a foreign id is a 404 (not a 403, so ids
+   can't be probed), and the `user_files` RLS policy repeats the rule in Postgres.
+4. **Serving.** `X-Content-Type-Options: nosniff` with the sniffed type, `Cache-Control: private,
+   no-store`, and the filename in RFC 5987 form (`filename*=UTF-8''…`, percent-encoded), so a crafted
+   name can't break out of the header. The stored name is cleaned of directories and control characters.
+5. **Bounded.** 20 files per user; the count check runs under a `FOR UPDATE` lock on the user's row,
+   so parallel uploads can't overshoot it.
+
+Unlike avatars, EXIF is **not** stripped from attached photos. They are visible only to the person who
+uploaded them, so there is no one to leak the metadata to.
 
 ---
 
@@ -292,6 +316,7 @@ capabilities dropped.
 | `test_search_gate.py` | 401 unauthenticated, 401 when the cookie's user is gone, 403 unverified, 401 + cookie cleared on a malformed cookie, pass when verified |
 | `test_email_verify.py` | Success clears the code, wrong code increments attempts, expiry, the attempt cap, already-verified is a no-op |
 | `test_avatars.py` | Valid image becomes a JPEG square, oversized dimensions rejected, non-image bytes rejected, Pillow's pixel cap is pinned |
+| `test_files.py` | Type sniffed from bytes (PDF and four image formats in, text and BMP out), filename cleanup, upload → list → serve (headers) → delete, another user's file is a 404, unknown item, 413/415/400, the per-user limit, cascades from users and items, the `user_files` RLS policy |
 
 The RLS tests matter disproportionately, because local development bypasses RLS entirely (§5) — CI is
 the only place the policies are actually exercised.
