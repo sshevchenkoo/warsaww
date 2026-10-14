@@ -14,7 +14,7 @@ import { SectionHeading } from "@/components/SectionHeading";
 import { useUser } from "@/components/UserContext";
 import { VerifyPanel } from "@/components/VerifyPanel";
 import type { Card } from "@/lib/api";
-import { deleteAvatar, getSaved, uploadAvatar } from "@/lib/auth";
+import { AVATAR_TYPES, deleteAvatar, getSaved, uploadAvatar } from "@/lib/auth";
 import {
   dismissShared,
   isAbortError,
@@ -264,7 +264,7 @@ function ProfileSession() {
             name="avatar"
             ref={fileInput}
             type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif"
+            accept={AVATAR_TYPES.join(",")}
             className="hidden"
             onChange={onPickAvatar}
           />
