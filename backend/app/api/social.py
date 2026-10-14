@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import and_, delete, or_, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
@@ -50,10 +50,14 @@ class SharedEventOut(BaseModel):
     created_at: datetime
 
 
+# The column is unbounded TEXT; cap it here so a script can't store megabytes.
+MAX_SHARE_MESSAGE = 500
+
+
 class ShareRequest(BaseModel):
     to_user_id: uuid.UUID
     item_id: uuid.UUID
-    message: str | None = None
+    message: str | None = Field(default=None, max_length=MAX_SHARE_MESSAGE)
 
 
 # ─── Friendship helpers ───────────────────────────────────────────────────────
