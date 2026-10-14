@@ -156,10 +156,10 @@ per claim, and modules implemented but not claimed (2FA, GDPR) that can replace 
 | 7 | Complete RAG system | AI | Major | 2 | tbogus, yhruda | Voyage embeddings + pgvector/pg_trgm hybrid retrieval, blurbs grounded in the retrieved cards — `backend/app/retrieval/` |
 | 8 | Complete LLM system interface | AI | Major | 2 | tbogus, yhruda | Intent extraction (Haiku) and re-rank (Sonnet) streamed over SSE, with error handling and a daily quota — `backend/app/llm/` |
 | 9 | File upload and management | User Management | Minor | 1 | yhruda, tbogus | Avatar upload: type and size checks on both sides, upload progress, delete — `backend/app/api/avatars.py` |
-| 10 | ELK log management | DevOps | Major | 2 | yashevch | Elasticsearch + Logstash + Kibana, Fluent Bit shipping, retention — demonstrated locally via `deploy/local/` (cloud equivalent: `deploy/cloud/ansible/`, `deploy/cloud/platform/`) |
+| 10 | ELK log management | DevOps | Major | 2 | yashevch | Elasticsearch + Logstash + Kibana, Fluent Bit shipping, retention (ILM) + archiving (snapshots) — demonstrated locally via `deploy/local/` (cloud equivalent: `deploy/cloud/ansible/`, `deploy/cloud/platform/`) |
 | 11 | Prometheus + Grafana monitoring | DevOps | Major | 2 | yashevch | Prometheus + Grafana + Alertmanager, exporters, dashboards, alert rules — demonstrated locally via `deploy/local/` (cloud equivalent: `deploy/cloud/platform/`) |
 | 12 | Custom module: multi-source ingestion pipeline | Module of choice | Major | 2 | tbogus, yhruda | `backend/app/ingestion/` ([INGESTION.md](docs/INGESTION.md)) — justified below |
-| 13 | Health check & status page + backups/DR | DevOps | Minor | 1 | dstefans, tbogus | `/status` page (`frontend/src/app/status/`, `StatusBoard.tsx`) over `/health` + `/ready` (`backend/app/api/routes.py`); DB backup/restore (`make do-db-backup` / `do-db-restore`) + [DISASTER_RECOVERY.md](docs/DISASTER_RECOVERY.md) |
+| 13 | Health check & status page + backups/DR | DevOps | Minor | 1 | dstefans, tbogus | `/status` page (`frontend/src/app/status/`, `StatusBoard.tsx`) over `/health` + `/ready` (`backend/app/api/routes.py`); automated nightly DB backups + restore (`db-backup` service, `make stack-db-backup` / `stack-db-restore`) + [DISASTER_RECOVERY.md](docs/DISASTER_RECOVERY.md) |
 | | **Total** | | | **20** | | |
 
 ### Why these modules were chosen
