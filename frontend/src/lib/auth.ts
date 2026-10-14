@@ -174,11 +174,27 @@ export async function deleteAccount(currentPassword?: string): Promise<void> {
   if (!res.ok) throw new Error(await messageFromResponse(res, "Couldn't delete the account. Try again."));
 }
 
+// Mirror the API's limits (avatar_max_upload_bytes, the formats it re-encodes)
+// so the usual mistakes — a big photo, a PDF — are refused here, before any
+// request: a rejected upload would leave a 4xx in the browser console. The API
+// still enforces both.
+export const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+export const AVATAR_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+
+function avatarProblem(file: File): string | null {
+  if (!AVATAR_TYPES.includes(file.type)) return "Use a PNG, JPEG, WebP or GIF image";
+  if (file.size > AVATAR_MAX_BYTES) return "Image too large (max 5 MB)";
+  if (file.size === 0) return "Empty upload";
+  return null;
+}
+
 // Upload a new avatar (multipart). Returns the new cache-busted avatar_url, or
 // throws with the API's error message (e.g. too large / not an image).
 // XMLHttpRequest, not fetch: fetch has no upload-progress event. onProgress
 // gets 0–100 while the bytes go up; the server then still re-encodes the image.
 export function uploadAvatar(file: File, onProgress?: (percent: number) => void): Promise<string> {
+  const problem = avatarProblem(file);
+  if (problem) return Promise.reject(new Error(problem));
   const form = new FormData();
   form.append("file", file);
   return new Promise((resolve, reject) => {
