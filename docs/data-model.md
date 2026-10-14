@@ -83,7 +83,7 @@ Key columns:
   Nullable: a keyless or rate-limited ingestion run leaves it untouched rather
   than wiping it (see [INGESTION.md](INGESTION.md) §4.5).
 - `sources jsonb` — every source a card was seen at; duplicates don't create new
-  rows, they append their ref here (see [ingestion-overview.md](ingestion-overview.md)).
+  rows, they append their ref here (see [ALGORITHMS.md](ALGORITHMS.md) §6.4).
 - `UNIQUE (source, source_url)` — re-running a source upserts instead of duplicating.
 - `hnsw` index — approximate nearest-neighbour search for the semantic leg of
   hybrid retrieval; without it every query would scan all rows.
@@ -128,6 +128,11 @@ CREATE TABLE users (
     email_verify_code_expires_at timestamptz,
     email_verify_attempts        int NOT NULL DEFAULT 0,
     pending_email                text,                 -- requested new email (PATCH /me), swapped in once its code is confirmed
+    -- opt-in second factor at password login (a separate code, never the email_verify_* one):
+    two_factor_enabled           boolean NOT NULL DEFAULT false,
+    login_code_hash              text,
+    login_code_expires_at        timestamptz,
+    login_code_attempts          int NOT NULL DEFAULT 0,
     name                         text,
     avatar_url                   text,                 -- Google photo URL or /avatars/{user_id}
     last_seen_at                 timestamptz,          -- refreshed by the /me/ping heartbeat
@@ -143,6 +148,8 @@ Key columns:
   password accounts start `false` and flip after entering the 6-digit code.
 - `email_verify_*` — the code's HMAC, its expiry (15 min) and a wrong-attempt
   counter (cap 5). All NULL/0 once verified. [SECURITY.md](SECURITY.md) §3.
+- `login_code_*` — the same shape for the 2FA login code, kept apart so a code sent
+  to the old address can never confirm a pending email change. NULL/0 outside a login.
 - `last_seen_at` — a user is "online" while this is within a short window
   (`app.api.social._is_online`).
 - `gin (name gin_trgm_ops)` — makes `/users/search`'s `name ILIKE '%term%'`

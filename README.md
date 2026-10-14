@@ -61,7 +61,6 @@ Runtime:    One command locally via Docker Compose — nginx (HTTPS) · Postgres
 | Production platform | Terraform for DigitalOcean DOKS + managed Postgres + ELK droplet; Helm for ELK logging, Prometheus/Grafana/Tempo and TLS | yashevch |
 | Local observability stack | The same monitoring and logging on a laptop behind an HTTPS + basic-auth nginx gateway, plus scheduled ingestion — the stack used for evaluation | yashevch |
 | HTTPS everywhere | Every browser-facing endpoint — the site and the Grafana/Kibana/Prometheus/Alertmanager UIs — is served over HTTPS by the nginx front; app/API/Grafana publish no host port, so browser↔backend is always encrypted (internal container hops stay plain, as the subject allows) | yashevch |
-
 | Upcoming events and item details | Browse upcoming events without an LLM request; open server-rendered detail pages with metadata and image fallbacks | dstefans |
 | Privacy and terms | Dedicated Privacy Policy and Terms of Service pages linked from the footer | dstefans |
 | Search resilience and quotas | Redis-backed daily quotas, lexical fallback when embeddings fail, and fallback cards when re-ranking fails | yhruda, tbogus |
@@ -151,7 +150,7 @@ per claim, and modules implemented but not claimed (2FA, GDPR) that can replace 
 | 1 | Framework for both frontend and backend | Web | Major | 2 | dstefans, yhruda, tbogus | Next.js 16 App Router in `frontend/`, FastAPI in `backend/app/` |
 | 2 | Use an ORM | Web | Minor | 1 | yhruda, tbogus, dstefans | SQLAlchemy 2 typed models, `backend/app/catalog/models.py` ([ORM.md](docs/ORM.md)) |
 | 3 | Server-Side Rendering | Web | Minor | 1 | dstefans | `/item/[id]` is rendered on the server with its own metadata, `frontend/src/app/item/[id]/page.tsx` |
-| 4 | Custom design system | Web | Minor | 1 | dstefans, tbogus | Palette/type tokens in `frontend/src/app/globals.css`, 15 component files in `frontend/src/components/`, and shared SVG icons and Spinner in `frontend/src/components/Icon.tsx` |
+| 4 | Custom design system | Web | Minor | 1 | dstefans, tbogus | Palette/type tokens in `frontend/src/app/globals.css`, 18 component files in `frontend/src/components/`, and shared SVG icons and Spinner in `frontend/src/components/Icon.tsx` |
 | 5 | Standard user management | User Management | Major | 2 | tbogus, yhruda, dstefans | Profile edit (`PATCH /me`), avatar upload with a default, friends with online status — `backend/app/api/`, `frontend/src/app/profile/` |
 | 6 | OAuth 2.0 remote authentication | User Management | Minor | 1 | yhruda, tbogus | Google OIDC via authlib, `backend/app/auth/oauth.py` |
 | 7 | Complete RAG system | AI | Major | 2 | tbogus, yhruda | Voyage embeddings + pgvector/pg_trgm hybrid retrieval, blurbs grounded in the retrieved cards — `backend/app/retrieval/` |
@@ -313,7 +312,7 @@ teammates' changes into `main`.
 
 | Path | What |
 |---|---|
-| `backend/` | Warsaw-events FastAPI app — API, LLM layer, retrieval, ingestion ([docs](docs/backend.md)) |
+| `backend/` | Warsaw-events FastAPI app — API, LLM layer, retrieval, ingestion ([docs](docs/local-development.md)) |
 | `frontend/` | Next.js UI, "Pure"-style ([docs](docs/frontend.md)) |
 | `deploy/local/` | **The stack used to run and evaluate the project** — full app + observability in one command ([guide](deploy/local/README.md)) |
 | `deploy/cloud/` | *Optional / reference:* cloud deployment (Terraform + k8s + Ansible + Helm) — not required to run or grade ([overview](deploy/cloud/README.md)) |
@@ -379,7 +378,7 @@ Infra UIs, behind the same login: Grafana **https://localhost:3001**, Kibana
 
 | Command | What |
 |---|---|
-| `make stack-seed` | Load fixtures, OpenStreetMap/Wikidata places, and Facebook events (Facebook needs `APIFY_TOKEN`) |
+| `make stack-seed` | Load fixtures, OpenStreetMap/Wikidata places, Facebook and Ticketmaster events (those two need `APIFY_TOKEN` / `TICKETMASTER_API_KEY`) |
 | `make scheduler-up` | Run ingestion on the same schedule as the cloud CronJobs |
 | `make stack-down` | Stop everything (data volumes are kept) |
 | `make app-up` + `make web` | Lighter setup: API, Postgres and Redis only, frontend on the host |
@@ -420,16 +419,16 @@ blurbs, and Claude Haiku adjudicates ambiguous duplicates during ingestion.
 
 | Doc | Topic |
 |---|---|
-| [Backend](docs/backend.md) | App structure, local setup, status |
 | [Frontend](docs/frontend.md) | UI, SSE client, re-skinning |
 | [Architecture](docs/architecture.md) | Components, data flow, design decisions |
-| [Data model](docs/data-model.md) | `items`, `intent_logs`, `users`, `saved_items` schema |
-| [Search & LLM](docs/search-and-llm.md) | Intent, embeddings, hybrid search, re-rank, cost |
-| [Auth & profiles](docs/auth.md) | Google sign-in, sessions, saved items |
-| [Ingestion](docs/ingestion-overview.md) | Adapters, sources, enrichment, deduplication |
+| [Data model](docs/data-model.md) | Every table, its indexes and the Row-Level Security policies |
+| [Auth & profiles](docs/auth.md) | Google and password sign-in, 2FA, sessions, account endpoints |
 | [Deployment](docs/deployment.md) | Docker image, k8s manifests, CronJobs |
-| [Local development](docs/local-development.md) | Running and testing locally |
+| [Local development](docs/local-development.md) | Backend + frontend on the host, tests, folder map |
 | [Hosting (DigitalOcean)](docs/hosting-digitalocean.md) | Prod on DOKS — Terraform, Helm, ELK |
+| [API keys](docs/api-keys.md) | Every external credential and how to get it |
+| [Disaster recovery](docs/DISASTER_RECOVERY.md) | RPO/RTO and recovery runbooks |
+| [ORM](docs/ORM.md) | One request through the SQLAlchemy session down to SQL |
 | [Deploy — local stack](deploy/local/README.md) | Full local stack (app + Grafana/Prometheus/Tempo + ELK) in one command |
 | [Deploy — cloud](deploy/cloud/README.md) | Cloud deployment overview (DOKS + managed Postgres + ELK droplet) |
 
