@@ -65,18 +65,18 @@ KUBECONFIG=.kube/config-do kubectl -n warsaw create job --from=cronjob/ingest-pl
 - Grafana: `https://grafana.<WARSAW_DOMAIN>` — login `admin` / the `GRAFANA_PASSWORD` you set in `.env`.
 - Kibana: `http://<elk_public_ip>:5601` (basic auth `kibana` / `KIBANA_PASSWORD`).
 
-## Updating prod (CI/CD)
-On push to `main`, `.github/workflows/deploy.yml` runs: **test** → **build+push**
-images tagged with the commit SHA → **deploy** (gated behind the `production`
-GitHub Environment, so it waits for a manual approval before touching the cluster).
+## Updating prod
+Deployment is manual (no CI). After a change:
 
-One-time GitHub setup:
-- Settings → Environments → `production` with a required reviewer (the approval gate).
-- Secret `DIGITALOCEAN_ACCESS_TOKEN` (a CI-only DO token); variable `WARSAW_DOMAIN`.
-- ghcr packages public (or an imagePullSecret) so DOKS can pull.
-- The `warsaw-secrets` Secret is applied manually once — CI never touches app secrets.
-
-Manual one-off (without CI): `IMAGE_TAG=$(git rev-parse --short HEAD) make do-images do-deploy`.
+```bash
+IMAGE_TAG=$(git rev-parse --short HEAD) make do-images do-deploy
+```
+`do-images` builds + pushes the API/web images to GHCR tagged by the commit SHA
+(immutable); `do-deploy` renders and `kubectl apply`s `deploy/cloud/k8s/*` — the SHA
+tag makes the rollout self-roll. The `warsaw-secrets` Secret is applied manually once
+(`kubectl apply -f deploy/cloud/k8s/secret.yml`); run `make do-platform` / `make do-elk`
+only when the platform charts or the ELK host change. ghcr packages must be public (or
+add an imagePullSecret) so DOKS can pull.
 Rollback: `kubectl -n warsaw rollout undo deploy/api` or redeploy an older `IMAGE_TAG`.
 
 ## Notes

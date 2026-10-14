@@ -299,7 +299,7 @@ cards readable when remote images are unavailable (`5690fc5`).
 
 As Technical Lead and infrastructure developer, built the production platform and
 its deployment tooling: DigitalOcean Kubernetes and managed Postgres (`263a46d`),
-CI/CD and immutable image tags (`fde52fb`, `1d73743`), ELK logging and monitoring,
+the container image build with immutable SHA tags (`fde52fb`, `1d73743`), ELK logging and monitoring,
 and the full local observability stack (`ca1116b`). Added protected monitoring UIs
 (`01f62e6`), local scheduled ingestion (`13fe9ec`), and deployment guides. His work
 implements modules #10 and #11 and provides deployment/scheduling support for #1

@@ -3,7 +3,7 @@
 Production on **DigitalOcean**: a Kubernetes cluster (DOKS) for the app and
 observability, a **managed Postgres**, and a dedicated **ELK droplet** for logs —
 all inside one private VPC, provisioned by Terraform, configured by Helm and
-Ansible, and shipped by GitHub Actions.
+Ansible, and deployed manually with the `make do-*` targets.
 
 > Local counterpart: [`deploy/local`](../local/README.md). Same three
 > observability pillars; here they run as Helm charts + a droplet instead of
@@ -129,18 +129,17 @@ make do-infra-down     # DESTROY everything (stop the bill)
 
 ---
 
-## CI/CD
+## Updating prod
 
-[`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml) runs on push to
-`main`:
+Deployment is manual (no CI). After a change:
 
-1. **test** — ruff + pytest (throwaway pgvector service) + frontend build.
-2. **build-push** — build API + web images, push to GHCR by commit SHA.
-3. **deploy** — targets the `production` GitHub Environment (manual gate),
-   `doctl` auth → `kubectl apply` of `deploy/cloud/k8s/*` → waits for rollout.
+1. `make do-images` — build the API + web images and push to GHCR tagged by the
+   commit SHA (immutable).
+2. `make do-deploy` — render and `kubectl apply` `deploy/cloud/k8s/*`; the SHA tag
+   makes the rollout self-roll.
 
-`deploy` needs the `DIGITALOCEAN_ACCESS_TOKEN` secret and a live cluster; `test`
-and `build-push` are self-contained.
+Run `make do-platform` / `make do-elk` only when the platform charts or the ELK
+host change. Full runbook: [docs/hosting-digitalocean.md](../../docs/hosting-digitalocean.md).
 
 ---
 

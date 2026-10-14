@@ -237,9 +237,9 @@ social layer.
 |---|---|---|
 | API tokens go in headers, never query strings | `adapters/facebook_events.py` | httpx logs the full URL at INFO; a `?token=` would land in the pod logs and then in ELK |
 | `httpx` logger pinned to WARNING | `ingestion/runner.py` | Defence in depth for the same class of leak |
-| App secrets never enter CI | `.github/workflows/deploy.yml` | `warsaw-secrets` is applied manually with `kubectl`; the deploy job only has the DO token |
+| App secrets never enter the repo or any CI | manual `kubectl apply` | `warsaw-secrets` (gitignored `secret.yml`) is applied by hand; nothing automated ever holds them |
 | `envsubst` restricted to three named vars | deploy step | So a stray `$SOMETHING` in a manifest cannot be substituted from the runner's environment |
-| Deploy waits for a human | `environment: production` | The GitHub Environment gate pauses the job for a reviewer |
+| Deploy is a deliberate manual step | `make do-deploy` | There is no automated push to prod — a human runs the apply |
 
 ### The config validator that refuses to boot
 
