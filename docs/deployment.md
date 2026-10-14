@@ -126,8 +126,7 @@ kubectl -n warsaw logs -f job/first-places
 - **DNS**: point `WARSAW_DOMAIN` at the ingress load balancer; cert-manager
   (`letsencrypt-prod`) issues the TLS cert automatically.
 - **SSE**: the ingress disables proxy buffering so `/search` streams.
-- **Voyage free tier** rate-limits batch embedding; add a payment method for fast
-  `ingest-places` runs (the code already retries with backoff).
+- **Voyage free tier** rate-limits batch embedding — see [api-keys.md](api-keys.md#voyage-ai--voyage_api_key).
 - **Postgres**: prod uses DigitalOcean managed Postgres provisioned by Terraform
   (`deploy/cloud/terraform/`); `make do-db-init` enables `vector` + `pg_trgm`.
   `optional/10-postgres.yml` remains for clusters without a managed database — apply it by

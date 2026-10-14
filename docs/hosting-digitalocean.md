@@ -8,7 +8,7 @@ in `deploy/cloud/terraform/`; for local development use `make dev`
 ```
 DOKS cluster ── ingress-nginx (DO LoadBalancer) ── cert-manager (Let's Encrypt)
   ├─ web (Next.js)         ┐ namespace warsaw
-  ├─ api (FastAPI) + HPA   │  ingress: / → web, /search,/auth,/me,/upcoming,/items,/health → api
+  ├─ api (FastAPI) + HPA   │  ingress: / → web, API prefixes → api (deployment.md)
   ├─ redis                 ┘
   ├─ CronJobs (ingestion)
   ├─ kube-prometheus-stack (Grafana/Prometheus)   namespace monitoring
@@ -23,17 +23,22 @@ api ──► (VPC) ──► DO Managed Postgres 16 (pgvector)
 - `.env` (repo root) — all Terraform/DO config lives here, no `terraform.tfvars`:
   - `DIGITALOCEAN_TOKEN` (the provider reads this), `TF_VAR_ssh_public_key` (`cat .ssh/id_ed25519.pub`), `TF_VAR_admin_ip` (`curl ifconfig.me` + `/32`)
   - `GITHUB_USER`, `GITHUB_TOKEN`, `ACME_EMAIL`, `WARSAW_DOMAIN`, `GRAFANA_PASSWORD`, `KIBANA_PASSWORD`
+  - `WARSAW_APP_DB_PASSWORD` (the least-privilege `warsaw_app` role the API connects as)
   - `PG_MONITOR_PASSWORD` (for the read-only DB monitoring role — see *Postgres metrics* under Notes)
   - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (Alertmanager Telegram alerts — see *Alerting* under Notes)
 
 ## Steps (all via the Makefile)
 
 ```bash
-# 1. Provision: VPC + DOKS + managed Postgres + ELK droplet  (writes .kube/config-do)
+# 1. Provision: VPC + DOKS + managed Postgres + ELK droplet, then save the kubeconfig
 make do-infra-up
+make do-kubeconfig     # writes .kube/config-do; every later step uses it
 
-# 2. Enable pgvector on the managed DB (once; your IP is allowed by the DB firewall)
-make do-db-init
+# 2. Prepare the managed DB (idempotent; your IP is allowed by the DB firewall)
+make do-db-init        # enable vector + pg_trgm
+make do-db-role        # least-privilege app role warsaw_app
+make do-db-monitor-role
+make do-db-migrate     # create/upgrade the schema as admin
 
 # 3. Build + push the images (skip if the ghcr packages are public and already pushed)
 make do-images
@@ -41,10 +46,8 @@ make do-images
 # 4. Cluster platform: ingress-nginx, cert-manager + issuer, monitoring, fluent-bit
 make do-platform
 
-# 5. App secret: fill deploy/cloud/k8s/secret.yml from secret.example.yml.
-#    DATABASE_URL = terraform -chdir=deploy/cloud/terraform output -raw database_url
-#    (managed DB; you do NOT apply optional/10-postgres.yml). Keep ANTHROPIC/VOYAGE/APIFY/
-#    TICKETMASTER/GOOGLE_*/SESSION_SECRET. Then:
+# 5. App secret: fill deploy/cloud/k8s/secret.yml from secret.example.yml
+#    (DATABASE_URL uses the warsaw_app role; keys: deployment.md §2). do-deploy applies it:
 make do-deploy
 
 # 6. ELK droplet (Elasticsearch + Logstash + Kibana), logs arrive via fluent-bit
@@ -55,10 +58,7 @@ KUBECONFIG=.kube/config-do kubectl get svc -n ingress-nginx   # EXTERNAL-IP of t
 #   add an A record  <WARSAW_DOMAIN> → <LB IP>  at the registrar
 ```
 
-First data load (CronJobs run on schedule; trigger one now):
-```bash
-KUBECONFIG=.kube/config-do kubectl -n warsaw create job --from=cronjob/ingest-places first-places
-```
+First data load: trigger the CronJobs by hand — [deployment.md](deployment.md) §4.
 
 ## Access
 - App: `https://<WARSAW_DOMAIN>` (TLS by cert-manager).
@@ -73,8 +73,8 @@ IMAGE_TAG=$(git rev-parse --short HEAD) make do-images do-deploy
 ```
 `do-images` builds + pushes the API/web images to GHCR tagged by the commit SHA
 (immutable); `do-deploy` renders and `kubectl apply`s `deploy/cloud/k8s/*` — the SHA
-tag makes the rollout self-roll. The `warsaw-secrets` Secret is applied manually once
-(`kubectl apply -f deploy/cloud/k8s/secret.yml`); run `make do-platform` / `make do-elk`
+tag makes the rollout self-roll. The `warsaw-secrets` Secret comes from the gitignored
+`deploy/cloud/k8s/secret.yml`, re-applied by every `do-deploy`; run `make do-platform` / `make do-elk`
 only when the platform charts or the ELK host change. ghcr packages must be public (or
 add an imagePullSecret) so DOKS can pull.
 Rollback: `kubectl -n warsaw rollout undo deploy/api` or redeploy an older `IMAGE_TAG`.
@@ -96,23 +96,10 @@ Rollback: `kubectl -n warsaw rollout undo deploy/api` or redeploy an older `IMAG
   receiver and flip the route to it** in the values file, then `make do-platform`
   (envsubst injects them — no secret in git). ⚠️ Don't uncomment without setting both
   vars: an empty bot_token makes the Alertmanager config invalid.
-- **Email verification (Resend)**: password registrations are emailed a 6-digit
-  code they type back in (`POST /auth/verify {code}`); Google logins are
-  auto-verified. Codes are single-use, expire after `EMAIL_VERIFY_CODE_TTL_MINUTES`
-  (15), and are capped at `EMAIL_VERIFY_MAX_ATTEMPTS` (5) wrong tries before a
-  resend is needed. Set `RESEND_API_KEY`, `EMAIL_FROM` (a verified sender for your
-  domain, e.g. `Warsaw Events <noreply@transendance.online>`), and optional
-  `EMAIL_REPLY_TO` in the app secret (`deploy/cloud/k8s/secret.yml` + `backend/.env`) —
-  and map them into the api Deployment env (`30-api.yml`). Without the key, sending
-  is a logged no-op (registration still works, codes just aren't delivered).
-- **Search gate**: `REQUIRE_VERIFIED_EMAIL_TO_SEARCH` (default **true**) makes
-  `/search` require a logged-in, email-verified user — anonymous/unverified
-  visitors get 401/403 and the frontend shows a sign-in / enter-code prompt (the
-  `/upcoming` feed stays open to everyone). Set it false to reopen anonymous search.
-  `REQUIRE_EMAIL_VERIFICATION=true` additionally refuses password *login* until
-  verified (default off). ⚠️ These added `users.email_verify_code_hash /
-  _expires_at / _attempts` columns — a deploy shipping them needs
-  **`make do-db-migrate` first** (the schema-change runbook).
+- **Email and the search gate**: `RESEND_API_KEY` / `EMAIL_FROM` (a verified sender
+  for your domain) go in the app secret; `REQUIRE_VERIFIED_EMAIL_TO_SEARCH` and
+  `REQUIRE_EMAIL_VERIFICATION` are described in [auth.md](auth.md#config). A deploy
+  that adds columns needs **`make do-db-migrate` first** ([deployment.md](deployment.md) §3).
 - **Postgres metrics**: DO Postgres is managed (no in-cluster instance), so a
   `prometheus-postgres-exporter` connects out to it and backs the Grafana
   PostgreSQL panels + `PostgresDown` / `PostgresTooManyConnections` alerts.
@@ -131,4 +118,3 @@ Rollback: `kubectl -n warsaw rollout undo deploy/api` or redeploy an older `IMAG
   `kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090` →
   Status → Targets → the `postgres` job is UP.
 - **Teardown** (stop the bill): `make do-infra-down` (destroys cluster, DB, droplet, VPC).
-```
