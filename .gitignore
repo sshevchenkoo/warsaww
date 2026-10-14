@@ -49,6 +49,14 @@ Thumbs.db
 .idea/
 .vscode/
 
+# AI-assistant working files — local tooling only, never commit
+.claude/
+.agents/
+.cursor/
+.aider*
+skills-lock.json
+CLAUDE.md
+
 # Obsidian notes (local only — may be a directory or a symlink)
 notes
 notes/
