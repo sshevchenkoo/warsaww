@@ -2,7 +2,7 @@
 // (proxied to the API in dev, same-origin in prod) and send the session cookie.
 
 import type { Card } from "./api";
-import { messageFromDetail, messageFromResponse, req } from "./http";
+import { messageFromDetail, messageFromResponse, req, softError } from "./http";
 
 export type User = {
   id: string;
@@ -171,7 +171,10 @@ export async function deleteAccount(currentPassword?: string): Promise<void> {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(currentPassword ? { current_password: currentPassword } : {}),
   });
-  if (!res.ok) throw new Error(await messageFromResponse(res, "Couldn't delete the account. Try again."));
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(messageFromDetail(data, "Couldn't delete the account. Try again."));
+  const soft = softError(data);
+  if (soft) throw new Error(soft);
 }
 
 // Mirror the API's limits (avatar_max_upload_bytes, the formats it re-encodes)
@@ -210,8 +213,8 @@ export function uploadAvatar(file: File, onProgress?: (percent: number) => void)
         resolve(xhr.response.avatar_url as string);
         return;
       }
-      // null when the error body isn't JSON
-      reject(new Error(messageFromDetail(xhr.response, "Upload failed. Try a smaller image.")));
+      // null when the error body isn't JSON; 200 {error} for an expected failure
+      reject(new Error(softError(xhr.response) ?? messageFromDetail(xhr.response, "Upload failed. Try a smaller image.")));
     };
     xhr.onerror = () => reject(new Error("Upload failed. Check your connection."));
     xhr.send(form);
@@ -221,5 +224,6 @@ export function uploadAvatar(file: File, onProgress?: (percent: number) => void)
 // Remove the uploaded avatar (the UI falls back to the initial placeholder).
 export async function deleteAvatar(): Promise<void> {
   const res = await req("/me/avatar", { method: "DELETE" });
-  if (!res.ok) throw new Error("Couldn't remove the photo. Try again.");
+  const data = await res.json().catch(() => null);
+  if (!res.ok || softError(data)) throw new Error("Couldn't remove the photo. Try again.");
 }
