@@ -2,7 +2,7 @@
 // (proxied to the API in dev, same-origin in prod) and send the session cookie.
 
 import type { Card } from "./api";
-import { messageFromDetail, messageFromResponse, req, softError } from "./http";
+import { messageFromDetail, messageFromResponse, req } from "./http";
 
 export type User = {
   id: string;
@@ -38,17 +38,10 @@ async function authJson(path: string, body: object, method = "POST"): Promise<un
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-  const data = await res.json().catch(() => null);
   if (!res.ok) {
-    throw new Error(messageFromDetail(data, "Something went wrong. Try again."));
+    throw new Error(await messageFromResponse(res, "Something went wrong. Try again."));
   }
-  // Expected auth failures come back as 200 { error: "..." } (so the browser
-  // doesn't log a 4xx to the console) — surface them the same way as before.
-  if (data && typeof data === "object" && "error" in data) {
-    const msg = (data as { error?: unknown }).error;
-    throw new Error(typeof msg === "string" && msg ? msg : "Something went wrong. Try again.");
-  }
-  return data;
+  return res.json();
 }
 
 function asUser(data: unknown): User {
@@ -171,10 +164,7 @@ export async function deleteAccount(currentPassword?: string): Promise<void> {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(currentPassword ? { current_password: currentPassword } : {}),
   });
-  const data = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(messageFromDetail(data, "Couldn't delete the account. Try again."));
-  const soft = softError(data);
-  if (soft) throw new Error(soft);
+  if (!res.ok) throw new Error(await messageFromResponse(res, "Couldn't delete the account. Try again."));
 }
 
 // Mirror the API's limits (avatar_max_upload_bytes, the formats it re-encodes)
@@ -213,8 +203,8 @@ export function uploadAvatar(file: File, onProgress?: (percent: number) => void)
         resolve(xhr.response.avatar_url as string);
         return;
       }
-      // null when the error body isn't JSON; 200 {error} for an expected failure
-      reject(new Error(softError(xhr.response) ?? messageFromDetail(xhr.response, "Upload failed. Try a smaller image.")));
+      // null when the error body isn't JSON
+      reject(new Error(messageFromDetail(xhr.response, "Upload failed. Try a smaller image.")));
     };
     xhr.onerror = () => reject(new Error("Upload failed. Check your connection."));
     xhr.send(form);
@@ -224,6 +214,5 @@ export function uploadAvatar(file: File, onProgress?: (percent: number) => void)
 // Remove the uploaded avatar (the UI falls back to the initial placeholder).
 export async function deleteAvatar(): Promise<void> {
   const res = await req("/me/avatar", { method: "DELETE" });
-  const data = await res.json().catch(() => null);
-  if (!res.ok || softError(data)) throw new Error("Couldn't remove the photo. Try again.");
+  if (!res.ok) throw new Error("Couldn't remove the photo. Try again.");
 }
