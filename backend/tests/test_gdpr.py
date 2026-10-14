@@ -1,15 +1,12 @@
 import json
 import uuid
-from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 from fastapi import HTTPException
-from pydantic import EmailStr
 
 from app.api.auth import DeleteMeRequest, delete_me, export_me
 from app.auth.passwords import hash_password
-from app.catalog.models import Friendship, SavedItem, SharedEvent, User
+from app.catalog.models import User
 
 
 class FakeSession:
