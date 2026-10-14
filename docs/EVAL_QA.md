@@ -513,7 +513,7 @@ security is off locally because ES is not exposed.
 
 ---
 
-## E. Minor modules not yet in the README table (2FA, GDPR, health/backups)
+## E. Reserve modules (2FA, GDPR) and #13 health/backups
 
 ### 51. 2FA: late email? Brute force?
 When 2FA is on, a correct password doesn't log you in. It sets `pending_2fa` in the session and
@@ -603,7 +603,7 @@ Pick one you lived through. Candidates from our docs:
 - A CSRF token and per-account lockout, not only SameSite + per-IP limits.
 - A password-reset flow.
 - Incremental embeddings.
-- Lock the 2FA/GDPR/status UIs earlier so they weren't last-minute.
+- Build the 2FA/GDPR/status UIs together with their backends, not last-minute.
 
 ### 60. What's unfinished / known limitations?
 These are stated in SECURITY.md §11:
@@ -615,5 +615,5 @@ These are stated in SECURITY.md §11:
 - full re-embedding on each run;
 - the cloud deployment is reference only. The graded stack is local Docker Compose.
 
-The minor modules (2FA, GDPR, health/backups) have their UI merged (#58–#60) but count only once
-they are added to the README module table.
+Health/backups is claimed as module #13. 2FA and GDPR are implemented but held in reserve
+(MODULES.md §2); they count only if one replaces a rejected module in the README table.

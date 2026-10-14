@@ -5,7 +5,6 @@ the pipeline stages are in that order, what each stage is allowed to fail at, an
 adding a fifth source.
 
 [ALGORITHMS.md](ALGORITHMS.md) §6–7 covers the dedup and taxonomy algorithms themselves.
-[ingestion-overview.md](ingestion-overview.md) is the one-page reference version of this document.
 
 ---
 
@@ -50,8 +49,9 @@ In the cluster each source is its own CronJob running the **same image** as the 
 | `fixtures` | never scheduled | Local demo data only. |
 
 The CronJobs run with `DB_BOOTSTRAP=false`, `concurrencyPolicy: Forbid`, `readOnlyRootFilesystem`,
-dropped capabilities and a non-root user. They get exactly three secrets: the database URL, the
-Voyage key, the Anthropic key — no ingress, no session secret.
+dropped capabilities and a non-root user. Each gets only the secrets it needs: the database URL,
+the Voyage key, the Anthropic key, plus its own source key (`APIFY_TOKEN` or
+`TICKETMASTER_API_KEY`) — no ingress, no session secret.
 
 ---
 

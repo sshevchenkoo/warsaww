@@ -25,10 +25,12 @@ flowchart TD
     end
     QU -->|"intent / re-rank"| CLAUDE["Claude API"]
     RET --> PG[("Postgres + pgvector")]
-    API --> REDIS[("Redis — cache")]
+    API --> REDIS[("Redis — quotas, rate limits")]
     subgraph ING["Ingestion service — one image, adapters"]
         A1["adapter: places"]
         A2["adapter: facebook_events"]
+        A3["adapter: ticketmaster"]
+        A4["adapter: fixtures"]
     end
     ING -->|"normalize → dedup → embed → upsert"| PG
     ING -->|"card embeddings"| EMB["Embedding model — Voyage"]
@@ -47,6 +49,7 @@ flowchart TD
 | Module | Responsibility |
 |---|---|
 | `api` | HTTP endpoints, SSE streaming, request validation |
+| `auth` | Google OAuth, passwords, email codes, the `current_user` dependency ([auth.md](auth.md)) |
 | `llm` | Claude calls: prompt → intent, candidate re-rank, card blurbs, embeddings |
 | `retrieval` | Hybrid search: SQL filters + pgvector vector search |
 | `catalog` | Data model, DB access |
@@ -65,20 +68,15 @@ One Docker image with a shared pipeline (`fetch → normalize → dedup → embe
 upsert`) and one adapter class per source. Run as k8s **CronJobs**: one CronJob
 per source, the same image, only the `--source` argument changes. A new source =
 a new adapter class (~50–100 lines) + a line in the registry + a CronJob
-manifest. See [ingestion-overview.md](ingestion-overview.md).
+manifest. See [INGESTION.md](INGESTION.md).
 
 ## Frontend
 
-Next.js + Tailwind. The browser POSTs the prompt and reads the SSE response,
-rising cards into a Booking-style grid as they are ranked. Design follows the
-**Pure** dating-app aesthetic: stark monochrome, heavy type, one accent color,
-photo-forward cards.
+Next.js + Tailwind; see [frontend.md](frontend.md).
 
-## Scaling and future work
+## Scaling
 
-The Core API is stateless — scale with replicas + HPA. Postgres scales
-vertically first, then read replicas. The real cost driver at scale is LLM
-calls; levers are the Redis cache, prompt caching, and the top-N size. A future
-account module (`auth` + `users` / `favorites` / `search_history` tables, JWT in
-an httpOnly cookie, Google OAuth) fits the same Postgres without schema churn;
-search without sign-in stays, with `user_id` optional.
+The Core API is stateless (signed-cookie sessions) — scale with replicas + HPA.
+Postgres scales vertically first, then read replicas. The real cost driver at
+scale is LLM calls; levers are the per-session daily search quota, prompt
+caching, and the top-N size ([ALGORITHMS.md](ALGORITHMS.md) §8).
