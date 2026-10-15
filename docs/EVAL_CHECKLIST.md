@@ -110,6 +110,9 @@ Search has a quota of 10 per user per day. If you run out while testing:
 - [ ] **#10 ELK** — `https://localhost:5601` (infra login). Create the index pattern
       `warsaw-logs-*` (time field `@timestamp`) if it is not there yet; **Discover** shows
       API log lines from the last few minutes, searchable by text
+  - [ ] Retention + archiving: Kibana → Stack Management → *Index Lifecycle Policies* shows
+        `warsaw-logs-policy` (delete after 30 days, waits for a snapshot) on the `warsaw-logs-*`
+        indices; `make stack-logs-archive` → a new snapshot appears under *Snapshot and Restore*
 - [ ] **#11 Prometheus + Grafana**
   - [ ] `https://localhost:9090/targets` — every target is **UP**
   - [ ] `https://localhost:3001` — dashboards *App overview*, *Host overview*,
@@ -123,7 +126,10 @@ Search has a quota of 10 per user per day. If you run out while testing:
         `$STACK exec api python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/ready').read())"`
   - [ ] `$STACK stop redis` → the same command fails with HTTP 503 and `"redis": false`,
         and `/status` shows it; `$STACK start redis` → back to ok
-  - [ ] Be ready to walk through `docs/DISASTER_RECOVERY.md` and `make do-db-backup`
+  - [ ] Automated backups: `$STACK logs db-backup` shows the nightly schedule; `ls deploy/local/backups`
+  - [ ] Backup → change → restore: `make stack-db-backup`, rename `user2` on its profile,
+        `make stack-db-restore FILE=deploy/local/backups/<newest>.dump` → the old name is back
+  - [ ] Be ready to walk through `docs/DISASTER_RECOVERY.md` (section *Local stack*)
 
 ## 4. Reserve modules (implemented, not claimed)
 

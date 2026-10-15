@@ -11,7 +11,26 @@ This document outlines the recovery procedures for different failure scenarios i
   and shares.
 - **RTO (Recovery Time Objective):** ~15-30 minutes for a full infrastructure recreation using automated scripts.
 
-## Scenarios
+## Local stack
+
+The evaluated stack (`deploy/local`) backs itself up: the `db-backup` service dumps the DB every
+night at 03:00 UTC into `deploy/local/backups/` (host directory, 7 days kept), and the log indices
+are snapshotted every night before retention may delete them.
+
+- **RPO:** up to 24 h (the last nightly dump); take one on demand with `make stack-db-backup`.
+- **RTO:** a few minutes.
+
+**Database lost or corrupted** (including a wiped `pgdata` volume):
+1. `make stack-up` — starts the stack; an empty DB gets the schema from `backend/db/init.sql`
+2. `ls -t deploy/local/backups/` — pick the newest dump
+3. `make stack-db-restore FILE=deploy/local/backups/<dump>` — stops the API, replaces the DB
+   with the dump, starts the API again
+4. Check `https://localhost/status` and log in as an existing user
+
+**Log indices lost:** Kibana → Stack Management → *Snapshot and Restore* → pick a
+`warsaw-logs-*` snapshot → *Restore*.
+
+## Scenarios (cloud)
 
 ### (a) Database Loss
 If the managed PostgreSQL database is corrupted or lost:
