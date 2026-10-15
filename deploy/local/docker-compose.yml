@@ -31,6 +31,37 @@ services:
       timeout: 3s
       retries: 10
 
+  # Automated backups: crond dumps the DB every night at 03:00 UTC into
+  # deploy/local/backups/ on the host (outside every Docker volume, so a dump
+  # survives `down -v`) and prunes dumps older than BACKUP_KEEP_DAYS.
+  # On demand: `make stack-db-backup`; restore: `make stack-db-restore FILE=…`.
+  db-backup:
+    image: postgres:16-alpine   # pg_dump must match the server's major (16)
+    environment:
+      PGHOST: db
+      PGUSER: app
+      PGPASSWORD: app
+      PGDATABASE: events
+      BACKUP_KEEP_DAYS: "7"
+      # Cron expression (UTC). To watch it fire: BACKUP_SCHEDULE='* * * * *' make stack-up
+      BACKUP_SCHEDULE: ${BACKUP_SCHEDULE:-0 3 * * *}
+    volumes:
+      - ./backups:/backups
+      - ./config/db-backup/backup.sh:/usr/local/bin/backup.sh:ro
+    # crond runs jobs with an empty environment, so save PG*/BACKUP_* for the
+    # script first; job output goes to crond's stdout (`docker compose logs`).
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        export -p | grep -E ' (PG|BACKUP_)' > /etc/backup.env
+        echo "$$BACKUP_SCHEDULE sh /usr/local/bin/backup.sh > /proc/1/fd/1 2>&1" > /etc/crontabs/root
+        echo "db-backup: schedule '$$BACKUP_SCHEDULE' (UTC), keeping $$BACKUP_KEEP_DAYS days"
+        exec crond -f -d 8
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
     # No host port: internal only (used by api for quotas / rate limits).
@@ -190,14 +221,35 @@ services:
       - xpack.security.enabled=false
       # Lighter heap than the cloud droplet (2g) — enough for a local demo.
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      # Snapshot repository for the log archive (see elk-setup).
+      - path.repo=/usr/share/elasticsearch/snapshots
     volumes:
       - es-data:/usr/share/elasticsearch/data
+      - es-snapshots:/usr/share/elasticsearch/snapshots
     # Internal only: Kibana/Logstash reach elasticsearch:9200 over the docker net.
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
       interval: 20s
       timeout: 10s
       retries: 15
+
+  # One-shot: log retention + archiving for warsaw-logs-* (ILM deletes an index
+  # after 30 days, only once the nightly SLM snapshot has archived it). Mirrors
+  # the cloud ILM policy; re-applied on every `make stack-up`, then exits.
+  elk-setup:
+    image: curlimages/curl:8.10.1
+    user: root                  # chowns the snapshot volume for Elasticsearch
+    environment:
+      LOG_RETENTION_DAYS: "30"
+      LOG_ARCHIVE_DAYS: "365"
+    volumes:
+      - ./config/elasticsearch/setup.sh:/setup.sh:ro
+      - es-snapshots:/usr/share/elasticsearch/snapshots
+    entrypoint: ["sh", "/setup.sh"]
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: "no"
 
   logstash:
     image: docker.elastic.co/logstash/logstash:7.17.21
@@ -297,3 +349,4 @@ volumes:
   grafana-data:
   tempo-data:
   es-data:
+  es-snapshots:
