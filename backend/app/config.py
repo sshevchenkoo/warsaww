@@ -80,6 +80,10 @@ class Settings(BaseSettings):
     avatar_size_px: int = 256                        # output is avatar_size_px square
     avatar_jpeg_quality: int = 82
     avatar_max_stored_bytes: int = 512 * 1024        # DB CHECK ceiling (~15-25KB typical)
+    # Attachments (tickets, photos) on events/places. Stored as uploaded, so the
+    # upload cap is also the stored size; keep in sync with ck_user_files_size.
+    files_max_upload_bytes: int = 5 * 1024 * 1024
+    files_max_per_user: int = 20
     # Max cosine distance (voyage-3.5) for a card to count as a match. Candidates
     # farther than this are dropped, so an off-base query returns empty fast
     # instead of re-ranking junk. Relevant hits measure ~0.4–0.56, clearly

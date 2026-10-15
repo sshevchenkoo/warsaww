@@ -13,6 +13,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.auth import router as auth_router
 from app.api.avatars import router as avatars_router
+from app.api.files import router as files_router
 from app.api.routes import router
 from app.api.saved import router as saved_router
 from app.api.social import router as social_router
@@ -201,6 +202,11 @@ def _ensure_rls(eng=engine) -> None:
         f"CREATE POLICY p_saved_insert ON saved_items FOR INSERT WITH CHECK (user_id = {me})",
         "DROP POLICY IF EXISTS p_saved_delete ON saved_items",
         f"CREATE POLICY p_saved_delete ON saved_items FOR DELETE USING (user_id = {me})",
+        # user_files: private to the uploader for every operation.
+        "ALTER TABLE user_files ENABLE ROW LEVEL SECURITY",
+        "DROP POLICY IF EXISTS p_user_files ON user_files",
+        f"CREATE POLICY p_user_files ON user_files "
+        f"USING (user_id = {me}) WITH CHECK (user_id = {me})",
     ]
     with eng.begin() as conn:
         for stmt in stmts:
@@ -290,6 +296,7 @@ app.include_router(auth_router)
 app.include_router(saved_router)
 app.include_router(social_router)
 app.include_router(avatars_router)
+app.include_router(files_router)
 
 # Prometheus /metrics (always) + OpenTelemetry traces (when OTEL endpoint set).
 setup_observability(app)

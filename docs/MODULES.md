@@ -27,7 +27,7 @@ this file is the working inventory behind it, with the risks attached.
 | 6 | OAuth 2.0 remote authentication | User Management | Minor | 1 | Google OIDC via authlib, `backend/app/auth/oauth.py` |
 | 7 | Complete RAG system | AI | Major | 2 | Voyage embeddings + pgvector/pg_trgm hybrid retrieval → grounded blurbs, `backend/app/retrieval/` |
 | 8 | Complete LLM system interface | AI | Major | 2 | Intent + re-rank, SSE streaming, error handling, daily quota, `backend/app/llm/` |
-| 9 | File upload and management | User Management | Minor | 1 | Avatar upload: client + server validation, decompression-bomb guard, upload progress, `DELETE /me/avatar` |
+| 9 | File upload and management | Web | Minor | 1 | PDF + image attachments on saved items (`/me/files`) and the avatar: client + server validation (type sniffed from bytes), owner-only access + RLS, thumbnail/PDF preview, upload progress, delete |
 | 10 | ELK log management | DevOps | Major | 2 | Elasticsearch + Logstash + Kibana, Fluent Bit shipping, ILM retention + SLM snapshot archive, basic auth — demonstrated via `deploy/local/` |
 | 11 | Prometheus + Grafana monitoring | DevOps | Major | 2 | Prometheus + Grafana + Alertmanager, 3 exporters, dashboards, alert rules, password-protected — demonstrated via `deploy/local/` |
 | 12 | Custom module: multi-source ingestion pipeline | Module of choice | Major | 2 | `backend/app/ingestion/` ([INGESTION.md](INGESTION.md)); justification in the README |

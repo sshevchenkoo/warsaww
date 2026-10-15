@@ -162,6 +162,7 @@ Events and places share one table, `items`, with a `kind` column. Everything a u
 | `friendships` | Friend requests, directed until accepted | `id uuid` PK; `requester_id/addressee_id` FKs → users; `status text` ∈ pending/accepted |
 | `shared_events` | A card sent from one user to another | `id uuid` PK; `from_user_id/to_user_id` FKs → users; `item_id` FK → items; `message text` |
 | `user_avatars` | Uploaded avatar bytes, at most one per user | `user_id uuid` PK/FK → users; `data bytea`; `content_type text`; `updated_at timestamptz` |
+| `user_files` | Attachments (PDF tickets, photos) a user pinned to an item | `id uuid` PK; `user_id` FK → users; `item_id` FK → items; `filename text`; `content_type text` (PDF/image, CHECK); `size integer`; `data bytea` (≤ 5 MB, CHECK) |
 | `intent_logs` | Every parsed prompt and its intent (analytics) | `id uuid` PK; `user_prompt text`; `intent jsonb`; `model text`; `latency_ms integer` |
 
 ## Features list
@@ -178,6 +179,7 @@ Events and places share one table, `items`, with a `kind` column. Everything a u
 | Profile | Stats, inline edit of name and email (email change confirmed by code), avatar upload with progress and delete | tbogus, yhruda, dstefans |
 | Friends and sharing | Friend requests, online status, public profiles, sharing a card, a "shared with you" inbox | dstefans, yhruda, tbogus |
 | Saved items | Save a card with the heart; friends see each other's saved lists | yhruda, dstefans |
+| Attachments | Attach a PDF ticket or photo to a saved event/place: upload with progress, thumbnail/PDF preview, delete; files stay private to the owner | tbogus |
 | Design system | Palette and type tokens, reusable components, shared SVG icons and spinners | dstefans, tbogus |
 | Privacy and terms | Privacy Policy and Terms of Service pages linked from the footer | dstefans |
 | HTTPS everywhere | The site and all infra UIs served over HTTPS by nginx; no app/API/Grafana host ports | yashevch |
@@ -202,7 +204,7 @@ so **19 count**, and #13 is a reserve in case another module is not validated.
 | 6 | OAuth 2.0 remote authentication | Minor | 1 | yhruda, tbogus | Google OIDC via Authlib, `backend/app/auth/oauth.py` | Sign-in without yet another password |
 | 7 | Complete RAG system | Major | 2 | tbogus, yhruda | Voyage embeddings + pgvector/pg_trgm hybrid retrieval; blurbs only describe retrieved cards — `backend/app/retrieval/` | Answers must be grounded in real catalog entries with real dates and places |
 | 8 | Complete LLM system interface | Major | 2 | tbogus, yhruda | Haiku intent extraction and Sonnet re-rank streamed over SSE, with error handling and a daily quota — `backend/app/llm/` | Free-form multilingual requests need intent extraction and readable explanations |
-| 9 | File upload and management | Minor | 1 | yhruda, tbogus | Avatar upload with type and size checks on both sides, progress and delete — `backend/app/api/avatars.py` | Users replace and remove profile pictures with validated, bounded content |
+| 9 | File upload and management | Minor | 1 | yhruda, tbogus | PDF/image attachments on saved items **and** avatars: type (sniffed from bytes) and size checked both sides, owner-only via RLS, thumbnail/PDF preview, progress, delete — `backend/app/api/files.py`, `avatars.py`, `frontend/src/components/ItemFiles.tsx` | Users attach tickets/photos to saved items and manage an avatar, with validated, bounded files |
 | 10 | ELK log management | Major | 2 | yashevch | Elasticsearch + Logstash + Kibana, Fluent Bit shipping, retention (ILM) + archiving (snapshots) — `deploy/local/` (cloud: `deploy/cloud/`) | Searchable logs make API and ingestion failures diagnosable across containers |
 | 11 | Prometheus + Grafana monitoring | Major | 2 | yashevch | Prometheus, Grafana, Alertmanager, exporters, dashboards, alert rules — `deploy/local/` (cloud: `deploy/cloud/platform/`) | Metrics and alerts show service health, resource pressure and database problems |
 | 12 | Module of choice: multi-source ingestion pipeline | Major | 2 | tbogus, yhruda | `backend/app/ingestion/` ([INGESTION.md](docs/INGESTION.md)) | See below |

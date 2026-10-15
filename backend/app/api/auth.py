@@ -32,7 +32,7 @@ from app.auth.email import (
 from app.auth.oauth import oauth
 from app.auth.passwords import MAX_PASSWORD_BYTES, hash_password, verify_password
 from app.catalog.db import get_session
-from app.catalog.models import User, SavedItem, Friendship, SharedEvent
+from app.catalog.models import User, SavedItem, Friendship, SharedEvent, UserFile
 from app.config import settings
 from app.ratelimit import check_auth_rate
 
@@ -404,6 +404,17 @@ def export_me(
         "created_at": r.created_at.isoformat()
     } for r in shared_rows]
     
+    # Attachments: what was uploaded and where, not the bytes (those are one
+    # click away in the profile, and would bloat the JSON by megabytes).
+    file_rows = session.query(UserFile).filter(UserFile.user_id == user.id).all()
+    payload["files"] = [{
+        "item_id": str(r.item_id),
+        "filename": r.filename,
+        "content_type": r.content_type,
+        "size": r.size,
+        "created_at": r.created_at.isoformat()
+    } for r in file_rows]
+
     return Response(
         content=json.dumps(payload, indent=2),
         media_type="application/json",

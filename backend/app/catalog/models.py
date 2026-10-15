@@ -268,6 +268,45 @@ class UserAvatar(Base):
     )
 
 
+class UserFile(Base):
+    """A file a user attached to an event or place — a PDF ticket, a photo of a
+    paper one, a flyer. Private to its owner: only GET /me/files/{id} serves the
+    bytes, and only to the uploader. The type is sniffed from the bytes at upload
+    (never taken from the client), and CHECKs bound both the type and the size as
+    a DB-level backstop. Kept apart from saved_items so un-hearting a card never
+    deletes a ticket."""
+
+    __tablename__ = "user_files"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    item_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("items.id", ondelete="CASCADE"), index=True
+    )
+    filename: Mapped[str] = mapped_column(Text)
+    content_type: Mapped[str] = mapped_column(Text)
+    size: Mapped[int] = mapped_column(Integer)
+    # deferred: listing files must not pull megabytes of blobs along.
+    data: Mapped[bytes] = mapped_column(LargeBinary, deferred=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+
+    __table_args__ = (
+        # Keep in sync with settings.files_max_upload_bytes and files.FILE_TYPES.
+        CheckConstraint("octet_length(data) <= 5242880", name="ck_user_files_size"),
+        CheckConstraint(
+            "content_type IN ('application/pdf', 'image/png', 'image/jpeg', "
+            "'image/webp', 'image/gif')",
+            name="ck_user_files_type",
+        ),
+    )
+
+
 class IntentLog(Base):
     """Log of prompt parses: future fine-tuning dataset for a local model."""
 

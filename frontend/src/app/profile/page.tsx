@@ -9,12 +9,14 @@ import { CardSkeleton } from "@/components/CardSkeleton";
 import { EmptyState } from "@/components/EmptyState";
 import { EventCard } from "@/components/EventCard";
 import { Icon, Spinner } from "@/components/Icon";
+import { FileRow, ItemFiles } from "@/components/ItemFiles";
 import { ProfileEditForm } from "@/components/ProfileEditForm";
 import { SectionHeading } from "@/components/SectionHeading";
 import { useUser } from "@/components/UserContext";
 import { VerifyPanel } from "@/components/VerifyPanel";
 import type { Card } from "@/lib/api";
 import { AVATAR_TYPES, deleteAvatar, getSaved, uploadAvatar } from "@/lib/auth";
+import { listFiles, type UserFile } from "@/lib/files";
 import {
   dismissShared,
   isAbortError,
@@ -48,6 +50,7 @@ function ProfileSession() {
   const [cards, setCards] = useState<Card[]>([]);
   const [shared, setShared] = useState<SharedEvent[]>([]);
   const [friends, setFriends] = useState<PublicUser[]>([]);
+  const [files, setFiles] = useState<UserFile[]>([]);
   const [busy, setBusy] = useState(true);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
@@ -94,7 +97,7 @@ function ProfileSession() {
 
   useEffect(() => {
     if (!user) return; // logged-out renders the sign-in prompt; busy is unused there
-    // One controller for all three lists. Logout or a switch to another account
+    // One controller for all four lists. Logout or a switch to another account
     // aborts them, so a late response cannot paint the previous user's data.
     const ctrl = new AbortController();
     getSaved(ctrl.signal)
@@ -121,6 +124,13 @@ function ProfileSession() {
       .catch((err) => {
         if (!isAbortError(err)) setFriends([]);
       });
+    listFiles(ctrl.signal)
+      .then((rows) => {
+        if (!ctrl.signal.aborted) setFiles(rows);
+      })
+      .catch((err) => {
+        if (!isAbortError(err)) setFiles([]);
+      });
     return () => ctrl.abort();
   }, [user]);
 
@@ -129,10 +139,17 @@ function ProfileSession() {
     dismissShared(shareId).catch(() => {});
   }
 
+  const addFile = (f: UserFile) => setFiles((prev) => [f, ...prev]);
+  const removeFile = (id: string) => setFiles((prev) => prev.filter((f) => f.id !== id));
+
   if (!user) return null;
 
   // Reflect un-hearting live: only show cards still in savedIds.
   const visible = cards.filter((c) => savedIds.has(c.id));
+  // Un-hearting a card keeps its files; they move to their own list below
+  // instead of disappearing with the card.
+  const visibleIds = new Set(visible.map((c) => c.id));
+  const otherFiles = files.filter((f) => !visibleIds.has(f.item_id));
   const displayName = user.name ?? user.email?.split("@")[0] ?? "you";
 
   return (
@@ -352,11 +369,32 @@ function ProfileSession() {
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
             {visible.map((card, i) => (
-              <EventCard key={card.id} card={card} index={i} />
+              <div key={card.id}>
+                <EventCard card={card} index={i} />
+                <ItemFiles
+                  itemId={card.id}
+                  itemName={card.name}
+                  files={files.filter((f) => f.item_id === card.id)}
+                  total={files.length}
+                  onAdded={addFile}
+                  onRemoved={removeFile}
+                />
+              </div>
             ))}
           </div>
         )}
       </section>
+
+      {!busy && otherFiles.length > 0 && (
+        <section className="mt-10">
+          <SectionHeading label="files on unsaved items" count={otherFiles.length} />
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {otherFiles.map((f) => (
+              <FileRow key={f.id} file={f} showItem onRemoved={removeFile} />
+            ))}
+          </div>
+        </section>
+      )}
     </main>
   );
 }

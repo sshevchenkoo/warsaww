@@ -80,10 +80,13 @@ Search has a quota of 10 per user per day. If you run out while testing:
   - [ ] Public profile `/u/<id>` shows the user and their saved items
 - [ ] **#6 OAuth** — "Sign in with Google" ends logged in, back on `https://localhost`
       (a `redirect_uri_mismatch` page means the callback URI from section 0 is missing)
-- [ ] **#9 File upload** — avatar:
-  - [ ] Upload a JPEG/PNG: the progress bar moves, the new avatar appears
-  - [ ] A file over 5 MB and a non-image file are both rejected with a message
-  - [ ] "Remove photo" brings back the default avatar
+- [ ] **#9 File upload** — attachments (several types) and the avatar:
+  - [ ] Profile → under a saved card, "attach ticket / photo": a PDF and a JPEG/PNG both
+        upload with a percentage, and appear as a document icon and a thumbnail
+  - [ ] Clicking each opens it in a new tab (the PDF in the browser's viewer)
+  - [ ] A `.txt` and a file over 5 MB are refused with a message, with no request in DevTools
+  - [ ] The ✕ deletes a file; as `user2`, `https://localhost/me/files/<user1's file id>` is a 404
+  - [ ] Avatar: upload a JPEG/PNG, the progress bar moves; "Remove photo" brings back the default
 
 ### AI
 
