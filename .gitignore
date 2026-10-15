@@ -13,6 +13,8 @@ deploy/local/secrets.env
 deploy/local/certs/
 # DB dumps from `make do-db-backup` (prod user data: emails, password hashes)
 *.dump
+# local DB dumps from the db-backup service / `make stack-db-backup`
+deploy/local/backups/
 
 # Terraform
 *.tfvars

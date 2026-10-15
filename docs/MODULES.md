@@ -28,10 +28,10 @@ this file is the working inventory behind it, with the risks attached.
 | 7 | Complete RAG system | AI | Major | 2 | Voyage embeddings + pgvector/pg_trgm hybrid retrieval → grounded blurbs, `backend/app/retrieval/` |
 | 8 | Complete LLM system interface | AI | Major | 2 | Intent + re-rank, SSE streaming, error handling, daily quota, `backend/app/llm/` |
 | 9 | File upload and management | User Management | Minor | 1 | Avatar upload: client + server validation, decompression-bomb guard, upload progress, `DELETE /me/avatar` |
-| 10 | ELK log management | DevOps | Major | 2 | Elasticsearch + Logstash + Kibana, Fluent Bit shipping, ILM retention, basic auth — demonstrated via `deploy/local/` |
+| 10 | ELK log management | DevOps | Major | 2 | Elasticsearch + Logstash + Kibana, Fluent Bit shipping, ILM retention + SLM snapshot archive, basic auth — demonstrated via `deploy/local/` |
 | 11 | Prometheus + Grafana monitoring | DevOps | Major | 2 | Prometheus + Grafana + Alertmanager, 3 exporters, dashboards, alert rules, password-protected — demonstrated via `deploy/local/` |
 | 12 | Custom module: multi-source ingestion pipeline | Module of choice | Major | 2 | `backend/app/ingestion/` ([INGESTION.md](INGESTION.md)); justification in the README |
-| 13 | Health check & status page + backups/DR | DevOps | Minor | 1 | `/status` page over `/health` + `/ready`; `make do-db-backup` / `do-db-restore`; [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md) |
+| 13 | Health check & status page + backups/DR | DevOps | Minor | 1 | `/status` page over `/health` + `/ready`; nightly automated `pg_dump` (`db-backup` service) + `make stack-db-backup` / `stack-db-restore`; [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md) |
 | | **Total** | | | **20** | |
 
 **7 Major × 2 + 6 Minor × 1 = 20 points.** The cap is 14 + 5 = 19, so one point is surplus:

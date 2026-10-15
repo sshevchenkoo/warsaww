@@ -495,9 +495,13 @@ tens of thousands of cards. Say this honestly.
 **Security:** Elasticsearch is not published at all (internal network only). Kibana is reachable
 only through nginx with HTTPS + basic auth.
 
-**Retention:** in the cloud an ILM policy deletes indices after **30 days**
-(`elk_retention_days`). Locally there's no ILM; daily indices make deletion trivial. ES `xpack`
-security is off locally because ES is not exposed.
+**Retention and archiving:** the one-shot `elk-setup` container applies them on every `make stack-up`
+(`deploy/local/config/elasticsearch/setup.sh`). An SLM policy snapshots `warsaw-logs-*` every night
+into an fs repository (archive, kept 365 days); an ILM policy deletes a daily index after **30 days**,
+but only after a snapshot ran (`wait_for_snapshot`), so no log is deleted before it is archived.
+**Show:** Kibana → Stack Management → *Index Lifecycle Policies* / *Snapshot and Restore*;
+`make stack-logs-archive` takes a snapshot on the spot. The cloud has the same 30-day ILM
+(`elk_retention_days`). ES `xpack` security is off locally because ES is not exposed.
 
 #### 50. ★ Targets, dashboard, live alert. Pull or push? Which metrics?
 - **Pull:** Prometheus scrapes `api:8000/metrics`, postgres-exporter, node-exporter,
@@ -543,8 +547,11 @@ It contains ids only, nothing else about other users.
   `{"db":…, "redis":…}` if either is down.
 - **Status page** (`/status`): shows both, linked from the footer.
 
-**Backups:** in the cloud, DigitalOcean managed Postgres keeps daily backups + 7-day point-in-time
-recovery. `make do-db-backup` / `do-db-restore` does manual dumps.
+**Backups:** automated locally — the `db-backup` service (crond) runs `pg_dump` every night at
+03:00 UTC into `deploy/local/backups/` (a host directory, so it survives `down -v`) and keeps
+7 days. `make stack-db-backup` / `make stack-db-restore FILE=…` do it on demand.
+**Show:** backup → rename a user → restore → the old name is back. In the cloud, DigitalOcean
+managed Postgres keeps daily backups + 7-day point-in-time recovery.
 
 **Recovery targets:** RPO is minutes within 7 days; RTO is ~15–30 min to rebuild everything
 (DISASTER_RECOVERY.md). The catalog can be re-ingested; what really needs backing up is user data.

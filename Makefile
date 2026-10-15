@@ -1,7 +1,7 @@
 .PHONY: help keys \
         dev app-up app-down app-logs app-seed web web-bg web-logs \
         stack-up stack-init stack-seed seed-fixtures seed-users stack-down stack-logs infra-auth local-tls require-keys _seed-if-empty \
-        scheduler-up scheduler-down \
+        scheduler-up scheduler-down stack-db-backup stack-db-restore stack-logs-archive \
         do-infra-up do-infra-down do-kubeconfig do-db-init \
         do-images do-platform do-deploy do-elk
 
@@ -156,6 +156,7 @@ stack-up:              ## Start everything; first run also loads demo data + tes
 	fi
 	@[ -f deploy/local/certs/localhost.crt ] || $(MAKE) local-tls
 	@echo "$(GREEN)Building + starting the full local stack (this pulls several images)...$(NC)"
+	@mkdir -p deploy/local/backups   # created by us, not by Docker as root
 	$(STACK) up -d --build --remove-orphans
 	@$(MAKE) --no-print-directory _seed-if-empty
 	@echo "$(GREEN)Up:$(NC) site https://localhost  (HTTPS; API is proxied internally, no host port)"
@@ -242,6 +243,26 @@ stack-logs:            ## Follow all stack logs
 stack-down:            ## Stop the full stack (named volumes are kept)
 	$(STACK) down --remove-orphans
 	@echo "$(GREEN)Full stack stopped (data kept in named volumes)$(NC)"
+
+# Backups of the local DB. The db-backup service also runs this every night at
+# 03:00 UTC; dumps land in deploy/local/backups/ (gitignored, 7 days kept).
+stack-db-backup:       ## Dump the local DB now → deploy/local/backups/
+	@$(STACK) exec -T db-backup sh /usr/local/bin/backup.sh
+
+# Restore replaces the whole `events` DB with the dump. The API is stopped for
+# the duration so no request writes into a half-restored schema.
+stack-db-restore:      ## Restore the local DB: make stack-db-restore FILE=deploy/local/backups/<dump>
+	@[ -n "$(FILE)" ] && [ -f "$(FILE)" ] || { echo "$(RED)usage:$(NC) make stack-db-restore FILE=deploy/local/backups/<dump>"; ls -1t deploy/local/backups/*.dump 2>/dev/null | head -5; exit 1; }
+	@[ "$(abspath $(dir $(FILE)))" = "$(ROOT_DIR)/deploy/local/backups" ] || { echo "$(RED)FILE must be in deploy/local/backups/$(NC) (the only directory the db-backup container sees)"; exit 1; }
+	$(STACK) stop api
+	@$(STACK) exec -T db-backup sh -c 'pg_restore --clean --if-exists --exit-on-error -d "$$PGDATABASE" /backups/$(notdir $(FILE))'; \
+	 rc=$$?; $(STACK) start api; \
+	 if [ $$rc -eq 0 ]; then echo "$(GREEN)Restored from $(FILE)$(NC)"; else echo "$(RED)Restore failed (exit $$rc)$(NC)"; exit $$rc; fi
+
+# Log archive: snapshot warsaw-logs-* now instead of waiting for the nightly run
+# (01:30 UTC). Retention (ILM) only deletes an index once a snapshot holds it.
+stack-logs-archive:    ## Snapshot the log indices now (Kibana → Stack Management → Snapshot and Restore)
+	@$(STACK) exec -T elasticsearch curl -sSf -X POST localhost:9200/_slm/policy/warsaw-logs-nightly/_execute; echo
 
 # Periodic ingestion (ofelia) — the local mirror of the cloud k8s CronJobs.
 # Runs places (Mon 04:00), facebook_events (6h), ticketmaster (12h) via docker exec
